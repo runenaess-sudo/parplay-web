@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "@/src/lib/supabase";
+import { supabaseBrowser as supabase } from "@/src/lib/supabase-browser";
 import { MenuItem } from "./MenuItem";
 
 type AccessInfo = {
