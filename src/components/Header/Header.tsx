@@ -36,7 +36,7 @@ export function Header() {
     const canCreateCourse = access?.limits?.can_create_course === true;
 
     return (
-        <header className="w-full h-16 border-b border-gray-200 flex items-center px-6 justify-between bg-white">
+        <header className="w-full h-16 flex items-center px-6 justify-between bg-black text-white border-b border-gray-800">
             {/* Logo */}
             <Link href="/" className="text-xl font-semibold">
                 ParPlay
