@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* ------------------------------
+   PARPLAY GLOBAL COLOR SYSTEM
+------------------------------ */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -23,4 +27,29 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ------------------------------
+   PARPLAY PREMIUM HEADER THEME
+   (UDisc-style, global, clean)
+------------------------------ */
+
+.parplay-header {
+  @apply bg-black text-white h-16 flex items-center justify-between px-6;
+}
+
+.parplay-header a {
+  @apply text-white;
+}
+
+.parplay-header .menu {
+  @apply flex gap-8 text-sm font-medium;
+}
+
+.parplay-header .dropdown {
+  @apply absolute hidden group-hover:flex flex-col bg-black text-white border border-gray-700 rounded-md shadow-lg mt-2 w-40;
+}
+
+.parplay-header .dropdown-item {
+  @apply px-4 py-2 hover:bg-gray-800;
 }

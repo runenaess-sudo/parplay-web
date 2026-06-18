@@ -36,14 +36,14 @@ export function Header() {
     const canCreateCourse = access?.limits?.can_create_course === true;
 
     return (
-        <header className="w-full h-16 flex items-center px-6 justify-between bg-black text-white border-b border-gray-800">
+        <header className="parplay-header">
             {/* Logo */}
             <Link href="/" className="text-xl font-semibold">
                 ParPlay
             </Link>
 
             {/* Main Menu */}
-            <nav className="flex gap-8 text-sm font-medium">
+            <nav className="menu">
                 <MenuItem href="/community" active={pathname.startsWith("/community")}>
                     Community
                 </MenuItem>
@@ -53,17 +53,13 @@ export function Header() {
                         Courses
                     </MenuItem>
 
-                    {/* Dropdown */}
-                    <div className="absolute hidden group-hover:flex flex-col bg-white shadow-lg border rounded-md mt-2 w-40">
-                        <Link href="/courses" className="px-4 py-2 hover:bg-gray-100">
+                    <div className="dropdown">
+                        <Link href="/courses" className="dropdown-item">
                             View Courses
                         </Link>
 
                         {canCreateCourse && (
-                            <Link
-                                href="/courses/create"
-                                className="px-4 py-2 hover:bg-gray-100"
-                            >
+                            <Link href="/courses/create" className="dropdown-item">
                                 Create Course
                             </Link>
                         )}
@@ -83,13 +79,13 @@ export function Header() {
                             My Profile
                         </MenuItem>
 
-                        <div className="absolute hidden group-hover:flex flex-col bg-white shadow-lg border rounded-md mt-2 w-40">
-                            <Link href="/profile" className="px-4 py-2 hover:bg-gray-100">
+                        <div className="dropdown">
+                            <Link href="/profile" className="dropdown-item">
                                 Profile
                             </Link>
 
                             <button
-                                className="px-4 py-2 text-left hover:bg-gray-100"
+                                className="dropdown-item text-left"
                                 onClick={() => supabase.auth.signOut()}
                             >
                                 Logout
