@@ -54,7 +54,7 @@ export default async function CoursesPage() {
                     <Link
                         key={course.id}
                         href={`/courses/${course.id}`}
-                        className="group block rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 bg-white"
+                        className="group block rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300"
                     >
                         {/* IMAGE */}
                         <div className="relative h-56 w-full">
@@ -84,16 +84,16 @@ export default async function CoursesPage() {
                                 ⭐ {course.rating}
                             </div>
 
-                            {/* TITLE + LOCATION ON IMAGE */}
+                            {/* TITLE + LOCATION */}
                             <div className="absolute bottom-3 left-3 text-white drop-shadow">
                                 <div className="text-lg font-bold">{course.name}</div>
                                 <div className="text-sm opacity-80">{course.location}</div>
                             </div>
                         </div>
 
-                        {/* INFO SECTION */}
-                        <div className="p-4">
-                            <div className="flex gap-6 text-sm text-gray-700">
+                        {/* TRANSPARENT INFO BOX */}
+                        <div className="p-4 bg-neutral-900/70 text-white backdrop-blur-sm">
+                            <div className="flex gap-6 text-sm">
                                 <span className="flex items-center gap-1">
                                     🕳 {course.holes}
                                 </span>
@@ -102,8 +102,7 @@ export default async function CoursesPage() {
                                 </span>
                             </div>
 
-                            {/* CTA */}
-                            <div className="mt-4 text-blue-600 font-semibold group-hover:underline">
+                            <div className="mt-4 text-blue-300 font-semibold group-hover:underline">
                                 View course →
                             </div>
                         </div>
