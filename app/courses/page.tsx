@@ -54,44 +54,52 @@ export default async function CoursesPage() {
                     <Link
                         key={course.id}
                         href={`/courses/${course.id}`}
-                        className="group block rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition"
+                        className="group block rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 bg-white"
                     >
-                        {/* Bilde */}
-                        <div className="relative h-48 w-full">
+                        {/* IMAGE */}
+                        <div className="relative h-56 w-full">
                             {course.image && (
                                 <Image
                                     src={course.image}
                                     alt={course.name}
                                     fill
-                                    className="object-cover group-hover:scale-105 transition duration-300"
+                                    sizes="100vw"
+                                    className="object-cover group-hover:scale-105 transition duration-500"
                                 />
                             )}
 
-                            {/* Overlay */}
-                            <div className="absolute inset-0 bg-linear-to-t from-black/70 to-transparent" />
+                            {/* DARK OVERLAY */}
+                            <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition" />
 
-                            {/* Layout badge */}
+                            {/* LAYOUT BADGE */}
                             <div
-                                className="absolute top-3 left-3 px-3 py-1 rounded-full text-white text-xs font-semibold"
+                                className="absolute top-3 left-3 px-3 py-1 rounded-full text-white text-xs font-semibold shadow"
                                 style={{ backgroundColor: course.color }}
                             >
                                 {course.layoutName}
                             </div>
 
-                            {/* Rating badge */}
-                            <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-white/90 text-black text-xs font-semibold">
+                            {/* RATING BADGE */}
+                            <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-white/90 text-black text-xs font-semibold shadow">
                                 ⭐ {course.rating}
+                            </div>
+
+                            {/* TITLE ON IMAGE */}
+                            <div className="absolute bottom-3 left-3 text-white">
+                                <div className="text-lg font-bold drop-shadow">{course.name}</div>
+                                <div className="text-sm opacity-80">{course.location}</div>
                             </div>
                         </div>
 
-                        {/* Info */}
-                        <div className="p-4 bg-white">
-                            <div className="text-lg font-semibold">{course.name}</div>
-                            <div className="text-sm text-gray-600">{course.location}</div>
-
-                            <div className="mt-3 flex gap-4 text-sm text-gray-700">
-                                <span>🕳 {course.holes} holes</span>
-                                <span>⛳ Par {course.par}</span>
+                        {/* INFO SECTION */}
+                        <div className="p-4">
+                            <div className="flex gap-6 text-sm text-gray-700">
+                                <span className="flex items-center gap-1">
+                                    🕳 {course.holes}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    ⛳ Par {course.par}
+                                </span>
                             </div>
 
                             {/* CTA */}
