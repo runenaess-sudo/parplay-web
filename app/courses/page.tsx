@@ -84,9 +84,9 @@ export default async function CoursesPage() {
                                 ⭐ {course.rating}
                             </div>
 
-                            {/* TITLE ON IMAGE */}
-                            <div className="absolute bottom-3 left-3 text-white">
-                                <div className="text-lg font-bold drop-shadow">{course.name}</div>
+                            {/* TITLE + LOCATION ON IMAGE */}
+                            <div className="absolute bottom-3 left-3 text-white drop-shadow">
+                                <div className="text-lg font-bold">{course.name}</div>
                                 <div className="text-sm opacity-80">{course.location}</div>
                             </div>
                         </div>
