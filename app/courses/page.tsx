@@ -154,6 +154,7 @@ export default function CoursesPage() {
 
     return (
         <div className="p-6 space-y-10">
+
             {/* SEARCH FIELD */}
             <div>
                 <input
@@ -165,8 +166,25 @@ export default function CoursesPage() {
                 />
             </div>
 
-            {/* NEARBY SECTION */}
-            {nearby.length > 0 && (
+            {/* SEARCH RESULTS */}
+            {search.length > 0 && (
+                <div>
+                    <h2 className="text-2xl font-semibold mb-4">Search Results</h2>
+
+                    {filtered.length === 0 && (
+                        <div className="text-gray-400">No courses found</div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filtered.map((course) => (
+                            <CourseCard key={course.id} course={course} />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* NEARBY ONLY WHEN NOT SEARCHING */}
+            {search.length === 0 && nearby.length > 0 && (
                 <div>
                     <h2 className="text-2xl font-semibold mb-4">Nearby Courses</h2>
 
@@ -178,16 +196,6 @@ export default function CoursesPage() {
                 </div>
             )}
 
-            {/* ALL COURSES */}
-            <div>
-                <h2 className="text-2xl font-semibold mb-4">All Courses</h2>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filtered.map((course) => (
-                        <CourseCard key={course.id} course={course} />
-                    ))}
-                </div>
-            </div>
         </div>
     );
 }
