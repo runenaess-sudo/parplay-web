@@ -32,7 +32,7 @@ export default function Home() {
           marginBottom: "2rem"
         }}
       >
-        Premium DiscGolf. Coming soon.
+        Premium Disc Golf. Coming soon.
       </p>
 
       <div
