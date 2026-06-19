@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabaseBrowser as supabase } from "./supabase-browser";
 export async function getUserAccess() {
     const { data: { user } } = await supabase.auth.getUser();
 
