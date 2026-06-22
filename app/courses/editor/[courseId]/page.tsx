@@ -30,7 +30,7 @@ export default function CourseEditorPage({ params }: Props) {
 
             {/* MAIN AREA */}
             <div className="flex flex-1 flex-row overflow-hidden">
-                <MapCanvas courseId={courseId} />
+                <MapCanvas />
                 <EditorPanel courseId={courseId} />
             </div>
 
