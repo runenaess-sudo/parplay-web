@@ -1,91 +1,336 @@
 // app/courses/editor/[courseId]/MapCanvas.tsx
 "use client";
 
-import { useEffect } from "react";
+import mapboxgl from "mapbox-gl";
+import { useEffect, useRef } from "react";
 import { useCourseEditor } from "./useCourseEditor";
+
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
 type Props = {
     courseId: string;
 };
 
+// Minimal Feature types
+type PointFeature = {
+    type: "Feature";
+    geometry: { type: "Point"; coordinates: [number, number] };
+    properties?: Record<string, any>;
+};
+
+type PolygonFeature = {
+    type: "Feature";
+    geometry: { type: "Polygon"; coordinates: [number[][]] };
+    properties?: Record<string, any>;
+};
+
+type FeatureCollection<T> = {
+    type: "FeatureCollection";
+    features: T[];
+};
+
 export function MapCanvas({ courseId }: Props) {
+    const mapContainer = useRef<HTMLDivElement | null>(null);
+    const mapRef = useRef<mapboxgl.Map | null>(null);
+
     const holes = useCourseEditor((s) => s.holes);
     const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
     const mapMode = useCourseEditor((s) => s.mapMode);
-    const selectHole = useCourseEditor((s) => s.selectHole);
+
+    const selectedFairwayIndex = useCourseEditor((s) => s.selectedFairwayIndex);
+    const setSelectedFairwayIndex = useCourseEditor((s) => s.setSelectedFairwayIndex);
 
     const selectedHole = holes.find((h) => h.id === selectedHoleId) || null;
 
-    // TEMP: Debug logging
+    // INIT MAP
     useEffect(() => {
-        console.log("Selected hole:", selectedHole);
-        console.log("Map mode:", mapMode);
-    }, [selectedHole, mapMode]);
+        if (!mapContainer.current || mapRef.current) {
+            return;
+        }
+
+        const map = new mapboxgl.Map({
+            container: mapContainer.current,
+            style: "mapbox://styles/mapbox/satellite-streets-v12",
+            center: [10.5, 60.0],
+            zoom: 13,
+        });
+
+        mapRef.current = map;
+
+        map.on("load", () => {
+            map.loadImage("/icons/teepad.png", (err, image) => {
+                if (!err && image && !map.hasImage("teepad")) {
+                    map.addImage("teepad", image);
+                }
+            });
+
+            map.loadImage("/icons/basket-hvit.png", (err, image) => {
+                if (!err && image && !map.hasImage("basket")) {
+                    map.addImage("basket", image);
+                }
+            });
+
+            map.loadImage("/icons/point.png", (err, image) => {
+                if (!err && image && !map.hasImage("fairway-point")) {
+                    map.addImage("fairway-point", image);
+                }
+            });
+
+            map.addSource("tee-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.addSource("basket-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.addSource("fairway-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.addSource("fairway-polygon-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.addLayer({
+                id: "tee-layer",
+                type: "symbol",
+                source: "tee-source",
+                layout: {
+                    "icon-image": "teepad",
+                    "icon-size": 0.5,
+                    "icon-anchor": "bottom",
+                },
+            });
+
+            map.addLayer({
+                id: "basket-layer",
+                type: "symbol",
+                source: "basket-source",
+                layout: {
+                    "icon-image": "basket",
+                    "icon-size": 0.5,
+                    "icon-anchor": "bottom",
+                },
+            });
+
+            map.addLayer({
+                id: "fairway-points-layer",
+                type: "symbol",
+                source: "fairway-source",
+                layout: {
+                    "icon-image": "fairway-point",
+                    "icon-size": 0.4,
+                    "icon-anchor": "center",
+                },
+            });
+
+            map.addLayer({
+                id: "fairway-polygon-fill",
+                type: "fill",
+                source: "fairway-polygon-source",
+                paint: {
+                    "fill-color": "#00ff00",
+                    "fill-opacity": 0.25,
+                },
+            });
+
+            map.addLayer({
+                id: "fairway-polygon-outline",
+                type: "line",
+                source: "fairway-polygon-source",
+                paint: {
+                    "line-color": "#00ff00",
+                    "line-width": 2,
+                },
+            });
+
+            // SELECT FAIRWAY POINT
+            map.on("click", "fairway-points-layer", (e) => {
+                if (mapMode !== "edit-fairway") return;
+
+                const feature = e.features?.[0] as any;
+                if (!feature) return;
+
+                const index = feature.properties?.index;
+                if (typeof index === "number") {
+                    setSelectedFairwayIndex(index);
+                }
+            });
+
+            // DRAG FAIRWAY POINTS
+            let isDragging = false;
+
+            map.on("mousedown", "fairway-points-layer", (e) => {
+                if (mapMode !== "edit-fairway") return;
+                if (!selectedHole) return;
+
+                const feature = e.features?.[0] as any;
+                if (!feature) return;
+
+                const index = feature.properties?.index;
+                if (typeof index !== "number") return;
+
+                setSelectedFairwayIndex(index);
+                isDragging = true;
+                map.getCanvas().style.cursor = "grabbing";
+            });
+
+            map.on("mousemove", (e) => {
+                if (!isDragging || selectedFairwayIndex === null || !selectedHole) return;
+
+                const lng = e.lngLat.lng;
+                const lat = e.lngLat.lat;
+
+                selectedHole.fairway![selectedFairwayIndex] = { lng, lat };
+            });
+
+            map.on("mouseup", () => {
+                isDragging = false;
+                map.getCanvas().style.cursor = "";
+            });
+        });
+
+        return () => {
+            if (mapRef.current) {
+                mapRef.current.remove();
+            }
+        };
+    }, []);
+
+    // HANDLE MAP CLICKS
+    useEffect(() => {
+        if (!mapRef.current) {
+            return;
+        }
+
+        const map = mapRef.current;
+
+        const handleClick = (e: mapboxgl.MapMouseEvent) => {
+            if (!selectedHole) return;
+
+            const lng = e.lngLat.lng;
+            const lat = e.lngLat.lat;
+
+            if (mapMode === "set-tee") selectedHole.tee = { lng, lat };
+            if (mapMode === "set-basket") selectedHole.basket = { lng, lat };
+
+            if (mapMode === "add-fairway") {
+                if (!selectedHole.fairway) selectedHole.fairway = [];
+                selectedHole.fairway.push({ lng, lat });
+            }
+        };
+
+        map.on("click", handleClick);
+
+        return () => {
+            map.off("click", handleClick);
+        };
+    }, [mapMode, selectedHole]);
+
+    // UPDATE ICONS + POLYGON + AUTOZOOM
+    useEffect(() => {
+        if (!mapRef.current || !selectedHole) {
+            return;
+        }
+
+        const map = mapRef.current;
+
+        // Tee
+        const teeFeature: PointFeature | null = selectedHole.tee
+            ? {
+                type: "Feature",
+                geometry: {
+                    type: "Point",
+                    coordinates: [selectedHole.tee.lng, selectedHole.tee.lat],
+                },
+            }
+            : null;
+
+        (map.getSource("tee-source") as mapboxgl.GeoJSONSource)?.setData({
+            type: "FeatureCollection",
+            features: teeFeature ? [teeFeature] : [],
+        });
+
+        // Basket
+        const basketFeature: PointFeature | null = selectedHole.basket
+            ? {
+                type: "Feature",
+                geometry: {
+                    type: "Point",
+                    coordinates: [selectedHole.basket.lng, selectedHole.basket.lat],
+                },
+            }
+            : null;
+
+        (map.getSource("basket-source") as mapboxgl.GeoJSONSource)?.setData({
+            type: "FeatureCollection",
+            features: basketFeature ? [basketFeature] : [],
+        });
+
+        // Fairway points
+        const fairway = selectedHole.fairway ?? [];
+
+        const fairwayPoints: PointFeature[] = fairway.map((p, index) => ({
+            type: "Feature",
+            geometry: {
+                type: "Point",
+                coordinates: [p.lng, p.lat],
+            },
+            properties: { index },
+        }));
+
+        (map.getSource("fairway-source") as mapboxgl.GeoJSONSource)?.setData({
+            type: "FeatureCollection",
+            features: fairwayPoints,
+        });
+
+        // FAIRWAY POLYGON
+        const polygon: PolygonFeature[] =
+            fairway.length >= 3
+                ? [
+                    {
+                        type: "Feature",
+                        geometry: {
+                            type: "Polygon",
+                            coordinates: [fairway.map((p) => [p.lng, p.lat])],
+                        },
+                        properties: {},
+                    },
+                ]
+                : [];
+
+        (map.getSource("fairway-polygon-source") as mapboxgl.GeoJSONSource)?.setData({
+            type: "FeatureCollection",
+            features: polygon,
+        });
+
+        // AUTO-ZOOM
+        const coords: [number, number][] = [];
+
+        if (selectedHole.tee) coords.push([selectedHole.tee.lng, selectedHole.tee.lat]);
+        if (selectedHole.basket)
+            coords.push([selectedHole.basket.lng, selectedHole.basket.lat]);
+
+        fairway.forEach((p) => coords.push([p.lng, p.lat]));
+
+        if (coords.length > 0) {
+            const bounds = coords.reduce(
+                (b, c) => b.extend(c),
+                new mapboxgl.LngLatBounds(coords[0], coords[0])
+            );
+
+            map.fitBounds(bounds, { padding: 80, duration: 300 });
+        }
+    }, [selectedHole, selectedFairwayIndex]);
 
     return (
-        <div className="flex flex-1 items-center justify-center bg-slate-900 text-slate-300">
-            <div className="text-center">
-                <div className="mb-2 text-xs uppercase tracking-wide text-slate-500">
-                    Map Canvas (placeholder)
-                </div>
-
-                {selectedHole ? (
-                    <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3 text-left text-xs">
-                        <div className="font-semibold text-slate-200">
-                            Hole {selectedHole.number}
-                        </div>
-
-                        <div className="mt-1 text-slate-400">
-                            Par: {selectedHole.par}
-                        </div>
-
-                        <div className="mt-1 text-slate-400">
-                            Tee:{" "}
-                            {selectedHole.tee
-                                ? JSON.stringify(selectedHole.tee)
-                                : "Not set"}
-                        </div>
-
-                        <div className="mt-1 text-slate-400">
-                            Basket:{" "}
-                            {selectedHole.basket
-                                ? JSON.stringify(selectedHole.basket)
-                                : "Not set"}
-                        </div>
-
-                        <div className="mt-1 text-slate-400">
-                            Fairway points:{" "}
-                            {selectedHole.fairway
-                                ? selectedHole.fairway.length
-                                : 0}
-                        </div>
-
-                        <div className="mt-3 text-slate-500">
-                            Map mode: <span className="font-mono">{mapMode}</span>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3 text-xs text-slate-400">
-                        No hole selected
-                    </div>
-                )}
-
-                {/* Hole list for quick testing */}
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    {holes.map((h) => (
-                        <button
-                            key={h.id}
-                            onClick={() => selectHole(h.id)}
-                            className={`rounded px-2 py-1 text-xs ${selectedHoleId === h.id
-                                ? "bg-slate-100 text-slate-900"
-                                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                                }`}
-                        >
-                            Hole {h.number}
-                        </button>
-                    ))}
-                </div>
-            </div>
+        <div className="flex-1 relative">
+            <div ref={mapContainer} className="absolute inset-0" />
         </div>
     );
 }

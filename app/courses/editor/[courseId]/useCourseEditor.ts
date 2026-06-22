@@ -22,9 +22,17 @@ export type Hole = {
     number: number;
     par: number;
     distance: number | null;
-    tee: any | null;
-    basket: any | null;
-    fairway: any[] | null;
+
+    // GEO DATA
+    tee: { lng: number; lat: number } | null;
+    basket: { lng: number; lat: number } | null;
+    fairway: { lng: number; lat: number }[] | null;
+
+    // NEW: Tee rotation
+    tee_rotation?: number;
+
+    // NEW: Hole name (optional)
+    name?: string;
 };
 
 export type Layout = {
@@ -69,6 +77,9 @@ type CourseEditorState = {
     selectedLayoutId: string | null;
     mapMode: MapMode;
 
+    // NEW: Fairway editing
+    selectedFairwayIndex: number | null;
+
     // loading
     loading: boolean;
 
@@ -78,6 +89,9 @@ type CourseEditorState = {
     selectHole: (holeId: string | null) => void;
     selectLayout: (layoutId: string | null) => void;
     setMapMode: (mode: MapMode) => void;
+
+    // NEW: Fairway editing
+    setSelectedFairwayIndex: (i: number | null) => void;
 };
 
 // ---------------------------------------------------------
@@ -92,6 +106,10 @@ export const useCourseEditor = create<CourseEditorState>()((set, get) => ({
     selectedHoleId: null,
     selectedLayoutId: null,
     mapMode: "idle",
+
+    // NEW
+    selectedFairwayIndex: null,
+
     loading: false,
 
     // ---------------------------------------------------------
@@ -147,4 +165,10 @@ export const useCourseEditor = create<CourseEditorState>()((set, get) => ({
         }),
 
     setMapMode: (mode: MapMode) => set({ mapMode: mode }),
+
+    // ---------------------------------------------------------
+    // FAIRWAY EDITING
+    // ---------------------------------------------------------
+    setSelectedFairwayIndex: (i: number | null) =>
+        set({ selectedFairwayIndex: i }),
 }));
