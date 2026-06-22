@@ -7,10 +7,6 @@ import { useCourseEditor } from "./useCourseEditor";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
-type Props = {
-    courseId: string;
-};
-
 // Minimal Feature types
 type PointFeature = {
     type: "Feature";
@@ -24,19 +20,13 @@ type PolygonFeature = {
     properties?: Record<string, any>;
 };
 
-type FeatureCollection<T> = {
-    type: "FeatureCollection";
-    features: T[];
-};
-
-export function MapCanvas({ courseId }: Props) {
+export function MapCanvas() {
     const mapContainer = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
 
     const holes = useCourseEditor((s) => s.holes);
     const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
     const mapMode = useCourseEditor((s) => s.mapMode);
-
     const selectedFairwayIndex = useCourseEditor((s) => s.selectedFairwayIndex);
     const setSelectedFairwayIndex = useCourseEditor((s) => s.setSelectedFairwayIndex);
 
@@ -44,9 +34,7 @@ export function MapCanvas({ courseId }: Props) {
 
     // INIT MAP
     useEffect(() => {
-        if (!mapContainer.current || mapRef.current) {
-            return;
-        }
+        if (!mapContainer.current) return;
 
         const map = new mapboxgl.Map({
             container: mapContainer.current,
@@ -196,19 +184,14 @@ export function MapCanvas({ courseId }: Props) {
         });
 
         return () => {
-            if (mapRef.current) {
-                mapRef.current.remove();
-            }
+            map.remove();
         };
     }, []);
 
     // HANDLE MAP CLICKS
     useEffect(() => {
-        if (!mapRef.current) {
-            return;
-        }
-
         const map = mapRef.current;
+        if (!map) return;
 
         const handleClick = (e: mapboxgl.MapMouseEvent) => {
             if (!selectedHole) return;
@@ -234,11 +217,8 @@ export function MapCanvas({ courseId }: Props) {
 
     // UPDATE ICONS + POLYGON + AUTOZOOM
     useEffect(() => {
-        if (!mapRef.current || !selectedHole) {
-            return;
-        }
-
         const map = mapRef.current;
+        if (!map || !selectedHole) return;
 
         // Tee
         const teeFeature: PointFeature | null = selectedHole.tee
@@ -328,9 +308,5 @@ export function MapCanvas({ courseId }: Props) {
         }
     }, [selectedHole, selectedFairwayIndex]);
 
-    return (
-        <div className="flex-1 relative">
-            <div ref={mapContainer} className="absolute inset-0" />
-        </div>
-    );
+    return <div ref={mapContainer} className="absolute inset-0" />;
 }
