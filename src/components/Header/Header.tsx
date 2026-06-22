@@ -60,16 +60,18 @@ export function Header() {
                         className="
                             absolute left-0 top-full 
                             hidden group-hover:block 
-                            bg-white shadow-lg rounded-md 
+                            bg-black/80 text-white 
+                            shadow-xl rounded-md 
+                            backdrop-blur-md
                             z-50
                         "
                     >
-                        <Link href="/courses" className="dropdown-item block whitespace-nowrap">
+                        <Link href="/courses" className="dropdown-item block whitespace-nowrap hover:bg-white/10">
                             View Courses
                         </Link>
 
                         {canCreateCourse && (
-                            <Link href="/courses/create" className="dropdown-item block whitespace-nowrap">
+                            <Link href="/courses/create" className="dropdown-item block whitespace-nowrap hover:bg-white/10">
                                 Create Course
                             </Link>
                         )}
@@ -93,16 +95,18 @@ export function Header() {
                             className="
                                 absolute left-0 top-full 
                                 hidden group-hover:block 
-                                bg-white shadow-lg rounded-md 
+                                bg-black/80 text-white 
+                                shadow-xl rounded-md 
+                                backdrop-blur-md
                                 z-50
                             "
                         >
-                            <Link href="/profile" className="dropdown-item block whitespace-nowrap">
+                            <Link href="/profile" className="dropdown-item block whitespace-nowrap hover:bg-white/10">
                                 Profile
                             </Link>
 
                             <button
-                                className="dropdown-item text-left block whitespace-nowrap"
+                                className="dropdown-item text-left block whitespace-nowrap hover:bg-white/10"
                                 onClick={() => supabase.auth.signOut()}
                             >
                                 Logout
