@@ -48,18 +48,28 @@ export function Header() {
                     Community
                 </MenuItem>
 
+                {/* COURSES DROPDOWN */}
                 <div className="relative group">
-                    <MenuItem href="/courses" active={pathname.startsWith("/courses")}>
+                    {/* Not clickable */}
+                    <div className="menu-item cursor-default select-none">
                         Courses
-                    </MenuItem>
+                    </div>
 
-                    <div className="dropdown">
-                        <Link href="/courses" className="dropdown-item">
+                    {/* Dropdown */}
+                    <div
+                        className="
+                            absolute left-0 top-full 
+                            hidden group-hover:block 
+                            bg-white shadow-lg rounded-md 
+                            z-50
+                        "
+                    >
+                        <Link href="/courses" className="dropdown-item block whitespace-nowrap">
                             View Courses
                         </Link>
 
                         {canCreateCourse && (
-                            <Link href="/courses/create" className="dropdown-item">
+                            <Link href="/courses/create" className="dropdown-item block whitespace-nowrap">
                                 Create Course
                             </Link>
                         )}
@@ -75,21 +85,28 @@ export function Header() {
             <nav>
                 {isLoggedIn ? (
                     <div className="relative group">
-                        {/* Courses should NOT be a link */}
-                        <div className="menu-item cursor-default select-none">
-                            Courses
-                        </div>
+                        <MenuItem href="/profile" active={pathname.startsWith("/profile")}>
+                            My Profile
+                        </MenuItem>
 
-                        <div className="dropdown group-hover:block">
-                            <Link href="/courses" className="dropdown-item">
-                                View Courses
+                        <div
+                            className="
+                                absolute left-0 top-full 
+                                hidden group-hover:block 
+                                bg-white shadow-lg rounded-md 
+                                z-50
+                            "
+                        >
+                            <Link href="/profile" className="dropdown-item block whitespace-nowrap">
+                                Profile
                             </Link>
 
-                            {canCreateCourse && (
-                                <Link href="/courses/create" className="dropdown-item">
-                                    Create Course
-                                </Link>
-                            )}
+                            <button
+                                className="dropdown-item text-left block whitespace-nowrap"
+                                onClick={() => supabase.auth.signOut()}
+                            >
+                                Logout
+                            </button>
                         </div>
                     </div>
                 ) : (
