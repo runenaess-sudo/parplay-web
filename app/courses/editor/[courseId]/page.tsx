@@ -1,4 +1,5 @@
 // app/courses/editor/[courseId]/page.tsx
+export const dynamic = "force-dynamic";
 import { EditorPanel } from "./EditorPanel";
 import LoadEditorData from "./LoadEditorData";
 import { MapCanvas } from "./MapCanvas";
