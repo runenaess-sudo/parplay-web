@@ -52,7 +52,7 @@ export function MapCanvas() {
                 }
             });
 
-            map.loadImage("/icons/basket-hvit.png", (err, image) => {
+            map.loadImage("/icons/basket_hvit.png", (err, image) => {
                 if (!err && image && !map.hasImage("basket")) {
                     map.addImage("basket", image);
                 }
