@@ -1,10 +1,10 @@
 "use client";
 
+import { supabaseBrowser as supabase } from "@/src/lib/supabase-browser";
+import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { supabaseBrowser as supabase } from "@/src/lib/supabase-browser";
 import { MenuItem } from "./MenuItem";
 
 type AccessInfo = {
@@ -75,21 +75,21 @@ export function Header() {
             <nav>
                 {isLoggedIn ? (
                     <div className="relative group">
-                        <MenuItem href="/profile" active={pathname.startsWith("/profile")}>
-                            My Profile
-                        </MenuItem>
+                        {/* Courses should NOT be a link */}
+                        <div className="menu-item cursor-default select-none">
+                            Courses
+                        </div>
 
-                        <div className="dropdown">
-                            <Link href="/profile" className="dropdown-item">
-                                Profile
+                        <div className="dropdown group-hover:block">
+                            <Link href="/courses" className="dropdown-item">
+                                View Courses
                             </Link>
 
-                            <button
-                                className="dropdown-item text-left"
-                                onClick={() => supabase.auth.signOut()}
-                            >
-                                Logout
-                            </button>
+                            {canCreateCourse && (
+                                <Link href="/courses/create" className="dropdown-item">
+                                    Create Course
+                                </Link>
+                            )}
                         </div>
                     </div>
                 ) : (
