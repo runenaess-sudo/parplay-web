@@ -8,6 +8,8 @@ type Props = {
 };
 
 export default function CourseEditorPage({ params }: Props) {
+    console.log("PAGE PARAMS:", params);
+    console.log("PAGE courseId:", params.courseId);
     const { courseId } = params;
 
     return (
