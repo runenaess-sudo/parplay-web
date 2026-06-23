@@ -7,7 +7,6 @@ import LoadEditorData from "./LoadEditorData";
 import { MapCanvas } from "./MapCanvas";
 
 export default function ClientPage() {
-    // Hent courseId direkte fra URL (Next.js 16 riktig måte)
     const { courseId } = useParams() as { courseId: string };
 
     const course = useCourseEditor((s) => s.course);
@@ -55,8 +54,10 @@ export default function ClientPage() {
             )}
 
             {!loading && course && (
-                <div className="flex flex-1 flex-row overflow-hidden">
-                    <MapCanvas />
+                <div className="flex flex-1 flex-row overflow-hidden min-h-0">
+                    <div className="relative flex-1 min-h-0">
+                        <MapCanvas />
+                    </div>
                     <EditorPanel courseId={courseId} />
                 </div>
             )}
