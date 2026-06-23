@@ -1,9 +1,12 @@
 "use client";
-import { supabaseBrowser } from "@/src/lib/supabase-browser";
+
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+// ---------------------------------------------------------
+// TYPES
+// ---------------------------------------------------------
 type Course = {
     id: string;
     name: string;
@@ -25,6 +28,36 @@ type UserPos = {
     lon: number;
 } | null;
 
+// ---------------------------------------------------------
+// CLIENT-SAFE SUPABASE LOADER
+// ---------------------------------------------------------
+function useLoadCourses() {
+    return async function loadCourses() {
+        const { supabaseBrowser } = await import("@/src/lib/supabase-browser");
+        const supabase = supabaseBrowser;
+
+        const { data: coursesData } = await supabase
+            .from("courses")
+            .select("id, name, location, latitude, longitude, is_published")
+            .eq("is_published", true);
+
+        if (!coursesData) return { courses: [], images: [], layouts: [] };
+
+        const { data: images } = await supabase
+            .from("course_images")
+            .select("course_id, image_url, sort_order");
+
+        const { data: layouts } = await supabase
+            .from("course_layouts")
+            .select("course_id, name, hole_count, par_total, color, is_default, par_rating");
+
+        return { courses: coursesData, images: images ?? [], layouts: layouts ?? [] };
+    };
+}
+
+// ---------------------------------------------------------
+// PAGE COMPONENT
+// ---------------------------------------------------------
 export default function CoursesPage() {
     const [courses, setCourses] = useState<Course[]>([]);
     const [filtered, setFiltered] = useState<Course[]>([]);
@@ -32,35 +65,18 @@ export default function CoursesPage() {
     const [search, setSearch] = useState<string>("");
     const [userPos, setUserPos] = useState<UserPos>(null);
 
+    const loadCourses = useLoadCourses();
+
     // Fetch courses from Supabase
     useEffect(() => {
         async function load() {
-            const supabase = supabaseBrowser;
-
-            const { data: coursesData } = await supabase
-                .from("courses")
-                .select("id, name, location, latitude, longitude, is_published")
-                .eq("is_published", true);
-
-            if (!coursesData) {
-                setCourses([]);
-                setFiltered([]);
-                return;
-            }
-
-            const { data: images } = await supabase
-                .from("course_images")
-                .select("course_id, image_url, sort_order");
-
-            const { data: layouts } = await supabase
-                .from("course_layouts")
-                .select("course_id, name, hole_count, par_total, color, is_default, par_rating");
+            const { courses: coursesData, images, layouts } = await loadCourses();
 
             const enriched: Course[] = coursesData.map((course: any) => {
-                const imgs = images?.filter((i: any) => i.course_id === course.id) || [];
+                const imgs = images.filter((i: any) => i.course_id === course.id);
                 const primary = imgs.sort((a: any, b: any) => a.sort_order - b.sort_order)[0];
 
-                const ls = layouts?.filter((l: any) => l.course_id === course.id) || [];
+                const ls = layouts.filter((l: any) => l.course_id === course.id);
                 const layout = ls.find((l: any) => l.is_default) || ls[0];
 
                 return {
@@ -118,7 +134,7 @@ export default function CoursesPage() {
         );
     }, []);
 
-    // Calculate distance
+    // Distance calc
     function dist(lat1: number, lon1: number, lat2: number, lon2: number): number {
         const R = 6371;
         const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -153,7 +169,6 @@ export default function CoursesPage() {
 
     return (
         <div className="p-6 space-y-10">
-
             {/* SEARCH FIELD */}
             <div>
                 <input
@@ -182,7 +197,7 @@ export default function CoursesPage() {
                 </div>
             )}
 
-            {/* NEARBY ONLY WHEN NOT SEARCHING */}
+            {/* NEARBY */}
             {search.length === 0 && nearby.length > 0 && (
                 <div>
                     <h2 className="text-2xl font-semibold mb-4">Nearby Courses</h2>
@@ -194,7 +209,6 @@ export default function CoursesPage() {
                     </div>
                 </div>
             )}
-
         </div>
     );
 }
