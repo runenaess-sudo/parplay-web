@@ -9,6 +9,9 @@ export default function ClientPage({ courseId }: { courseId: string }) {
     const course = useCourseEditor((s) => s.course);
     const loading = useCourseEditor((s) => s.loading);
 
+    // 🔍 Debug: se hva som faktisk skjer i prod
+    console.log("ClientPage render", { courseId, loading, course });
+
     return (
         <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950">
             <div className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-900 px-4">
@@ -26,11 +29,32 @@ export default function ClientPage({ courseId }: { courseId: string }) {
                 </div>
             </div>
 
-            {loading || !course ? (
+            {/* 1) Laster */}
+            {loading && (
                 <div className="flex flex-1 items-center justify-center text-slate-300">
                     Loading editor…
                 </div>
-            ) : (
+            )}
+
+            {/* 2) Ferdig lastet, men ingen course → RLS / manglende rad */}
+            {!loading && !course && (
+                <div className="flex flex-1 items-center justify-center text-red-400 text-center px-6">
+                    <div>
+                        <div className="text-lg font-semibold mb-2">
+                            Could not load course
+                        </div>
+                        <div className="text-sm opacity-80">
+                            This usually means:
+                            <br />– The course does not exist
+                            <br />– You do not have access (RLS)
+                            <br />– Supabase returned null
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 3) Alt OK → vis editor */}
+            {!loading && course && (
                 <div className="flex flex-1 flex-row overflow-hidden">
                     <MapCanvas />
                     <EditorPanel courseId={courseId} />
