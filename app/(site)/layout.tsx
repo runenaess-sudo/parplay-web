@@ -1,6 +1,12 @@
 import { Header } from "@/src/components/Header/Header";
 
-export default function SiteLayout({ children }: { children: React.ReactNode }) {
+export default function SiteLayout({
+    children,
+    params,
+}: {
+    children: React.ReactNode;
+    params: any;
+}) {
     return (
         <>
             <Header />
