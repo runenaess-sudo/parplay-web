@@ -21,6 +21,7 @@ export function MapCanvas() {
     const mapContainer = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const mapboxRef = useRef<null | typeof import("mapbox-gl")>(null);
+
     const holes = useCourseEditor((s) => s.holes);
     const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
     const mapMode = useCourseEditor((s) => s.mapMode);
@@ -37,7 +38,7 @@ export function MapCanvas() {
 
         async function init() {
             const mod = await import("mapbox-gl");
-            mapboxRef.current = mod; // hele modulen
+            mapboxRef.current = mod;
             const mapboxgl = mod.default;
 
             mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
@@ -54,6 +55,8 @@ export function MapCanvas() {
             mapRef.current = map;
 
             map.on("load", () => {
+                map.resize(); // ⭐ Kritisk for å vise kartet
+
                 map.loadImage("/icons/teepad.png", (err, image) => {
                     if (!err && image && !map.hasImage("teepad")) {
                         map.addImage("teepad", image);
@@ -324,5 +327,10 @@ export function MapCanvas() {
         }
     }, [selectedHole, selectedFairwayIndex]);
 
-    return <div ref={mapContainer} className="absolute inset-0" />;
+    // ⭐ FIX: MapCanvas må ha en container med høyde
+    return (
+        <div className="relative flex-1">
+            <div ref={mapContainer} className="absolute inset-0" />
+        </div>
+    );
 }
