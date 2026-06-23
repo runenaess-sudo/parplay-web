@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 
 import ClientPage from "./ClientPage";
 
