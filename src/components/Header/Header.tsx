@@ -1,6 +1,5 @@
 "use client";
 
-import { supabaseBrowser as supabase } from "@/src/lib/supabase-browser";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,6 +19,10 @@ export function Header() {
 
     useEffect(() => {
         async function load() {
+            // Lazy import – evalueres KUN i browser
+            const { supabaseBrowser } = await import("@/src/lib/supabase-browser");
+            const supabase = supabaseBrowser;
+
             const { data: { session } } = await supabase.auth.getSession();
             setSession(session);
 
@@ -29,6 +32,7 @@ export function Header() {
                 setAccess(json);
             }
         }
+
         load();
     }, []);
 
@@ -50,12 +54,10 @@ export function Header() {
 
                 {/* COURSES DROPDOWN */}
                 <div className="relative group">
-                    {/* Not clickable */}
                     <div className="menu-item cursor-default select-none">
                         Courses
                     </div>
 
-                    {/* Dropdown */}
                     <div
                         className="
                             absolute left-0 top-full 
@@ -107,7 +109,10 @@ export function Header() {
 
                             <button
                                 className="dropdown-item text-left block whitespace-nowrap hover:bg-white/10"
-                                onClick={() => supabase.auth.signOut()}
+                                onClick={async () => {
+                                    const { supabaseBrowser } = await import("@/src/lib/supabase-browser");
+                                    await supabaseBrowser.auth.signOut();
+                                }}
                             >
                                 Logout
                             </button>

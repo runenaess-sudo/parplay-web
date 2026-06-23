@@ -1,5 +1,8 @@
-import { supabaseBrowser as supabase } from "./supabase-browser";
 export async function getUserAccess() {
+    // Lazy import – evalueres KUN i browser
+    const { supabaseBrowser } = await import("./supabase-browser");
+    const supabase = supabaseBrowser;
+
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) return { membership: "basic", limits: null };
