@@ -1,7 +1,6 @@
 // app/courses/editor/[courseId]/useCourseEditor.ts
 "use client";
 
-import { supabaseBrowser } from "@/src/lib/supabase-browser";
 import { create } from "zustand";
 
 // ---------------------------------------------------------
@@ -95,6 +94,14 @@ type CourseEditorState = {
 };
 
 // ---------------------------------------------------------
+// LAZY SUPABASE HELPER (kun i browser)
+// ---------------------------------------------------------
+async function getSupabase() {
+    const mod = await import("@/src/lib/supabase-browser");
+    return mod.supabaseBrowser;
+}
+
+// ---------------------------------------------------------
 // STORE IMPLEMENTATION
 // ---------------------------------------------------------
 export const useCourseEditor = create<CourseEditorState>()((set, get) => ({
@@ -116,35 +123,44 @@ export const useCourseEditor = create<CourseEditorState>()((set, get) => ({
     // LOAD ALL DATA FOR EDITOR
     // ---------------------------------------------------------
     loadAll: async (courseId: string) => {
+        if (!courseId) return;
+
         set({ loading: true });
 
-        // Load course
-        const { data: course } = await supabaseBrowser
-            .from("courses")
-            .select("*")
-            .eq("id", courseId)
-            .single();
+        try {
+            const supabase = await getSupabase();
 
-        // Load holes
-        const { data: holes } = await supabaseBrowser
-            .from("holes")
-            .select("*")
-            .eq("course_id", courseId)
-            .order("number", { ascending: true });
+            // Load course
+            const { data: course } = await supabase
+                .from("courses")
+                .select("*")
+                .eq("id", courseId)
+                .single();
 
-        // Load layouts
-        const { data: layouts } = await supabaseBrowser
-            .from("course_layouts")
-            .select("*")
-            .eq("course_id", courseId)
-            .order("name", { ascending: true });
+            // Load holes
+            const { data: holes } = await supabase
+                .from("holes")
+                .select("*")
+                .eq("course_id", courseId)
+                .order("number", { ascending: true });
 
-        set({
-            course: course || null,
-            holes: holes || [],
-            layouts: layouts || [],
-            loading: false,
-        });
+            // Load layouts
+            const { data: layouts } = await supabase
+                .from("course_layouts")
+                .select("*")
+                .eq("course_id", courseId)
+                .order("name", { ascending: true });
+
+            set({
+                course: course || null,
+                holes: holes || [],
+                layouts: layouts || [],
+                loading: false,
+            });
+        } catch (err) {
+            console.error("Failed to load editor data", err);
+            set({ loading: false });
+        }
     },
 
     // ---------------------------------------------------------
