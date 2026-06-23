@@ -1,15 +1,18 @@
 "use client";
 
 import { useCourseEditor } from "@/src/state/useCourseEditor";
+import { useParams } from "next/navigation";
 import { EditorPanel } from "./EditorPanel";
 import LoadEditorData from "./LoadEditorData";
 import { MapCanvas } from "./MapCanvas";
 
-export default function ClientPage({ courseId }: { courseId: string }) {
+export default function ClientPage() {
+    // Hent courseId direkte fra URL (Next.js 16 riktig måte)
+    const { courseId } = useParams() as { courseId: string };
+
     const course = useCourseEditor((s) => s.course);
     const loading = useCourseEditor((s) => s.loading);
 
-    // 🔍 Debug: se hva som faktisk skjer i prod
     console.log("ClientPage render", { courseId, loading, course });
 
     return (
@@ -29,14 +32,12 @@ export default function ClientPage({ courseId }: { courseId: string }) {
                 </div>
             </div>
 
-            {/* 1) Laster */}
             {loading && (
                 <div className="flex flex-1 items-center justify-center text-slate-300">
                     Loading editor…
                 </div>
             )}
 
-            {/* 2) Ferdig lastet, men ingen course → RLS / manglende rad */}
             {!loading && !course && (
                 <div className="flex flex-1 items-center justify-center text-red-400 text-center px-6">
                     <div>
@@ -53,7 +54,6 @@ export default function ClientPage({ courseId }: { courseId: string }) {
                 </div>
             )}
 
-            {/* 3) Alt OK → vis editor */}
             {!loading && course && (
                 <div className="flex flex-1 flex-row overflow-hidden">
                     <MapCanvas />
