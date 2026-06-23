@@ -1,3 +1,6 @@
+// app/courses/editor/[courseId]/page.tsx
+"use client";
+
 export const dynamic = "force-dynamic";
 
 import { EditorPanel } from "./EditorPanel";
@@ -32,7 +35,6 @@ export default function CourseEditorPage({ params }: Props) {
                 </div>
             </div>
 
-            {/* WAIT FOR DATA */}
             {loading || !course ? (
                 <div className="flex flex-1 items-center justify-center text-slate-300">
                     Loading editor…
