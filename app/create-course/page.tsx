@@ -1,4 +1,4 @@
-"use client";
+
 export default function CreateCoursePage() {
     return (
         <div className="p-6">
