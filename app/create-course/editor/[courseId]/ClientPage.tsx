@@ -15,7 +15,7 @@ export default function ClientPage() {
     console.log("ClientPage render", { courseId, loading, course });
 
     return (
-        <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950">
+        <div className="flex h-screen w-screen flex-col bg-slate-950 overflow-hidden">
             <div className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-900 px-4">
                 <div className="flex items-center gap-2">
                     <span className="rounded bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-200">
