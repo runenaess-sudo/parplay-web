@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { supabaseBrowser } from "@/src/lib/supabase-browser";
 import Image from "next/image";
