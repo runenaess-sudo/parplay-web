@@ -1,9 +1,9 @@
 "use client";
 
-import { EditorPanel } from "./EditorPanel";
-import LoadEditorData from "./LoadEditorData";
-import { MapCanvas } from "./MapCanvas";
-import { useCourseEditor } from "./useCourseEditor";
+import { EditorPanel } from "./[courseId]/EditorPanel";
+import LoadEditorData from "./[courseId]/LoadEditorData";
+import { MapCanvas } from "./[courseId]/MapCanvas";
+import { useCourseEditor } from "./[courseId]/useCourseEditor";
 
 export default function ClientPage({ courseId }: { courseId: string }) {
     const course = useCourseEditor((s) => s.course);
