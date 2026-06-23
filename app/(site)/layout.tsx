@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 import { Header } from "@/src/components/Header/Header";
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
