@@ -1,7 +1,7 @@
 // app/courses/editor/[courseId]/EditorPanel.tsx
 "use client";
 
-import { useCourseEditor } from "./useCourseEditor";
+import { useCourseEditor } from "@/src/state/useCourseEditor";
 
 type Props = {
     courseId: string;

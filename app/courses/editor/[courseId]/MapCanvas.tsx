@@ -1,8 +1,8 @@
 // app/courses/editor/[courseId]/MapCanvas.tsx
 "use client";
 
+import { useCourseEditor } from "@/src/state/useCourseEditor";
 import { useEffect, useRef } from "react";
-import { useCourseEditor } from "./useCourseEditor";
 
 // Minimal Feature types
 type PointFeature = {
