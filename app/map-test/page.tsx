@@ -75,6 +75,9 @@ export default function Page() {
                 });
             });
 
+            console.log("HOLES:", course.holes);
+
+
             // 3. Zoom til banen
             const coords = course.holes.flatMap((h: any) => [
                 [h.tee_lng, h.tee_lat],
