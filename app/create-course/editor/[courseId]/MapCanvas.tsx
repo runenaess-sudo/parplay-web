@@ -151,6 +151,7 @@ export function MapCanvas() {
                 });
             });
             console.log("MAP READY, ZOOM:", map.getZoom(), "CENTER:", map.getCenter());
+            console.log("MAPBOX CSS CHECK:", getComputedStyle(mapContainer.current!).position);
         }
 
         init();
