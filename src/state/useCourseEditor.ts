@@ -9,7 +9,7 @@ type CourseEditorState = {
     mode: EditorMode;
 
     // actions
-    loadAll: (courseId: string) => Promise<void>;
+    loadAll: (courseData: any) => void;
     setSelectedHole: (holeId: string) => void;
     setMode: (mode: EditorMode) => void;
 
@@ -23,14 +23,11 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     selectedHoleId: null,
     mode: "none",
 
-    // 1. Last inn hele banen
-    loadAll: async (courseId: string) => {
-        const res = await fetch(`/api/editor/course/${courseId}`);
-        const data = await res.json();
-
+    // 1. Last inn hele banen (nå tar vi imot data direkte)
+    loadAll: (courseData: any) => {
         set({
-            course: data,
-            selectedHoleId: data.holes[0]?.id ?? null,
+            course: courseData,
+            selectedHoleId: courseData.holes[0]?.id ?? null,
         });
     },
 
