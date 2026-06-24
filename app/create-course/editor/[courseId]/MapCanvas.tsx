@@ -23,7 +23,7 @@ export function MapCanvas() {
 
         const map = new mapboxgl.Map({
             container: ref.current,
-            style: "mapbox://styles/mapbox/satellite-streets-v12",
+            style: "mapbox://styles/mapbox/satellite-streets-v9",
             center: [10.5, 60.0],
             zoom: 14,
         });
@@ -88,7 +88,7 @@ export function MapCanvas() {
                 source: "tee-source",
                 layout: {
                     "icon-image": "teepad-icon",
-                    "icon-size": 0.5,
+                    "icon-size": 0.18,
                     "icon-anchor": "bottom",
                 },
             });
@@ -99,7 +99,7 @@ export function MapCanvas() {
                 source: "basket-source",
                 layout: {
                     "icon-image": "basket-icon",
-                    "icon-size": 0.5,
+                    "icon-size": 0.20,
                     "icon-anchor": "bottom",
                 },
             });
@@ -110,7 +110,7 @@ export function MapCanvas() {
                 source: "fairway-source",
                 layout: {
                     "icon-image": "point-icon",
-                    "icon-size": 0.4,
+                    "icon-size": 0.12,
                     "icon-anchor": "center",
                 },
             });
