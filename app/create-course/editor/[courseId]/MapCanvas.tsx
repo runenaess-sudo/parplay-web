@@ -1,4 +1,3 @@
-// app/courses/editor/[courseId]/MapCanvas.tsx
 "use client";
 
 import { useCourseEditor } from "@/src/state/useCourseEditor";
@@ -19,8 +18,8 @@ type PolygonFeature = {
 
 export function MapCanvas() {
     const mapContainer = useRef<HTMLDivElement | null>(null);
-    const mapRef = useRef<mapboxgl.Map | null>(null);
-    const mapboxRef = useRef<null | typeof import("mapbox-gl")>(null);
+    const mapRef = useRef<any>(null);
+    const mapboxRef = useRef<any>(null);
 
     const holes = useCourseEditor((s) => s.holes);
     const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
@@ -30,18 +29,20 @@ export function MapCanvas() {
 
     const selectedHole = holes.find((h) => h.id === selectedHoleId) || null;
 
-    // INIT MAP (lazy import av mapbox-gl)
+    // INIT MAP
     useEffect(() => {
         if (!mapContainer.current) return;
 
         let isCancelled = false;
 
         async function init() {
-            const mod = await import("mapbox-gl");
-            mapboxRef.current = mod;
-            const mapboxgl = mod.default;
+            console.log("Importing mapbox-gl…");
 
-            mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
+            // ⭐ Correct import for Mapbox GL JS v3
+            const mapboxgl = await import("mapbox-gl");
+            mapboxRef.current = mapboxgl;
+
+            console.log("Mapbox loaded:", mapboxgl);
 
             if (!mapContainer.current || isCancelled) return;
 
@@ -50,12 +51,13 @@ export function MapCanvas() {
                 style: "mapbox://styles/mapbox/satellite-streets-v12",
                 center: [10.5, 60.0],
                 zoom: 13,
+                accessToken: process.env.NEXT_PUBLIC_MAPBOX_TOKEN!,
             });
 
             mapRef.current = map;
 
             map.on("load", () => {
-                map.resize(); // ⭐ Kritisk for å vise kartet
+                map.resize();
 
                 map.loadImage("/icons/teepad.png", (err, image) => {
                     if (!err && image && !map.hasImage("teepad")) {
@@ -147,51 +149,6 @@ export function MapCanvas() {
                         "line-width": 2,
                     },
                 });
-
-                // SELECT FAIRWAY POINT
-                map.on("click", "fairway-points-layer", (e) => {
-                    if (mapMode !== "edit-fairway") return;
-
-                    const feature = e.features?.[0] as any;
-                    if (!feature) return;
-
-                    const index = feature.properties?.index;
-                    if (typeof index === "number") {
-                        setSelectedFairwayIndex(index);
-                    }
-                });
-
-                // DRAG FAIRWAY POINTS
-                let isDragging = false;
-
-                map.on("mousedown", "fairway-points-layer", (e) => {
-                    if (mapMode !== "edit-fairway") return;
-                    if (!selectedHole) return;
-
-                    const feature = e.features?.[0] as any;
-                    if (!feature) return;
-
-                    const index = feature.properties?.index;
-                    if (typeof index !== "number") return;
-
-                    setSelectedFairwayIndex(index);
-                    isDragging = true;
-                    map.getCanvas().style.cursor = "grabbing";
-                });
-
-                map.on("mousemove", (e) => {
-                    if (!isDragging || selectedFairwayIndex === null || !selectedHole) return;
-
-                    const lng = e.lngLat.lng;
-                    const lat = e.lngLat.lat;
-
-                    selectedHole.fairway![selectedFairwayIndex] = { lng, lat };
-                });
-
-                map.on("mouseup", () => {
-                    isDragging = false;
-                    map.getCanvas().style.cursor = "";
-                });
             });
         }
 
@@ -211,7 +168,7 @@ export function MapCanvas() {
         const map = mapRef.current;
         if (!map) return;
 
-        const handleClick = (e: mapboxgl.MapMouseEvent) => {
+        const handleClick = (e: any) => {
             if (!selectedHole) return;
 
             const lng = e.lngLat.lng;
@@ -227,10 +184,7 @@ export function MapCanvas() {
         };
 
         map.on("click", handleClick);
-
-        return () => {
-            map.off("click", handleClick);
-        };
+        return () => map.off("click", handleClick);
     }, [mapMode, selectedHole]);
 
     // UPDATE ICONS + POLYGON + AUTOZOOM
@@ -239,7 +193,6 @@ export function MapCanvas() {
         const mapboxgl = mapboxRef.current;
         if (!map || !selectedHole || !mapboxgl) return;
 
-        // Tee
         const teeFeature: PointFeature | null = selectedHole.tee
             ? {
                 type: "Feature",
@@ -250,12 +203,11 @@ export function MapCanvas() {
             }
             : null;
 
-        (map.getSource("tee-source") as mapboxgl.GeoJSONSource)?.setData({
+        (map.getSource("tee-source") as any)?.setData({
             type: "FeatureCollection",
             features: teeFeature ? [teeFeature] : [],
         });
 
-        // Basket
         const basketFeature: PointFeature | null = selectedHole.basket
             ? {
                 type: "Feature",
@@ -266,12 +218,11 @@ export function MapCanvas() {
             }
             : null;
 
-        (map.getSource("basket-source") as mapboxgl.GeoJSONSource)?.setData({
+        (map.getSource("basket-source") as any)?.setData({
             type: "FeatureCollection",
             features: basketFeature ? [basketFeature] : [],
         });
 
-        // Fairway points
         const fairway = selectedHole.fairway ?? [];
 
         const fairwayPoints: PointFeature[] = fairway.map((p, index) => ({
@@ -283,12 +234,11 @@ export function MapCanvas() {
             properties: { index },
         }));
 
-        (map.getSource("fairway-source") as mapboxgl.GeoJSONSource)?.setData({
+        (map.getSource("fairway-source") as any)?.setData({
             type: "FeatureCollection",
             features: fairwayPoints,
         });
 
-        // FAIRWAY POLYGON
         const polygon: PolygonFeature[] =
             fairway.length >= 3
                 ? [
@@ -303,12 +253,11 @@ export function MapCanvas() {
                 ]
                 : [];
 
-        (map.getSource("fairway-polygon-source") as mapboxgl.GeoJSONSource)?.setData({
+        (map.getSource("fairway-polygon-source") as any)?.setData({
             type: "FeatureCollection",
             features: polygon,
         });
 
-        // AUTO-ZOOM
         const coords: [number, number][] = [];
 
         if (selectedHole.tee) coords.push([selectedHole.tee.lng, selectedHole.tee.lat]);
@@ -327,9 +276,8 @@ export function MapCanvas() {
         }
     }, [selectedHole, selectedFairwayIndex]);
 
-    // ⭐ FIX: MapCanvas må ha en container med høyde
     return (
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-h-0">
             <div ref={mapContainer} className="absolute inset-0" />
         </div>
     );
