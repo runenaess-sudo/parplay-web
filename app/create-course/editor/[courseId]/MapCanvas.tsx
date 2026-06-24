@@ -38,7 +38,6 @@ export function MapCanvas() {
         async function init() {
             console.log("Importing mapbox-gl…");
 
-            // ⭐ Correct import for Mapbox GL JS v3
             const mapboxgl = await import("mapbox-gl");
             mapboxRef.current = mapboxgl;
 
@@ -56,14 +55,11 @@ export function MapCanvas() {
 
             mapRef.current = map;
 
-            map.on("load", () => {
+            // ⭐ Mapbox GL JS v3: use style.load instead of load
+            map.on("style.load", () => {
                 map.resize();
-                map.addSource("mapbox-satellite", {
-                    type: "raster",
-                    url: "mapbox://mapbox.satellite",
-                    tileSize: 256
-                });
 
+                // Load icons
                 map.loadImage("/icons/teepad.png", (err, image) => {
                     if (!err && image && !map.hasImage("teepad")) {
                         map.addImage("teepad", image);
@@ -82,6 +78,7 @@ export function MapCanvas() {
                     }
                 });
 
+                // GeoJSON sources
                 map.addSource("tee-source", {
                     type: "geojson",
                     data: { type: "FeatureCollection", features: [] },
@@ -102,6 +99,7 @@ export function MapCanvas() {
                     data: { type: "FeatureCollection", features: [] },
                 });
 
+                // Layers
                 map.addLayer({
                     id: "tee-layer",
                     type: "symbol",
@@ -155,6 +153,7 @@ export function MapCanvas() {
                     },
                 });
             });
+
             console.log("MAP READY, ZOOM:", map.getZoom(), "CENTER:", map.getCenter());
             console.log("MAPBOX CSS CHECK:", getComputedStyle(mapContainer.current!).position);
         }
