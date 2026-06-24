@@ -58,6 +58,11 @@ export function MapCanvas() {
 
             map.on("load", () => {
                 map.resize();
+                map.addSource("mapbox-satellite", {
+                    type: "raster",
+                    url: "mapbox://mapbox.satellite",
+                    tileSize: 256
+                });
 
                 map.loadImage("/icons/teepad.png", (err, image) => {
                     if (!err && image && !map.hasImage("teepad")) {
