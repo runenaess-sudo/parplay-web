@@ -66,9 +66,48 @@ export function MapCanvas() {
                 );
 
                 map.fitBounds(bounds, { padding: 80 });
-            } else {
-                console.warn("Ingen gyldige koordinater å zoome til.");
             }
+
+            // 5. Tegn hullene
+            course.holes.forEach((hole: any) => {
+                if (
+                    hole.tee_latitude == null ||
+                    hole.tee_longitude == null ||
+                    hole.basket_latitude == null ||
+                    hole.basket_longitude == null
+                ) {
+                    console.warn("Hull mangler koordinater:", hole);
+                    return;
+                }
+
+                const line = {
+                    type: "Feature",
+                    geometry: {
+                        type: "LineString",
+                        coordinates: [
+                            [hole.tee_longitude, hole.tee_latitude],
+                            [hole.basket_longitude, hole.basket_latitude],
+                        ],
+                    },
+                };
+
+                const id = `hole-${hole.number}`;
+
+                map.addSource(id, {
+                    type: "geojson",
+                    data: line,
+                });
+
+                map.addLayer({
+                    id,
+                    type: "line",
+                    source: id,
+                    paint: {
+                        "line-color": "#00ff88",
+                        "line-width": 4,
+                    },
+                });
+            });
         });
 
         return () => map.remove();
