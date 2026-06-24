@@ -150,6 +150,7 @@ export function MapCanvas() {
                     },
                 });
             });
+            console.log("MAP READY, ZOOM:", map.getZoom(), "CENTER:", map.getCenter());
         }
 
         init();
