@@ -1,6 +1,6 @@
 "use client";
-
 import { useCourseEditor } from "@/src/state/useCourseEditor";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
 
 // Minimal Feature types
