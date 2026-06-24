@@ -54,10 +54,9 @@ export default function ClientPage() {
                     </div>
                 </div>
             )}
-
             {/* MAIN EDITOR */}
             {!loading && course && (
-                <div className="flex flex-1 flex-row overflow-hidden">
+                <div className="flex flex-row flex-1 min-h-0">
 
                     {/* LEFT SIDE: EDITOR PANEL */}
                     <EditorPanel courseId={courseId} />
