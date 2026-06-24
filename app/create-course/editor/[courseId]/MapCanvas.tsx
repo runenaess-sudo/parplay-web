@@ -286,7 +286,7 @@ export function MapCanvas() {
 
     return (
         <div className="relative flex-1 min-h-0 z-0">
-            <div ref={mapContainer} className="absolute inset-999" />
+            <div ref={mapContainer} className="absolute inset-0" />
         </div>
     );
 }
