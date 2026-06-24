@@ -27,7 +27,10 @@ export function MapCanvas({
     onAddFairwayPoint,
 }: MapCanvasProps) {
     const ref = useRef<HTMLDivElement | null>(null);
+    const mapRef = useRef<mapboxgl.Map | null>(null);
+    const updatePointsRef = useRef<() => void>(() => { });
 
+    // --- INIT MAP (only once) ---
     useEffect(() => {
         if (!ref.current) return;
 
@@ -38,10 +41,12 @@ export function MapCanvas({
             zoom: 14,
         });
 
+        mapRef.current = map;
+
         map.on("load", () => {
             console.log("EDITOR MAP LOADED");
 
-            // --- IKONER ---
+            // ICONS
             map.loadImage("/icons/teepad.png", (err, img) => {
                 if (!err && img && !map.hasImage("teepad-icon")) {
                     map.addImage("teepad-icon", img);
@@ -60,7 +65,7 @@ export function MapCanvas({
                 }
             });
 
-            // --- SOURCES ---
+            // SOURCES
             map.addSource("tee-source", {
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
@@ -76,7 +81,7 @@ export function MapCanvas({
                 data: { type: "FeatureCollection", features: [] },
             });
 
-            // --- LAYERS ---
+            // LAYERS
             map.addLayer({
                 id: "tee-layer",
                 type: "symbol",
@@ -110,7 +115,7 @@ export function MapCanvas({
                 },
             });
 
-            // --- HULL-LINJER ---
+            // DRAW HOLE LINES
             course.holes.forEach((hole: any) => {
                 if (
                     hole.tee_latitude == null ||
@@ -151,7 +156,7 @@ export function MapCanvas({
                 });
             });
 
-            // --- TEE / BASKET / FAIRWAY ---
+            // UPDATE POINTS FUNCTION
             const updatePoints = () => {
                 const teeFeatures: Feature<Point>[] = [];
                 const basketFeatures: Feature<Point>[] = [];
@@ -208,59 +213,31 @@ export function MapCanvas({
                 });
             };
 
+            updatePointsRef.current = updatePoints;
             updatePoints();
 
-            // --- STEG 7.2: KLIKK-LOGIKK ---
+            // CLICK LOGIC
             map.on("click", (e) => {
                 if (!selectedHoleId) return;
 
                 const lng = e.lngLat.lng;
                 const lat = e.lngLat.lat;
 
-                if (mode === "tee") {
-                    onSetTee(selectedHoleId, lng, lat);
-                }
+                if (mode === "tee") onSetTee(selectedHoleId, lng, lat);
+                if (mode === "basket") onSetBasket(selectedHoleId, lng, lat);
+                if (mode === "fairway") onAddFairwayPoint(selectedHoleId, lng, lat);
 
-                if (mode === "basket") {
-                    onSetBasket(selectedHoleId, lng, lat);
-                }
-
-                if (mode === "fairway") {
-                    onAddFairwayPoint(selectedHoleId, lng, lat);
-                }
-
-                updatePoints();
+                updatePointsRef.current();
             });
-
-            // --- ZOOM ---
-            const coords = course.holes.flatMap((h: any) => {
-                if (
-                    h.tee_latitude == null ||
-                    h.tee_longitude == null ||
-                    h.basket_latitude == null ||
-                    h.basket_longitude == null
-                ) {
-                    return [];
-                }
-
-                return [
-                    [h.tee_longitude, h.tee_latitude],
-                    [h.basket_longitude, h.basket_latitude],
-                ];
-            });
-
-            if (coords.length > 0) {
-                const bounds = coords.reduce(
-                    (b: any, c: any) => b.extend(c),
-                    new mapboxgl.LngLatBounds(coords[0], coords[0])
-                );
-
-                map.fitBounds(bounds, { padding: 80 });
-            }
         });
 
         return () => map.remove();
-    }, [course, selectedHoleId, mode]);
+    }, []);
+
+    // UPDATE POINTS WHEN COURSE CHANGES
+    useEffect(() => {
+        updatePointsRef.current();
+    }, [course]);
 
     return (
         <div className="w-full h-full">
