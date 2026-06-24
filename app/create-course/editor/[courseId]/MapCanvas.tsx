@@ -57,6 +57,7 @@ export function MapCanvas() {
 
             // ⭐ Mapbox GL JS v3: use style.load instead of load
             map.on("style.load", () => {
+                map.setProjection("mercator");
                 map.resize();
 
                 // Load icons
