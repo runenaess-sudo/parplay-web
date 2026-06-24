@@ -36,7 +36,6 @@ export function MapCanvas() {
             console.log("MAP LOADED");
         });
 
-        // ⭐ Cleanup MÅ være i blokk, ellers får du TS-feilen
         return () => {
             map.remove();
         };
