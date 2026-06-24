@@ -1,155 +1,90 @@
-// app/courses/editor/[courseId]/useCourseEditor.ts
-"use client";
-
+// src/state/useCourseEditor.ts
 import { create } from "zustand";
 
-// ---------------------------------------------------------
-// TYPES
-// ---------------------------------------------------------
-export type Course = {
-    id: string;
-    name: string;
-    description: string | null;
-    club_id: string | null;
-    status: string;
-    is_published: boolean;
-};
-
-export type Hole = {
-    id: string;
-    course_id: string;
-    number: number;
-    par: number;
-    distance: number | null;
-
-    tee: { lng: number; lat: number } | null;
-    basket: { lng: number; lat: number } | null;
-    fairway: { lng: number; lat: number }[] | null;
-
-    tee_rotation?: number;
-    name?: string;
-};
-
-export type Layout = {
-    id: string;
-    course_id: string;
-    name: string;
-    description: string | null;
-};
-
-export type EditorTab =
-    | "course"
-    | "holes"
-    | "hole-editor"
-    | "layouts"
-    | "facilities"
-    | "directions"
-    | "contact"
-    | "events"
-    | "images"
-    | "publish";
-
-export type MapMode =
-    | "idle"
-    | "set-tee"
-    | "set-basket"
-    | "edit-fairway"
-    | "add-fairway"
-    | "edit";
+type EditorMode = "none" | "tee" | "basket" | "fairway";
 
 type CourseEditorState = {
-    course: Course | null;
-    holes: Hole[];
-    layouts: Layout[];
-
-    activeTab: EditorTab;
+    course: any | null;
     selectedHoleId: string | null;
-    selectedLayoutId: string | null;
-    mapMode: MapMode;
+    mode: EditorMode;
 
-    selectedFairwayIndex: number | null;
-
-    loading: boolean;
-
+    // actions
     loadAll: (courseId: string) => Promise<void>;
-    setActiveTab: (tab: EditorTab) => void;
-    selectHole: (holeId: string | null) => void;
-    selectLayout: (layoutId: string | null) => void;
-    setMapMode: (mode: MapMode) => void;
-    setSelectedFairwayIndex: (i: number | null) => void;
+    setSelectedHole: (holeId: string) => void;
+    setMode: (mode: EditorMode) => void;
+
+    setTee: (holeId: string, lng: number, lat: number) => void;
+    setBasket: (holeId: string, lng: number, lat: number) => void;
+    addFairwayPoint: (holeId: string, lng: number, lat: number) => void;
 };
 
-// lazy Supabase – kun i browser
-async function getSupabase() {
-    const mod = await import("@/src/lib/supabase-browser");
-    return mod.supabaseBrowser;
-}
-
-export const useCourseEditor = create<CourseEditorState>()((set, get) => ({
+export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     course: null,
-    holes: [],
-    layouts: [],
-    activeTab: "course",
     selectedHoleId: null,
-    selectedLayoutId: null,
-    mapMode: "idle",
-    selectedFairwayIndex: null,
-    loading: false,
+    mode: "none",
 
+    // 1. Last inn hele banen
     loadAll: async (courseId: string) => {
-        if (!courseId) return;
+        const res = await fetch(`/api/editor/course/${courseId}`);
+        const data = await res.json();
 
-        set({ loading: true });
-
-        try {
-            const supabase = await getSupabase();
-
-            const { data: course } = await supabase
-                .from("courses")
-                .select("*")
-                .eq("id", courseId)
-                .single();
-
-            const { data: holes } = await supabase
-                .from("holes")
-                .select("*")
-                .eq("course_id", courseId)
-                .order("number", { ascending: true });
-
-            const { data: layouts } = await supabase
-                .from("course_layouts")
-                .select("*")
-                .eq("course_id", courseId)
-                .order("name", { ascending: true });
-
-            set({
-                course: course || null,
-                holes: holes || [],
-                layouts: layouts || [],
-                loading: false,
-            });
-        } catch (err) {
-            console.error("Failed to load editor data", err);
-            set({ loading: false });
-        }
+        set({
+            course: data,
+            selectedHoleId: data.holes[0]?.id ?? null,
+        });
     },
 
-    setActiveTab: (tab: EditorTab) => set({ activeTab: tab }),
+    // 2. Velg hull
+    setSelectedHole: (holeId) => set({ selectedHoleId: holeId }),
 
-    selectHole: (holeId: string | null) =>
-        set({
-            selectedHoleId: holeId,
-            activeTab: holeId ? "hole-editor" : "holes",
-        }),
+    // 3. Sett modus (tee, basket, fairway)
+    setMode: (mode) => set({ mode }),
 
-    selectLayout: (layoutId: string | null) =>
-        set({
-            selectedLayoutId: layoutId,
-            activeTab: "layouts",
-        }),
+    // 4. Sett tee-posisjon
+    setTee: (holeId, lng, lat) => {
+        const course = get().course;
+        if (!course) return;
 
-    setMapMode: (mode: MapMode) => set({ mapMode: mode }),
+        const holes = course.holes.map((h: any) =>
+            h.id === holeId
+                ? { ...h, tee_longitude: lng, tee_latitude: lat }
+                : h
+        );
 
-    setSelectedFairwayIndex: (i: number | null) =>
-        set({ selectedFairwayIndex: i }),
+        set({ course: { ...course, holes } });
+    },
+
+    // 5. Sett basket-posisjon
+    setBasket: (holeId, lng, lat) => {
+        const course = get().course;
+        if (!course) return;
+
+        const holes = course.holes.map((h: any) =>
+            h.id === holeId
+                ? { ...h, basket_longitude: lng, basket_latitude: lat }
+                : h
+        );
+
+        set({ course: { ...course, holes } });
+    },
+
+    // 6. Legg til fairway-punkt
+    addFairwayPoint: (holeId, lng, lat) => {
+        const course = get().course;
+        if (!course) return;
+
+        const holes = course.holes.map((h: any) =>
+            h.id === holeId
+                ? {
+                    ...h,
+                    fairway_points: [
+                        ...(h.fairway_points ?? []),
+                        { lng, lat },
+                    ],
+                }
+                : h
+        );
+
+        set({ course: { ...course, holes } });
+    },
 }));

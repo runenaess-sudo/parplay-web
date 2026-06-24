@@ -2,7 +2,7 @@
 
 import { useCourseEditor } from "@/src/state/useCourseEditor";
 import { useParams } from "next/navigation";
-import { EditorPanel } from "./EditorPanel";
+import EditorPanel from "./EditorPanel";
 import LoadEditorData from "./LoadEditorData";
 import { MapCanvas } from "./MapCanvas";
 
@@ -10,7 +10,6 @@ export default function Page() {
     const { courseId } = useParams() as { courseId: string };
 
     const course = useCourseEditor((s) => s.course);
-    const loading = useCourseEditor((s) => s.loading);
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-900">
@@ -32,41 +31,31 @@ export default function Page() {
             </div>
 
             {/* LOADING */}
-            {loading && (
+            {!course && (
                 <div className="flex flex-1 items-center justify-center text-slate-300">
                     Loading editor…
                 </div>
             )}
 
-            {/* ERROR */}
-            {!loading && !course && (
-                <div className="flex flex-1 items-center justify-center text-red-400 text-center px-6">
-                    <div>
-                        <div className="text-lg font-semibold mb-2">
-                            Could not load course
-                        </div>
-                        <div className="text-sm opacity-80">
-                            This usually means:
-                            <br />– The course does not exist
-                            <br />– You do not have access (RLS)
-                            <br />– Supabase returned null
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* MAIN EDITOR */}
-            {!loading && course && (
+            {course && (
                 <div className="flex flex-row flex-1 min-h-0">
 
                     {/* LEFT SIDE: EDITOR PANEL */}
                     <div className="w-80 shrink-0 border-r border-slate-800">
-                        <EditorPanel courseId={courseId} />
+                        <EditorPanel />
                     </div>
 
                     {/* RIGHT SIDE: MAP */}
                     <div className="relative flex-1 min-h-0">
-                        <MapCanvas />
+                        <MapCanvas
+                            course={course}
+                            selectedHoleId={useCourseEditor.getState().selectedHoleId}
+                            mode={useCourseEditor.getState().mode}
+                            onSetTee={useCourseEditor.getState().setTee}
+                            onSetBasket={useCourseEditor.getState().setBasket}
+                            onAddFairwayPoint={useCourseEditor.getState().addFairwayPoint}
+                        />
                     </div>
                 </div>
             )}

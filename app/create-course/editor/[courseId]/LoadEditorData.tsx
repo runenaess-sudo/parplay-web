@@ -8,7 +8,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
     const loadAll = useCourseEditor((s) => s.loadAll);
 
     useEffect(() => {
-        if (!courseId) return;   // ← viktig
+        if (!courseId) return;
         loadAll(courseId);
     }, [courseId]);
 

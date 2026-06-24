@@ -1,21 +1,31 @@
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import type { Feature, LineString, Point } from "geojson";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
 
-// GeoJSON typer
-import type { Feature, LineString, Point } from "geojson";
-
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+type EditorMode = "none" | "tee" | "basket" | "fairway";
 
-export function MapCanvas() {
+type MapCanvasProps = {
+    course: any;
+    selectedHoleId: string | null;
+    mode: EditorMode;
+    onSetTee: (holeId: string, lng: number, lat: number) => void;
+    onSetBasket: (holeId: string, lng: number, lat: number) => void;
+    onAddFairwayPoint: (holeId: string, lng: number, lat: number) => void;
+};
+
+export function MapCanvas({
+    course,
+    selectedHoleId,
+    mode,
+    onSetTee,
+    onSetBasket,
+    onAddFairwayPoint,
+}: MapCanvasProps) {
     const ref = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
@@ -23,30 +33,15 @@ export function MapCanvas() {
 
         const map = new mapboxgl.Map({
             container: ref.current,
-            style: "mapbox://styles/mapbox/satellite-streets-v9",
+            style: "mapbox://styles/mapbox/satellite-v9",
             center: [10.5, 60.0],
             zoom: 14,
         });
 
-        map.on("load", async () => {
+        map.on("load", () => {
             console.log("EDITOR MAP LOADED");
 
-            // 1. Hent bane + hull
-            const { data: course, error } = await supabase
-                .from("courses")
-                .select("*, holes(*)")
-                .eq("id", "5ad7fc02-778b-4bf8-a93b-3cb2514cc081")
-                .single();
-
-            if (error) {
-                console.error("Feil ved henting av bane:", error);
-                return;
-            }
-
-            console.log("EDITOR BANEDATA:", course);
-            console.log("EDITOR HOLES:", course.holes);
-
-            // 2. Last inn ikonene dine
+            // --- IKONER ---
             map.loadImage("/icons/teepad.png", (err, img) => {
                 if (!err && img && !map.hasImage("teepad-icon")) {
                     map.addImage("teepad-icon", img);
@@ -65,7 +60,7 @@ export function MapCanvas() {
                 }
             });
 
-            // 3. Opprett sources
+            // --- SOURCES ---
             map.addSource("tee-source", {
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
@@ -81,7 +76,7 @@ export function MapCanvas() {
                 data: { type: "FeatureCollection", features: [] },
             });
 
-            // 4. Layers for ikonene
+            // --- LAYERS ---
             map.addLayer({
                 id: "tee-layer",
                 type: "symbol",
@@ -115,7 +110,7 @@ export function MapCanvas() {
                 },
             });
 
-            // 5. Hull-linjer
+            // --- HULL-LINJER ---
             course.holes.forEach((hole: any) => {
                 if (
                     hole.tee_latitude == null ||
@@ -123,7 +118,6 @@ export function MapCanvas() {
                     hole.basket_latitude == null ||
                     hole.basket_longitude == null
                 ) {
-                    console.warn("Hull mangler koordinater:", hole);
                     return;
                 }
 
@@ -139,7 +133,7 @@ export function MapCanvas() {
                     },
                 };
 
-                const id = `hole-${hole.number}`;
+                const id = `hole-${hole.id}`;
 
                 map.addSource(id, {
                     type: "geojson",
@@ -157,62 +151,88 @@ export function MapCanvas() {
                 });
             });
 
-            // 6. Tee + basket + fairway
-            const teeFeatures: Feature<Point>[] = [];
-            const basketFeatures: Feature<Point>[] = [];
-            const fairwayFeatures: Feature<Point>[] = [];
+            // --- TEE / BASKET / FAIRWAY ---
+            const updatePoints = () => {
+                const teeFeatures: Feature<Point>[] = [];
+                const basketFeatures: Feature<Point>[] = [];
+                const fairwayFeatures: Feature<Point>[] = [];
 
-            course.holes.forEach((hole: any) => {
-                if (hole.tee_latitude && hole.tee_longitude) {
-                    teeFeatures.push({
-                        type: "Feature",
-                        properties: {},
-                        geometry: {
-                            type: "Point",
-                            coordinates: [hole.tee_longitude, hole.tee_latitude],
-                        },
-                    });
-                }
+                course.holes.forEach((hole: any) => {
+                    if (hole.tee_latitude && hole.tee_longitude) {
+                        teeFeatures.push({
+                            type: "Feature",
+                            properties: {},
+                            geometry: {
+                                type: "Point",
+                                coordinates: [hole.tee_longitude, hole.tee_latitude],
+                            },
+                        });
+                    }
 
-                if (hole.basket_latitude && hole.basket_longitude) {
-                    basketFeatures.push({
-                        type: "Feature",
-                        properties: {},
-                        geometry: {
-                            type: "Point",
-                            coordinates: [hole.basket_longitude, hole.basket_latitude],
-                        },
-                    });
-                }
+                    if (hole.basket_latitude && hole.basket_longitude) {
+                        basketFeatures.push({
+                            type: "Feature",
+                            properties: {},
+                            geometry: {
+                                type: "Point",
+                                coordinates: [hole.basket_longitude, hole.basket_latitude],
+                            },
+                        });
+                    }
 
-                (hole.fairway_points ?? []).forEach((p: any) => {
-                    fairwayFeatures.push({
-                        type: "Feature",
-                        properties: {},
-                        geometry: {
-                            type: "Point",
-                            coordinates: [p.lng, p.lat],
-                        },
+                    (hole.fairway_points ?? []).forEach((p: any) => {
+                        fairwayFeatures.push({
+                            type: "Feature",
+                            properties: {},
+                            geometry: {
+                                type: "Point",
+                                coordinates: [p.lng, p.lat],
+                            },
+                        });
                     });
                 });
+
+                (map.getSource("tee-source") as mapboxgl.GeoJSONSource).setData({
+                    type: "FeatureCollection",
+                    features: teeFeatures,
+                });
+
+                (map.getSource("basket-source") as mapboxgl.GeoJSONSource).setData({
+                    type: "FeatureCollection",
+                    features: basketFeatures,
+                });
+
+                (map.getSource("fairway-source") as mapboxgl.GeoJSONSource).setData({
+                    type: "FeatureCollection",
+                    features: fairwayFeatures,
+                });
+            };
+
+            updatePoints();
+
+            // --- STEG 7.2: KLIKK-LOGIKK ---
+            map.on("click", (e) => {
+                if (!selectedHoleId) return;
+
+                const lng = e.lngLat.lng;
+                const lat = e.lngLat.lat;
+
+                if (mode === "tee") {
+                    onSetTee(selectedHoleId, lng, lat);
+                }
+
+                if (mode === "basket") {
+                    onSetBasket(selectedHoleId, lng, lat);
+                }
+
+                if (mode === "fairway") {
+                    onAddFairwayPoint(selectedHoleId, lng, lat);
+                }
+
+                updatePoints();
             });
 
-            (map.getSource("tee-source") as mapboxgl.GeoJSONSource).setData({
-                type: "FeatureCollection",
-                features: teeFeatures,
-            });
-
-            (map.getSource("basket-source") as mapboxgl.GeoJSONSource).setData({
-                type: "FeatureCollection",
-                features: basketFeatures,
-            });
-
-            (map.getSource("fairway-source") as mapboxgl.GeoJSONSource).setData({
-                type: "FeatureCollection",
-                features: fairwayFeatures,
-            });
-
-            // 7. Zoom til banen
+            // --- ZOOM ---
             const coords = course.holes.flatMap((h: any) => {
                 if (
                     h.tee_latitude == null ||
@@ -240,7 +260,7 @@ export function MapCanvas() {
         });
 
         return () => map.remove();
-    }, []);
+    }, [course, selectedHoleId, mode]);
 
     return (
         <div className="w-full h-full">
