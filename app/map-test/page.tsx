@@ -28,7 +28,7 @@ export default function Page() {
         map.on("load", async () => {
             console.log("MAP-TEST LOADED");
 
-            // 1. Hent banen
+            // 1. Hent banen + hull
             const { data: course, error } = await supabase
                 .from("courses")
                 .select("*, holes(*)")
@@ -41,18 +41,27 @@ export default function Page() {
             }
 
             console.log("BANEDATA:", course);
+            console.log("HOLES:", course.holes);
 
             // 2. Tegn hullene
             course.holes.forEach((hole: any) => {
-                if (!hole.tee_lat || !hole.tee_lng || !hole.basket_lat || !hole.basket_lng) return;
+                if (
+                    hole.tee_latitude == null ||
+                    hole.tee_longitude == null ||
+                    hole.basket_latitude == null ||
+                    hole.basket_longitude == null
+                ) {
+                    console.warn("Hull mangler koordinater:", hole);
+                    return;
+                }
 
                 const line = {
                     type: "Feature",
                     geometry: {
                         type: "LineString",
                         coordinates: [
-                            [hole.tee_lng, hole.tee_lat],
-                            [hole.basket_lng, hole.basket_lat],
+                            [hole.tee_longitude, hole.tee_latitude],
+                            [hole.basket_longitude, hole.basket_latitude],
                         ],
                     },
                 };
@@ -75,21 +84,33 @@ export default function Page() {
                 });
             });
 
-            console.log("HOLES:", course.holes);
-
-
             // 3. Zoom til banen
-            const coords = course.holes.flatMap((h: any) => [
-                [h.tee_lng, h.tee_lat],
-                [h.basket_lng, h.basket_lat],
-            ]);
+            const coords = course.holes.flatMap((h: any) => {
+                if (
+                    h.tee_latitude == null ||
+                    h.tee_longitude == null ||
+                    h.basket_latitude == null ||
+                    h.basket_longitude == null
+                ) {
+                    return [];
+                }
 
-            const bounds = coords.reduce(
-                (b: any, c: any) => b.extend(c),
-                new mapboxgl.LngLatBounds(coords[0], coords[0])
-            );
+                return [
+                    [h.tee_longitude, h.tee_latitude],
+                    [h.basket_longitude, h.basket_latitude],
+                ];
+            });
 
-            map.fitBounds(bounds, { padding: 80 });
+            if (coords.length > 0) {
+                const bounds = coords.reduce(
+                    (b: any, c: any) => b.extend(c),
+                    new mapboxgl.LngLatBounds(coords[0], coords[0])
+                );
+
+                map.fitBounds(bounds, { padding: 80 });
+            } else {
+                console.warn("Ingen gyldige koordinater å zoome til.");
+            }
         });
 
         return () => map.remove();
