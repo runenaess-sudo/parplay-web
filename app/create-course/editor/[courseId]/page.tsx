@@ -60,7 +60,9 @@ export default function Page() {
                 <div className="flex flex-row flex-1 min-h-0">
 
                     {/* LEFT SIDE: EDITOR PANEL */}
-                    <EditorPanel courseId={courseId} />
+                    <div className="w-80 shrink-0 border-r border-slate-800">
+                        <EditorPanel courseId={courseId} />
+                    </div>
 
                     {/* RIGHT SIDE: MAP */}
                     <div className="relative flex-1 min-h-0">
