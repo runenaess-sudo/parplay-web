@@ -1,4 +1,3 @@
-// app/create-course/editor/[courseId]/EditorPanel.tsx
 "use client";
 
 import { useCourseEditor } from "@/src/state/useCourseEditor";
@@ -15,14 +14,13 @@ export default function EditorPanel() {
 
     return (
         <div className="w-64 bg-neutral-900 text-white p-4 space-y-6">
-
-            {/* BANENAVN */}
+            {/* COURSE HEADER */}
             <div>
                 <h2 className="text-xl font-bold">{course.name}</h2>
                 <p className="text-sm text-neutral-400">{course.id}</p>
             </div>
 
-            {/* HULL-LISTE */}
+            {/* HOLE LIST */}
             <div className="space-y-2">
                 {course.holes.map((h: any) => (
                     <button
@@ -33,12 +31,12 @@ export default function EditorPanel() {
                             : "bg-neutral-800 hover:bg-neutral-700"
                             }`}
                     >
-                        Hull {h.number}
+                        Hole {h.number}
                     </button>
                 ))}
             </div>
 
-            {/* MODUS-KNAPPER */}
+            {/* MODES */}
             <div className="space-y-2 pt-4 border-t border-neutral-700">
                 <button
                     onClick={() => setMode("tee")}
@@ -47,7 +45,7 @@ export default function EditorPanel() {
                         : "bg-neutral-800 hover:bg-neutral-700"
                         }`}
                 >
-                    Sett Tee
+                    Set Tee
                 </button>
 
                 <button
@@ -57,17 +55,17 @@ export default function EditorPanel() {
                         : "bg-neutral-800 hover:bg-neutral-700"
                         }`}
                 >
-                    Sett Basket
+                    Set Basket
                 </button>
 
                 <button
-                    onClick={() => setMode("fairway")}
-                    className={`w-full px-3 py-2 rounded ${mode === "fairway"
+                    onClick={() => setMode("points")}
+                    className={`w-full px-3 py-2 rounded ${mode === "points"
                         ? "bg-purple-600"
                         : "bg-neutral-800 hover:bg-neutral-700"
                         }`}
                 >
-                    Legg til Fairway-punkt
+                    Set Points
                 </button>
 
                 <button
@@ -77,7 +75,7 @@ export default function EditorPanel() {
                         : "bg-neutral-800 hover:bg-neutral-700"
                         }`}
                 >
-                    Ingen modus
+                    No mode
                 </button>
             </div>
         </div>

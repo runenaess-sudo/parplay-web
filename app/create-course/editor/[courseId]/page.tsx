@@ -16,6 +16,9 @@ export default function Page() {
     const setTee = useCourseEditor((s) => s.setTee);
     const setBasket = useCourseEditor((s) => s.setBasket);
     const addFairwayPoint = useCourseEditor((s) => s.addFairwayPoint);
+    const moveFairwayPoint = useCourseEditor((s) => s.moveFairwayPoint);
+    const removeFairwayPoint = useCourseEditor((s) => s.removeFairwayPoint);
+    const setTeeAngle = useCourseEditor((s) => s.setTeeAngle);
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-900">
@@ -61,6 +64,9 @@ export default function Page() {
                             onSetTee={setTee}
                             onSetBasket={setBasket}
                             onAddFairwayPoint={addFairwayPoint}
+                            onMoveFairwayPoint={moveFairwayPoint}
+                            onRemoveFairwayPoint={removeFairwayPoint}
+                            onSetTeeAngle={setTeeAngle}
                         />
                     </div>
                 </div>
