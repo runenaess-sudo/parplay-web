@@ -1,6 +1,6 @@
 "use client";
 
-import type { Feature, LineString, Point } from "geojson";
+import type { Feature, Point } from "geojson";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
@@ -29,6 +29,19 @@ export function MapCanvas({
     const ref = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const updatePointsRef = useRef<() => void>(() => { });
+
+    // ⭐ NEW: refs for live state
+    const selectedHoleRef = useRef<string | null>(null);
+    const modeRef = useRef<EditorMode>("none");
+
+    // keep refs updated
+    useEffect(() => {
+        selectedHoleRef.current = selectedHoleId;
+    }, [selectedHoleId]);
+
+    useEffect(() => {
+        modeRef.current = mode;
+    }, [mode]);
 
     // INIT MAP — only once
     useEffect(() => {
@@ -115,47 +128,6 @@ export function MapCanvas({
                 },
             });
 
-            // HOLE LINES
-            course.holes.forEach((hole: any) => {
-                if (
-                    hole.tee_latitude == null ||
-                    hole.tee_longitude == null ||
-                    hole.basket_latitude == null ||
-                    hole.basket_longitude == null
-                ) {
-                    return;
-                }
-
-                const line: Feature<LineString> = {
-                    type: "Feature",
-                    properties: {},
-                    geometry: {
-                        type: "LineString",
-                        coordinates: [
-                            [hole.tee_longitude, hole.tee_latitude],
-                            [hole.basket_longitude, hole.basket_latitude],
-                        ],
-                    },
-                };
-
-                const id = `hole-${hole.id}`;
-
-                map.addSource(id, {
-                    type: "geojson",
-                    data: line,
-                });
-
-                map.addLayer({
-                    id,
-                    type: "line",
-                    source: id,
-                    paint: {
-                        "line-color": "#00ff88",
-                        "line-width": 4,
-                    },
-                });
-            });
-
             // UPDATE POINTS FUNCTION
             const updatePoints = () => {
                 const teeFeatures: Feature<Point>[] = [];
@@ -216,16 +188,19 @@ export function MapCanvas({
             updatePointsRef.current = updatePoints;
             updatePoints();
 
-            // CLICK LOGIC
+            // ⭐ CLICK LOGIC — now uses refs (LIVE state)
             map.on("click", (e) => {
-                if (!selectedHoleId) return;
+                const holeId = selectedHoleRef.current;
+                const currentMode = modeRef.current;
+
+                if (!holeId) return;
 
                 const lng = e.lngLat.lng;
                 const lat = e.lngLat.lat;
 
-                if (mode === "tee") onSetTee(selectedHoleId, lng, lat);
-                if (mode === "basket") onSetBasket(selectedHoleId, lng, lat);
-                if (mode === "fairway") onAddFairwayPoint(selectedHoleId, lng, lat);
+                if (currentMode === "tee") onSetTee(holeId, lng, lat);
+                if (currentMode === "basket") onSetBasket(holeId, lng, lat);
+                if (currentMode === "fairway") onAddFairwayPoint(holeId, lng, lat);
 
                 updatePointsRef.current();
             });
