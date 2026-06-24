@@ -10,6 +10,12 @@ export default function Page() {
     const { courseId } = useParams() as { courseId: string };
 
     const course = useCourseEditor((s) => s.course);
+    const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
+    const mode = useCourseEditor((s) => s.mode);
+
+    const setTee = useCourseEditor((s) => s.setTee);
+    const setBasket = useCourseEditor((s) => s.setBasket);
+    const addFairwayPoint = useCourseEditor((s) => s.addFairwayPoint);
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-900">
@@ -50,11 +56,11 @@ export default function Page() {
                     <div className="relative flex-1 min-h-0">
                         <MapCanvas
                             course={course}
-                            selectedHoleId={useCourseEditor.getState().selectedHoleId}
-                            mode={useCourseEditor.getState().mode}
-                            onSetTee={useCourseEditor.getState().setTee}
-                            onSetBasket={useCourseEditor.getState().setBasket}
-                            onAddFairwayPoint={useCourseEditor.getState().addFairwayPoint}
+                            selectedHoleId={selectedHoleId}
+                            mode={mode}
+                            onSetTee={setTee}
+                            onSetBasket={setBasket}
+                            onAddFairwayPoint={addFairwayPoint}
                         />
                     </div>
                 </div>
