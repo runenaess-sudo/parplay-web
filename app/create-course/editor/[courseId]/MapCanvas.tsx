@@ -1,6 +1,6 @@
 "use client";
 
-import type { Feature, Point } from "geojson";
+import type { Feature, LineString, Point } from "geojson";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
@@ -28,13 +28,19 @@ export function MapCanvas({
 }: MapCanvasProps) {
     const ref = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
+
+    // ⭐ LIVE REFS FOR STATE (critical)
+    const courseRef = useRef<any>(course);
+    const selectedHoleRef = useRef<string | null>(selectedHoleId);
+    const modeRef = useRef<EditorMode>(mode);
+
     const updatePointsRef = useRef<() => void>(() => { });
 
-    // ⭐ NEW: refs for live state
-    const selectedHoleRef = useRef<string | null>(null);
-    const modeRef = useRef<EditorMode>("none");
-
     // keep refs updated
+    useEffect(() => {
+        courseRef.current = course;
+    }, [course]);
+
     useEffect(() => {
         selectedHoleRef.current = selectedHoleId;
     }, [selectedHoleId]);
@@ -128,13 +134,54 @@ export function MapCanvas({
                 },
             });
 
+            // HOLE LINES
+            courseRef.current.holes.forEach((hole: any) => {
+                if (
+                    hole.tee_latitude == null ||
+                    hole.tee_longitude == null ||
+                    hole.basket_latitude == null ||
+                    hole.basket_longitude == null
+                ) {
+                    return;
+                }
+
+                const line: Feature<LineString> = {
+                    type: "Feature",
+                    properties: {},
+                    geometry: {
+                        type: "LineString",
+                        coordinates: [
+                            [hole.tee_longitude, hole.tee_latitude],
+                            [hole.basket_longitude, hole.basket_latitude],
+                        ],
+                    },
+                };
+
+                const id = `hole-${hole.id}`;
+
+                map.addSource(id, {
+                    type: "geojson",
+                    data: line,
+                });
+
+                map.addLayer({
+                    id,
+                    type: "line",
+                    source: id,
+                    paint: {
+                        "line-color": "#00ff88",
+                        "line-width": 4,
+                    },
+                });
+            });
+
             // UPDATE POINTS FUNCTION
             const updatePoints = () => {
                 const teeFeatures: Feature<Point>[] = [];
                 const basketFeatures: Feature<Point>[] = [];
                 const fairwayFeatures: Feature<Point>[] = [];
 
-                course.holes.forEach((hole: any) => {
+                courseRef.current.holes.forEach((hole: any) => {
                     if (hole.tee_latitude && hole.tee_longitude) {
                         teeFeatures.push({
                             type: "Feature",
@@ -188,7 +235,7 @@ export function MapCanvas({
             updatePointsRef.current = updatePoints;
             updatePoints();
 
-            // ⭐ CLICK LOGIC — now uses refs (LIVE state)
+            // CLICK LOGIC — uses LIVE refs
             map.on("click", (e) => {
                 const holeId = selectedHoleRef.current;
                 const currentMode = modeRef.current;
@@ -218,9 +265,9 @@ export function MapCanvas({
     useEffect(() => {
         const map = mapRef.current;
         if (!map) return;
-        if (!course || !course.holes) return;
+        if (!courseRef.current || !courseRef.current.holes) return;
 
-        const coords = course.holes.flatMap((h: any) => {
+        const coords = courseRef.current.holes.flatMap((h: any) => {
             if (
                 h.tee_latitude == null ||
                 h.tee_longitude == null ||
