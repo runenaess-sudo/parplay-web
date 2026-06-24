@@ -30,7 +30,7 @@ export function MapCanvas({
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const updatePointsRef = useRef<() => void>(() => { });
 
-    // --- INIT MAP (only once) ---
+    // INIT MAP — only once
     useEffect(() => {
         if (!ref.current) return;
 
@@ -115,7 +115,7 @@ export function MapCanvas({
                 },
             });
 
-            // DRAW HOLE LINES
+            // HOLE LINES
             course.holes.forEach((hole: any) => {
                 if (
                     hole.tee_latitude == null ||
@@ -237,6 +237,38 @@ export function MapCanvas({
     // UPDATE POINTS WHEN COURSE CHANGES
     useEffect(() => {
         updatePointsRef.current();
+    }, [course]);
+
+    // ZOOM TO COURSE WHEN LOADED
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map) return;
+        if (!course || !course.holes) return;
+
+        const coords = course.holes.flatMap((h: any) => {
+            if (
+                h.tee_latitude == null ||
+                h.tee_longitude == null ||
+                h.basket_latitude == null ||
+                h.basket_longitude == null
+            ) {
+                return [];
+            }
+
+            return [
+                [h.tee_longitude, h.tee_latitude],
+                [h.basket_longitude, h.basket_latitude],
+            ];
+        });
+
+        if (coords.length === 0) return;
+
+        const bounds = coords.reduce(
+            (b: any, c: any) => b.extend(c),
+            new mapboxgl.LngLatBounds(coords[0], coords[0])
+        );
+
+        map.fitBounds(bounds, { padding: 80, duration: 800 });
     }, [course]);
 
     return (
