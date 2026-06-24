@@ -25,7 +25,7 @@ export function MapCanvas() {
 
         const map = new mapboxgl.Map({
             container: mapContainer.current,
-            style: "mapbox://styles/mapbox/satellite-streets-v12",
+            style: "mapbox://styles/mapbox/satellite-streets-v11",
             center: [10.5, 60.0],
             zoom: 16,
         });
