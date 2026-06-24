@@ -63,7 +63,7 @@ export default function Page() {
                     <EditorPanel courseId={courseId} />
 
                     {/* RIGHT SIDE: MAP */}
-                    <div className="relative flex-1 h-full">
+                    <div className="relative flex-1 min-h-0">
                         <MapCanvas />
                     </div>
                 </div>
