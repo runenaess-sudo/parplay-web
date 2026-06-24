@@ -279,8 +279,8 @@ export function MapCanvas() {
     }, [selectedHole, selectedFairwayIndex]);
 
     return (
-        <div className="relative flex-1 min-h-0">
-            <div ref={mapContainer} className="absolute inset-0" />
+        <div className="relative flex-1 min-h-0 z-0">
+            <div ref={mapContainer} className="absolute inset-0 z-10" />
         </div>
     );
 }
