@@ -1,4 +1,4 @@
-// app/courses/editor/[courseId]/LoadEditorData.tsx
+// app/create-course/editor/[courseId]/LoadEditorData.tsx
 "use client";
 
 import { useCourseEditor } from "@/src/state/useCourseEditor";
