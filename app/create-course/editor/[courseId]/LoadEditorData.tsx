@@ -40,10 +40,10 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 return;
             }
 
-            // 3. Parse fairway JSON
+            // 3. Fairway er allerede et objekt → ingen JSON.parse
             const parsedHoles = holes.map((h) => ({
                 ...h,
-                fairway_points: h.fairway ? JSON.parse(h.fairway) : [],
+                fairway_points: Array.isArray(h.fairway) ? h.fairway : [],
             }));
 
             // 4. Send til Zustand
