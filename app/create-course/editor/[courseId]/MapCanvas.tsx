@@ -57,6 +57,7 @@ export function MapCanvas() {
 
             // ⭐ Mapbox GL JS v3: use style.load instead of load
             map.on("style.load", () => {
+                (window as any).__map = map   // ⭐ LEGG TIL DENNE
                 map.setProjection("mercator");
                 map.resize();
 
