@@ -29,7 +29,7 @@ export function MapCanvas({
     const ref = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
 
-    // ⭐ LIVE REFS FOR STATE (critical)
+    // LIVE REFS FOR STATE
     const courseRef = useRef<any>(course);
     const selectedHoleRef = useRef<string | null>(selectedHoleId);
     const modeRef = useRef<EditorMode>(mode);
@@ -100,6 +100,12 @@ export function MapCanvas({
                 data: { type: "FeatureCollection", features: [] },
             });
 
+            // fairway line (tee -> points -> basket)
+            map.addSource("fairway-line-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
             // LAYERS
             map.addLayer({
                 id: "tee-layer",
@@ -134,46 +140,65 @@ export function MapCanvas({
                 },
             });
 
-            // HOLE LINES
-            courseRef.current.holes.forEach((hole: any) => {
-                if (
-                    hole.tee_latitude == null ||
-                    hole.tee_longitude == null ||
-                    hole.basket_latitude == null ||
-                    hole.basket_longitude == null
-                ) {
-                    return;
-                }
-
-                const line: Feature<LineString> = {
-                    type: "Feature",
-                    properties: {},
-                    geometry: {
-                        type: "LineString",
-                        coordinates: [
-                            [hole.tee_longitude, hole.tee_latitude],
-                            [hole.basket_longitude, hole.basket_latitude],
-                        ],
-                    },
-                };
-
-                const id = `hole-${hole.id}`;
-
-                map.addSource(id, {
-                    type: "geojson",
-                    data: line,
-                });
-
-                map.addLayer({
-                    id,
-                    type: "line",
-                    source: id,
-                    paint: {
-                        "line-color": "#00ff88",
-                        "line-width": 4,
-                    },
-                });
+            map.addLayer({
+                id: "fairway-line-layer",
+                type: "line",
+                source: "fairway-line-source",
+                paint: {
+                    "line-color": "#00ff88",
+                    "line-width": 3,
+                },
             });
+
+            // HOLE LINES (tee -> basket)
+            const drawHoleLines = () => {
+                courseRef.current.holes.forEach((hole: any) => {
+                    const id = `hole-${hole.id}`;
+
+                    if (map.getLayer(id)) {
+                        map.removeLayer(id);
+                    }
+                    if (map.getSource(id)) {
+                        map.removeSource(id);
+                    }
+
+                    if (
+                        hole.tee_latitude == null ||
+                        hole.tee_longitude == null ||
+                        hole.basket_latitude == null ||
+                        hole.basket_longitude == null
+                    ) {
+                        return;
+                    }
+
+                    const line: Feature<LineString> = {
+                        type: "Feature",
+                        properties: {},
+                        geometry: {
+                            type: "LineString",
+                            coordinates: [
+                                [hole.tee_longitude, hole.tee_latitude],
+                                [hole.basket_longitude, hole.basket_latitude],
+                            ],
+                        },
+                    };
+
+                    map.addSource(id, {
+                        type: "geojson",
+                        data: line,
+                    });
+
+                    map.addLayer({
+                        id,
+                        type: "line",
+                        source: id,
+                        paint: {
+                            "line-color": "#00ff88",
+                            "line-width": 2,
+                        },
+                    });
+                });
+            };
 
             // UPDATE POINTS FUNCTION
             const updatePoints = () => {
@@ -181,11 +206,14 @@ export function MapCanvas({
                 const basketFeatures: Feature<Point>[] = [];
                 const fairwayFeatures: Feature<Point>[] = [];
 
+                const fairwayLineFeatures: Feature<LineString>[] = [];
+
                 courseRef.current.holes.forEach((hole: any) => {
+                    // tee
                     if (hole.tee_latitude && hole.tee_longitude) {
                         teeFeatures.push({
                             type: "Feature",
-                            properties: {},
+                            properties: { holeId: hole.id },
                             geometry: {
                                 type: "Point",
                                 coordinates: [hole.tee_longitude, hole.tee_latitude],
@@ -193,10 +221,11 @@ export function MapCanvas({
                         });
                     }
 
+                    // basket
                     if (hole.basket_latitude && hole.basket_longitude) {
                         basketFeatures.push({
                             type: "Feature",
-                            properties: {},
+                            properties: { holeId: hole.id },
                             geometry: {
                                 type: "Point",
                                 coordinates: [hole.basket_longitude, hole.basket_latitude],
@@ -204,16 +233,43 @@ export function MapCanvas({
                         });
                     }
 
-                    (hole.fairway_points ?? []).forEach((p: any) => {
+                    // fairway points
+                    (hole.fairway_points ?? []).forEach((p: any, idx: number) => {
                         fairwayFeatures.push({
                             type: "Feature",
-                            properties: {},
+                            properties: { holeId: hole.id, index: idx },
                             geometry: {
                                 type: "Point",
                                 coordinates: [p.lng, p.lat],
                             },
                         });
                     });
+
+                    // fairway line: tee -> points -> basket
+                    const lineCoords: [number, number][] = [];
+
+                    if (hole.tee_latitude && hole.tee_longitude) {
+                        lineCoords.push([hole.tee_longitude, hole.tee_latitude]);
+                    }
+
+                    (hole.fairway_points ?? []).forEach((p: any) => {
+                        lineCoords.push([p.lng, p.lat]);
+                    });
+
+                    if (hole.basket_latitude && hole.basket_longitude) {
+                        lineCoords.push([hole.basket_longitude, hole.basket_latitude]);
+                    }
+
+                    if (lineCoords.length >= 2) {
+                        fairwayLineFeatures.push({
+                            type: "Feature",
+                            properties: { holeId: hole.id },
+                            geometry: {
+                                type: "LineString",
+                                coordinates: lineCoords,
+                            },
+                        });
+                    }
                 });
 
                 (map.getSource("tee-source") as mapboxgl.GeoJSONSource).setData({
@@ -230,12 +286,19 @@ export function MapCanvas({
                     type: "FeatureCollection",
                     features: fairwayFeatures,
                 });
+
+                (map.getSource("fairway-line-source") as mapboxgl.GeoJSONSource).setData({
+                    type: "FeatureCollection",
+                    features: fairwayLineFeatures,
+                });
+
+                drawHoleLines();
             };
 
             updatePointsRef.current = updatePoints;
             updatePoints();
 
-            // CLICK LOGIC — uses LIVE refs
+            // CLICK LOGIC — uses LIVE refs, NO ZOOM
             map.on("click", (e) => {
                 const holeId = selectedHoleRef.current;
                 const currentMode = modeRef.current;
@@ -261,27 +324,31 @@ export function MapCanvas({
         updatePointsRef.current();
     }, [course]);
 
-    // ZOOM TO COURSE WHEN LOADED
+    // AUTOZOOM TO SELECTED HOLE (UDisc-style)
     useEffect(() => {
         const map = mapRef.current;
         if (!map) return;
         if (!courseRef.current || !courseRef.current.holes) return;
 
-        const coords = courseRef.current.holes.flatMap((h: any) => {
-            if (
-                h.tee_latitude == null ||
-                h.tee_longitude == null ||
-                h.basket_latitude == null ||
-                h.basket_longitude == null
-            ) {
-                return [];
-            }
+        const holeId = selectedHoleRef.current;
+        if (!holeId) return;
 
-            return [
-                [h.tee_longitude, h.tee_latitude],
-                [h.basket_longitude, h.basket_latitude],
-            ];
+        const hole = courseRef.current.holes.find((h: any) => h.id === holeId);
+        if (!hole) return;
+
+        const coords: [number, number][] = [];
+
+        if (hole.tee_latitude && hole.tee_longitude) {
+            coords.push([hole.tee_longitude, hole.tee_latitude]);
+        }
+
+        (hole.fairway_points ?? []).forEach((p: any) => {
+            coords.push([p.lng, p.lat]);
         });
+
+        if (hole.basket_latitude && hole.basket_longitude) {
+            coords.push([hole.basket_longitude, hole.basket_latitude]);
+        }
 
         if (coords.length === 0) return;
 
@@ -290,8 +357,8 @@ export function MapCanvas({
             new mapboxgl.LngLatBounds(coords[0], coords[0])
         );
 
-        map.fitBounds(bounds, { padding: 80, duration: 800 });
-    }, [course]);
+        map.fitBounds(bounds, { padding: 120, duration: 600 });
+    }, [selectedHoleId]);
 
     return (
         <div className="w-full h-full">
