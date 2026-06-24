@@ -41,6 +41,34 @@ export function MapCanvas() {
 
             console.log("EDITOR BANEDATA:", course);
             console.log("EDITOR HOLES:", course.holes);
+
+            // 4. Zoom til banen
+            const coords = course.holes.flatMap((h: any) => {
+                if (
+                    h.tee_latitude == null ||
+                    h.tee_longitude == null ||
+                    h.basket_latitude == null ||
+                    h.basket_longitude == null
+                ) {
+                    return [];
+                }
+
+                return [
+                    [h.tee_longitude, h.tee_latitude],
+                    [h.basket_longitude, h.basket_latitude],
+                ];
+            });
+
+            if (coords.length > 0) {
+                const bounds = coords.reduce(
+                    (b: any, c: any) => b.extend(c),
+                    new mapboxgl.LngLatBounds(coords[0], coords[0])
+                );
+
+                map.fitBounds(bounds, { padding: 80 });
+            } else {
+                console.warn("Ingen gyldige koordinater å zoome til.");
+            }
         });
 
         return () => map.remove();
