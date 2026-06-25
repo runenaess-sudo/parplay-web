@@ -1,9 +1,11 @@
 "use client";
 
 import { supabaseBrowser } from "@/src/lib/supabase-browser";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function LoginPage() {
+    const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
@@ -29,7 +31,8 @@ export default function LoginPage() {
             return;
         }
 
-        window.location.href = "/";
+        // ⭐ Dette er den viktige endringen
+        router.push("/");
     };
 
     return (
