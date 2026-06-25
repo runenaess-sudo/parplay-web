@@ -73,13 +73,13 @@ export function MapCanvas({
 
         map.on("load", () => {
             // ICONS
-            map.loadImage("/icons/teepad.png", (err, img) => {
+            map.loadImage("/icon/teepad-icon.png", (err, img) => {
                 if (!err && img && !map.hasImage("teepad-icon")) {
                     map.addImage("teepad-icon", img);
                 }
             });
 
-            map.loadImage("/icons/basket_hvit.png", (err, img) => {
+            map.loadImage("/icon/basket-icon.png", (err, img) => {
                 if (!err && img && !map.hasImage("basket-icon")) {
                     map.addImage("basket-icon", img);
                 }
