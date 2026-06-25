@@ -71,28 +71,26 @@ export function MapCanvas({
 
         mapRef.current = map;
 
-        map.on("load", () => {
-            // FANG OPP MANGLENDE BILDER
-            map.on("styleimagemissing", (e) => {
-                const id = e.id;
+        map.on("styleimagemissing", (e) => {
+            const id = e.id;
 
-                const sources: Record<string, string> = {
-                    "teepad-icon": "/icons/teepad.png",
-                    "basket-icon": "/icons/basket_hvit.png",
-                    "point-icon": "/icons/point.png",
-                };
+            const sources: Record<string, string> = {
+                "teepad-icon": "/icons/teepad.png",
+                "basket-icon": "/icons/basket_hvit.png",
+                "point-icon": "/icons/point.png",
+            };
 
-                const src = sources[id];
-                if (!src) return;
+            const src = sources[id];
+            if (!src) return;
 
-                map.loadImage(src, (err, img) => {
-                    if (!err && img && !map.hasImage(id)) {
-                        map.addImage(id, img);
-                    }
-                });
+            map.loadImage(src, (err, img) => {
+                if (!err && img && !map.hasImage(id)) {
+                    map.addImage(id, img);
+                }
             });
+        });
 
-            // PRELOAD IKONER
+        map.on("load", () => {
             const preload: [string, string][] = [
                 ["teepad-icon", "/icons/teepad.png"],
                 ["basket-icon", "/icons/basket_hvit.png"],
