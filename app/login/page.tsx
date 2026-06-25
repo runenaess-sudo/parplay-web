@@ -10,26 +10,24 @@ export default function LoginPage() {
     );
 
     const [email, setEmail] = useState("");
-    const [sent, setSent] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [password, setPassword] = useState("");
+    const [errorMsg, setErrorMsg] = useState("");
 
     async function handleLogin() {
-        setLoading(true);
+        setErrorMsg("");
 
-        const { error } = await supabase.auth.signInWithOtp({
+        const { error } = await supabase.auth.signInWithPassword({
             email,
-            options: {
-                emailRedirectTo: `${location.origin}/auth/callback`,
-            },
+            password,
         });
 
-        setLoading(false);
-
-        if (!error) {
-            setSent(true);
-        } else {
-            alert("Kunne ikke sende e‑post. Sjekk adressen.");
+        if (error) {
+            setErrorMsg("Feil e‑post eller passord");
+            return;
         }
+
+        // Redirect til forsiden
+        window.location.href = "/";
     }
 
     return (
@@ -46,42 +44,50 @@ export default function LoginPage() {
         >
             <h1>Logg inn</h1>
 
-            {sent ? (
-                <p>Sjekk e‑posten din for magisk innloggingslink.</p>
-            ) : (
-                <>
-                    <input
-                        type="email"
-                        placeholder="Din e‑postadresse"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        style={{
-                            padding: "12px 16px",
-                            width: 260,
-                            borderRadius: 8,
-                            border: "1px solid #ccc",
-                            fontSize: 16,
-                        }}
-                    />
+            <input
+                type="email"
+                placeholder="E‑post"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{
+                    padding: "12px 16px",
+                    width: 260,
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                    fontSize: 16,
+                }}
+            />
 
-                    <button
-                        onClick={handleLogin}
-                        disabled={loading || !email}
-                        style={{
-                            padding: "12px 16px",
-                            width: 260,
-                            borderRadius: 8,
-                            background: "#0070f3",
-                            color: "white",
-                            fontSize: 16,
-                            cursor: "pointer",
-                            opacity: loading ? 0.6 : 1,
-                        }}
-                    >
-                        {loading ? "Sender..." : "Send magisk link"}
-                    </button>
-                </>
-            )}
+            <input
+                type="password"
+                placeholder="Passord"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                    padding: "12px 16px",
+                    width: 260,
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                    fontSize: 16,
+                }}
+            />
+
+            {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
+
+            <button
+                onClick={handleLogin}
+                style={{
+                    padding: "12px 16px",
+                    width: 260,
+                    borderRadius: 8,
+                    background: "#0070f3",
+                    color: "white",
+                    fontSize: 16,
+                    cursor: "pointer",
+                }}
+            >
+                Logg inn
+            </button>
         </div>
     );
 }
