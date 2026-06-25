@@ -208,7 +208,7 @@ export function MapCanvas({
                     }
 
                     // Fairway points
-                    (hole.fairway_points ?? []).forEach((p: any, idx: number) => {
+                    (hole.fairway ?? []).forEach((p: any, idx: number) => {
                         fairwayFeatures.push({
                             type: "Feature",
                             properties: { holeId: hole.id, index: idx },
@@ -226,7 +226,7 @@ export function MapCanvas({
                         lineCoords.push([hole.tee_longitude, hole.tee_latitude]);
                     }
 
-                    (hole.fairway_points ?? []).forEach((p: any) => {
+                    (hole.fairway ?? []).forEach((p: any) => {
                         lineCoords.push([p.lng, p.lat]);
                     });
 
@@ -429,7 +429,7 @@ export function MapCanvas({
             coords.push([hole.tee_longitude, hole.tee_latitude]);
         }
 
-        (hole.fairway_points ?? []).forEach((p: any) => {
+        (hole.fairway ?? []).forEach((p: any) => {
             coords.push([p.lng, p.lat]);
         });
 
