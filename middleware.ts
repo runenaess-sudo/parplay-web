@@ -14,7 +14,7 @@ export function middleware(req: NextRequest) {
         return res;
     }
 
-    // ⭐ Hvis du vil beskytte sider, gjør det KUN på navigasjon (ikke RSC)
+    // ⭐ Sjekk kun cookies (ikke Supabase-klient)
     const session = req.cookies.get("sb-access-token");
 
     if (!session) {
