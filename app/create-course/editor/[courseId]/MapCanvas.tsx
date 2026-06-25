@@ -72,44 +72,39 @@ export function MapCanvas({
         mapRef.current = map;
 
         map.on("load", () => {
+            // FANG OPP MANGLENDE BILDER
             map.on("styleimagemissing", (e) => {
                 const id = e.id;
 
-                if (id === "teepad-icon") {
-                    map.loadImage("/icons/teepad.png", (err, img) => {
-                        if (!err && img) map.addImage("teepad-icon", img);
-                    });
-                }
+                const sources: Record<string, string> = {
+                    "teepad-icon": "/icons/teepad.png",
+                    "basket-icon": "/icons/basket_hvit.png",
+                    "point-icon": "/icons/point.png",
+                };
 
-                if (id === "basket-icon") {
-                    map.loadImage("/icons/basket_hvit.png", (err, img) => {
-                        if (!err && img) map.addImage("basket-icon", img);
-                    });
-                }
+                const src = sources[id];
+                if (!src) return;
 
-                if (id === "point-icon") {
-                    map.loadImage("/icons/point.png", (err, img) => {
-                        if (!err && img) map.addImage("point-icon", img);
-                    });
-                }
-            });
-            // ICONS
-            map.loadImage("/icons/teepad.png", (err, img) => {
-                if (!err && img && !map.hasImage("teepad-icon")) {
-                    map.addImage("teepad-icon", img);
-                }
+                map.loadImage(src, (err, img) => {
+                    if (!err && img && !map.hasImage(id)) {
+                        map.addImage(id, img);
+                    }
+                });
             });
 
-            map.loadImage("/icons/basket_hvit.png", (err, img) => {
-                if (!err && img && !map.hasImage("basket-icon")) {
-                    map.addImage("basket-icon", img);
-                }
-            });
+            // PRELOAD IKONER
+            const preload: [string, string][] = [
+                ["teepad-icon", "/icons/teepad.png"],
+                ["basket-icon", "/icons/basket_hvit.png"],
+                ["point-icon", "/icons/point.png"],
+            ];
 
-            map.loadImage("/icons/point.png", (err, img) => {
-                if (!err && img && !map.hasImage("point-icon")) {
-                    map.addImage("point-icon", img);
-                }
+            preload.forEach(([id, src]) => {
+                map.loadImage(src, (err, img) => {
+                    if (!err && img && !map.hasImage(id)) {
+                        map.addImage(id, img);
+                    }
+                });
             });
 
             // SOURCES
