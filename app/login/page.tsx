@@ -1,8 +1,8 @@
 "use client";
 
-import { supabaseBrowser } from "@/src/lib/supabase-browser";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { loginAction } from "./actions";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -19,20 +19,16 @@ export default function LoginPage() {
 
         setLoading(true);
 
-        const { error } = await supabaseBrowser.auth.signInWithPassword({
-            email,
-            password,
-        });
+        const result = await loginAction(email, password);
 
         setLoading(false);
 
-        if (error) {
-            setErrorMsg(error.message);
+        if (result.error) {
+            setErrorMsg(result.error);
             return;
         }
 
-        // ⭐ Dette er den viktige endringen
-        router.push("/");
+        router.replace("/");
     };
 
     return (

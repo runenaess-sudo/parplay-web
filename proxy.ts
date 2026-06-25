@@ -1,20 +1,20 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
     const res = NextResponse.next();
 
-    // ⭐ 1: Ikke kjør auth-sjekk på RSC-requests
+    // Ikke sjekk RSC-requests
     if (req.headers.get("rsc") === "1") {
         return res;
     }
 
-    // ⭐ 2: Ikke sjekk auth på login-siden
+    // Ikke sjekk login-siden
     if (req.nextUrl.pathname.startsWith("/login")) {
         return res;
     }
 
-    // ⭐ 3: Sjekk kun cookies (ikke Supabase-klient)
+    // Sjekk kun cookies
     const access = req.cookies.get("sb-access-token");
 
     if (!access) {
