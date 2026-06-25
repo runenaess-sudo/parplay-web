@@ -41,11 +41,7 @@ export function MapCanvas({
     const modeRef = useRef<EditorMode>(mode);
 
     const updatePointsRef = useRef<() => void>(() => { });
-
-    const draggingPointRef = useRef<{
-        holeId: string;
-        index: number;
-    } | null>(null);
+    const draggingPointRef = useRef<{ holeId: string; index: number } | null>(null);
 
     useEffect(() => {
         courseRef.current = course;
@@ -72,7 +68,7 @@ export function MapCanvas({
         mapRef.current = map;
 
         map.on("styleimagemissing", (e) => {
-            const id = e.id;
+            const id = e.id as string;
 
             const sources: Record<string, string> = {
                 "teepad-icon": "/icons/teepad.png",
@@ -90,22 +86,26 @@ export function MapCanvas({
             });
         });
 
-        map.on("load", () => {
+        map.on("load", async () => {
             const preload: [string, string][] = [
                 ["teepad-icon", "/icons/teepad.png"],
                 ["basket-icon", "/icons/basket_hvit.png"],
                 ["point-icon", "/icons/point.png"],
             ];
 
-            preload.forEach(([id, src]) => {
-                map.loadImage(src, (err, img) => {
-                    if (!err && img && !map.hasImage(id)) {
-                        map.addImage(id, img);
-                    }
+            const loadIcon = (id: string, src: string) =>
+                new Promise<void>((resolve) => {
+                    if (map.hasImage(id)) return resolve();
+                    map.loadImage(src, (err, img) => {
+                        if (!err && img && !map.hasImage(id)) {
+                            map.addImage(id, img);
+                        }
+                        resolve();
+                    });
                 });
-            });
 
-            // SOURCES
+            await Promise.all(preload.map(([id, src]) => loadIcon(id, src)));
+
             map.addSource("tee-source", {
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
@@ -131,14 +131,13 @@ export function MapCanvas({
                 data: { type: "FeatureCollection", features: [] },
             });
 
-            // LAYERS
             map.addLayer({
                 id: "fairway-area-layer",
                 type: "fill",
                 source: "fairway-area-source",
                 paint: {
                     "fill-color": "#00ff88",
-                    "fill-opacity": 0.20,
+                    "fill-opacity": 0.2,
                 },
             });
 
@@ -170,7 +169,7 @@ export function MapCanvas({
                 source: "basket-source",
                 layout: {
                     "icon-image": "basket-icon",
-                    "icon-size": 0.20,
+                    "icon-size": 0.2,
                     "icon-anchor": "bottom",
                 },
             });
@@ -194,7 +193,6 @@ export function MapCanvas({
                 const fairwayAreaFeatures: Feature<Polygon>[] = [];
 
                 courseRef.current.holes.forEach((hole: any) => {
-                    // Tee
                     if (hole.tee_latitude && hole.tee_longitude) {
                         teeFeatures.push({
                             type: "Feature",
@@ -209,7 +207,6 @@ export function MapCanvas({
                         });
                     }
 
-                    // Basket
                     if (hole.basket_latitude && hole.basket_longitude) {
                         basketFeatures.push({
                             type: "Feature",
@@ -221,7 +218,6 @@ export function MapCanvas({
                         });
                     }
 
-                    // Fairway points
                     (hole.fairway ?? []).forEach((p: any, idx: number) => {
                         fairwayFeatures.push({
                             type: "Feature",
@@ -233,7 +229,6 @@ export function MapCanvas({
                         });
                     });
 
-                    // Fairway line: tee -> points -> basket
                     const lineCoords: [number, number][] = [];
 
                     if (hole.tee_latitude && hole.tee_longitude) {
@@ -260,7 +255,6 @@ export function MapCanvas({
 
                         fairwayLineFeatures.push(line);
 
-                        // Fairway slør (6m buffer på hver side)
                         try {
                             const turfLine = turf.lineString(lineCoords);
                             const buffered = turf.buffer(turfLine, 6, {
@@ -273,7 +267,7 @@ export function MapCanvas({
                                 geometry: buffered.geometry,
                             });
                         } catch {
-                            // Ignorer buffer-feil hvis noe er rart med koordinater
+                            // ignore buffer errors
                         }
                     }
                 });
@@ -307,7 +301,6 @@ export function MapCanvas({
             updatePointsRef.current = updatePoints;
             updatePoints();
 
-            // LEFT CLICK: add / set
             map.on("click", (e) => {
                 const holeId = selectedHoleRef.current;
                 const currentMode = modeRef.current;
@@ -327,7 +320,6 @@ export function MapCanvas({
                 updatePointsRef.current();
             });
 
-            // RIGHT CLICK: remove point (in points mode)
             map.on("contextmenu", (e) => {
                 const holeId = selectedHoleRef.current;
                 const currentMode = modeRef.current;
@@ -353,7 +345,6 @@ export function MapCanvas({
                 }
             });
 
-            // DRAG POINTS (left mouse)
             map.on("mousedown", (e) => {
                 const currentMode = modeRef.current;
                 if (currentMode !== "points") return;
@@ -372,7 +363,6 @@ export function MapCanvas({
                 if (!holeId || typeof index !== "number") return;
 
                 draggingPointRef.current = { holeId, index };
-
                 map.getCanvas().style.cursor = "grabbing";
 
                 const onMove = (ev: mapboxgl.MapMouseEvent) => {
@@ -396,7 +386,6 @@ export function MapCanvas({
                 map.on("mouseup", onUp);
             });
 
-            // SIMPLE TEE ROTATION: scroll in tee mode
             map.on("wheel", (e) => {
                 const holeId = selectedHoleRef.current;
                 const currentMode = modeRef.current;
@@ -425,7 +414,6 @@ export function MapCanvas({
         updatePointsRef.current();
     }, [course]);
 
-    // AUTOZOOM TO SELECTED HOLE
     useEffect(() => {
         const map = mapRef.current;
         if (!map) return;
