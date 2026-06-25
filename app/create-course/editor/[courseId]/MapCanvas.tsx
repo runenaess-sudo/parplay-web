@@ -1,6 +1,7 @@
 "use client";
 
-import type { Feature, LineString, Point } from "geojson";
+import * as turf from "@turf/turf";
+import type { Feature, LineString, Point, Polygon } from "geojson";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
@@ -41,7 +42,6 @@ export function MapCanvas({
 
     const updatePointsRef = useRef<() => void>(() => { });
 
-    // drag state for points
     const draggingPointRef = useRef<{
         holeId: string;
         index: number;
@@ -72,6 +72,7 @@ export function MapCanvas({
         mapRef.current = map;
 
         map.on("load", () => {
+            // ICONS
             map.loadImage("/icons/teepad.png", (err, img) => {
                 if (!err && img && !map.hasImage("teepad-icon")) {
                     map.addImage("teepad-icon", img);
@@ -90,6 +91,7 @@ export function MapCanvas({
                 }
             });
 
+            // SOURCES
             map.addSource("tee-source", {
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
@@ -108,6 +110,32 @@ export function MapCanvas({
             map.addSource("fairway-line-source", {
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.addSource("fairway-area-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
+            // LAYERS
+            map.addLayer({
+                id: "fairway-area-layer",
+                type: "fill",
+                source: "fairway-area-source",
+                paint: {
+                    "fill-color": "#00ff88",
+                    "fill-opacity": 0.20,
+                },
+            });
+
+            map.addLayer({
+                id: "fairway-line-layer",
+                type: "line",
+                source: "fairway-line-source",
+                paint: {
+                    "line-color": "#00ff88",
+                    "line-width": 3,
+                },
             });
 
             map.addLayer({
@@ -144,68 +172,15 @@ export function MapCanvas({
                 },
             });
 
-            map.addLayer({
-                id: "fairway-line-layer",
-                type: "line",
-                source: "fairway-line-source",
-                paint: {
-                    "line-color": "#00ff88",
-                    "line-width": 3,
-                },
-            });
-
-            const drawHoleLines = () => {
-                courseRef.current.holes.forEach((hole: any) => {
-                    const id = `hole-${hole.id}`;
-
-                    if (map.getLayer(id)) map.removeLayer(id);
-                    if (map.getSource(id)) map.removeSource(id);
-
-                    if (
-                        hole.tee_latitude == null ||
-                        hole.tee_longitude == null ||
-                        hole.basket_latitude == null ||
-                        hole.basket_longitude == null
-                    ) {
-                        return;
-                    }
-
-                    const line: Feature<LineString> = {
-                        type: "Feature",
-                        properties: {},
-                        geometry: {
-                            type: "LineString",
-                            coordinates: [
-                                [hole.tee_longitude, hole.tee_latitude],
-                                [hole.basket_longitude, hole.basket_latitude],
-                            ],
-                        },
-                    };
-
-                    map.addSource(id, {
-                        type: "geojson",
-                        data: line,
-                    });
-
-                    map.addLayer({
-                        id,
-                        type: "line",
-                        source: id,
-                        paint: {
-                            "line-color": "#00ff88",
-                            "line-width": 2,
-                        },
-                    });
-                });
-            };
-
             const updatePoints = () => {
                 const teeFeatures: Feature<Point>[] = [];
                 const basketFeatures: Feature<Point>[] = [];
                 const fairwayFeatures: Feature<Point>[] = [];
                 const fairwayLineFeatures: Feature<LineString>[] = [];
+                const fairwayAreaFeatures: Feature<Polygon>[] = [];
 
                 courseRef.current.holes.forEach((hole: any) => {
+                    // Tee
                     if (hole.tee_latitude && hole.tee_longitude) {
                         teeFeatures.push({
                             type: "Feature",
@@ -220,6 +195,7 @@ export function MapCanvas({
                         });
                     }
 
+                    // Basket
                     if (hole.basket_latitude && hole.basket_longitude) {
                         basketFeatures.push({
                             type: "Feature",
@@ -231,6 +207,7 @@ export function MapCanvas({
                         });
                     }
 
+                    // Fairway points
                     (hole.fairway_points ?? []).forEach((p: any, idx: number) => {
                         fairwayFeatures.push({
                             type: "Feature",
@@ -242,6 +219,7 @@ export function MapCanvas({
                         });
                     });
 
+                    // Fairway line: tee -> points -> basket
                     const lineCoords: [number, number][] = [];
 
                     if (hole.tee_latitude && hole.tee_longitude) {
@@ -257,14 +235,32 @@ export function MapCanvas({
                     }
 
                     if (lineCoords.length >= 2) {
-                        fairwayLineFeatures.push({
+                        const line: Feature<LineString> = {
                             type: "Feature",
                             properties: { holeId: hole.id },
                             geometry: {
                                 type: "LineString",
                                 coordinates: lineCoords,
                             },
-                        });
+                        };
+
+                        fairwayLineFeatures.push(line);
+
+                        // Fairway slør (6m buffer på hver side)
+                        try {
+                            const turfLine = turf.lineString(lineCoords);
+                            const buffered = turf.buffer(turfLine, 6, {
+                                units: "meters",
+                            }) as Feature<Polygon>;
+
+                            fairwayAreaFeatures.push({
+                                type: "Feature",
+                                properties: { holeId: hole.id },
+                                geometry: buffered.geometry,
+                            });
+                        } catch {
+                            // Ignorer buffer-feil hvis noe er rart med koordinater
+                        }
                     }
                 });
 
@@ -288,7 +284,10 @@ export function MapCanvas({
                     features: fairwayLineFeatures,
                 });
 
-                drawHoleLines();
+                (map.getSource("fairway-area-source") as mapboxgl.GeoJSONSource).setData({
+                    type: "FeatureCollection",
+                    features: fairwayAreaFeatures,
+                });
             };
 
             updatePointsRef.current = updatePoints;
