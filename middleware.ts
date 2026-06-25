@@ -4,20 +4,20 @@ import { NextResponse } from "next/server";
 export function middleware(req: NextRequest) {
     const res = NextResponse.next();
 
-    // ⭐ KRITISK: Ikke kjør auth-sjekk på RSC-requests
+    // ⭐ 1: Ikke kjør auth-sjekk på RSC-requests
     if (req.headers.get("rsc") === "1") {
         return res;
     }
 
-    // ⭐ Ikke sjekk auth på login-siden
+    // ⭐ 2: Ikke sjekk auth på login-siden
     if (req.nextUrl.pathname.startsWith("/login")) {
         return res;
     }
 
-    // ⭐ Sjekk kun cookies (ikke Supabase-klient)
-    const session = req.cookies.get("sb-access-token");
+    // ⭐ 3: Sjekk kun cookies (ikke Supabase-klient)
+    const access = req.cookies.get("sb-access-token");
 
-    if (!session) {
+    if (!access) {
         const redirectUrl = req.nextUrl.clone();
         redirectUrl.pathname = "/login";
         return NextResponse.redirect(redirectUrl);
