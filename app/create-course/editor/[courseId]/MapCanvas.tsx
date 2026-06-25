@@ -72,6 +72,27 @@ export function MapCanvas({
         mapRef.current = map;
 
         map.on("load", () => {
+            map.on("styleimagemissing", (e) => {
+                const id = e.id;
+
+                if (id === "teepad-icon") {
+                    map.loadImage("/icons/teepad.png", (err, img) => {
+                        if (!err && img) map.addImage("teepad-icon", img);
+                    });
+                }
+
+                if (id === "basket-icon") {
+                    map.loadImage("/icons/basket_hvit.png", (err, img) => {
+                        if (!err && img) map.addImage("basket-icon", img);
+                    });
+                }
+
+                if (id === "point-icon") {
+                    map.loadImage("/icons/point.png", (err, img) => {
+                        if (!err && img) map.addImage("point-icon", img);
+                    });
+                }
+            });
             // ICONS
             map.loadImage("/icons/teepad.png", (err, img) => {
                 if (!err && img && !map.hasImage("teepad-icon")) {
