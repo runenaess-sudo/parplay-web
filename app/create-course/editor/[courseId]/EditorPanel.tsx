@@ -92,7 +92,7 @@ export default function EditorPanel() {
                         <div className="text-sm text-neutral-300 space-y-1">
                             <p>
                                 <span className="text-neutral-400">Length:</span>{" "}
-                                {hole.length_meters ? `${hole.length_meters} m` : "–"}
+                                {hole.distance ? `${hole.distance} m` : "–"}
                             </p>
 
                             <p>

@@ -112,7 +112,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             h.id === holeId
                 ? {
                     ...h,
-                    fairway_points: [...(h.fairway_points ?? []), { lng, lat }],
+                    fairway: [...(h.fairway ?? []), { lng, lat }],
                 }
                 : h
         );
@@ -128,10 +128,10 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         const holes = course.holes.map((h: any) => {
             if (h.id !== holeId) return h;
-            const points = [...(h.fairway_points ?? [])];
+            const points = [...(h.fairway ?? [])];
             if (!points[index]) return h;
             points[index] = { lng, lat };
-            return { ...h, fairway_points: points };
+            return { ...h, fairway: points };
         });
 
         set({ course: { ...course, holes } });
@@ -145,10 +145,10 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         const holes = course.holes.map((h: any) => {
             if (h.id !== holeId) return h;
-            const points = [...(h.fairway_points ?? [])];
+            const points = [...(h.fairway ?? [])];
             if (!points[index]) return h;
             points.splice(index, 1);
-            return { ...h, fairway_points: points };
+            return { ...h, fairway: points };
         });
 
         set({ course: { ...course, holes } });
@@ -202,7 +202,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         });
 
         const fairwayPoints = await Promise.all(
-            (hole.fairway_points ?? []).map(async (p: any, i: number) => {
+            (hole.fairway ?? []).map(async (p: any, i: number) => {
                 const elev = await getElevation(p.lat, p.lng);
                 console.log(`FAIRWAY POINT ${i} ELEVATION:`, elev);
                 return { ...p, elevation: elev };
@@ -219,7 +219,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         console.log("LENGTH CALCULATED:", lengthMeters);
 
-        // Supabase update payload
+        // ⭐ MATCHER SUPABASE-SCHEMAET DITT
         const payload = {
             tee_latitude: hole.tee_latitude,
             tee_longitude: hole.tee_longitude,
@@ -230,8 +230,8 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             basket_longitude: hole.basket_longitude,
             basket_elevation: basketElevation,
 
-            fairway_points: fairwayPoints,
-            length_meters: lengthMeters,
+            fairway: fairwayPoints,
+            distance: Math.round(lengthMeters),
         };
 
         console.log("SUPABASE UPDATE PAYLOAD:", payload);
@@ -242,20 +242,20 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             .eq("id", holeId);
 
         if (error) {
-            console.log("❌ SUPABASE ERROR:", error);
+            console.log("❌ SUPABASE ERROR:", JSON.stringify(error, null, 2));
             get().setToast("Error saving hole");
             return;
         }
 
         console.log("✅ HOLE SAVED SUCCESSFULLY");
 
-        // ⭐ Oppdater local state slik at UI viser riktig data
+        // Oppdater local state
         const updatedHole = {
             ...hole,
             tee_elevation: teeElevation,
             basket_elevation: basketElevation,
-            fairway_points: fairwayPoints,
-            length_meters: lengthMeters,
+            fairway: fairwayPoints,
+            distance: Math.round(lengthMeters),
         };
 
         const updatedHoles = course.holes.map((h: any) =>
