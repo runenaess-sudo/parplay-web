@@ -1,7 +1,7 @@
 "use client";
 
+import { supabaseBrowser } from "@/src/lib/supabase-browser";
 import { useCourseEditor } from "@/src/state/useCourseEditor";
-import { createClient } from "@supabase/supabase-js";
 import { useEffect } from "react";
 
 export default function LoadEditorData({ courseId }: { courseId: string }) {
@@ -10,14 +10,9 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
     useEffect(() => {
         if (!courseId) return;
 
-        const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
-
         async function load() {
             // 1. Hent course
-            const { data: course, error: courseError } = await supabase
+            const { data: course, error: courseError } = await supabaseBrowser
                 .from("courses")
                 .select("*")
                 .eq("id", courseId)
@@ -29,7 +24,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
             }
 
             // 2. Hent holes
-            const { data: holes, error: holesError } = await supabase
+            const { data: holes, error: holesError } = await supabaseBrowser
                 .from("holes")
                 .select("*")
                 .eq("course_id", courseId)
@@ -40,10 +35,12 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 return;
             }
 
-            // 3. Fairway er allerede et objekt → ingen JSON.parse
-            const parsedHoles = holes.map((h) => ({
+            // 3. Riktig parsing av fairway_points
+            const parsedHoles = holes.map((h: any) => ({
                 ...h,
-                fairway_points: Array.isArray(h.fairway) ? h.fairway : [],
+                fairway_points: Array.isArray(h.fairway_points)
+                    ? h.fairway_points
+                    : [],
             }));
 
             // 4. Send til Zustand
