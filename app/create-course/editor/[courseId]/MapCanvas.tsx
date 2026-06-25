@@ -144,7 +144,7 @@ export function MapCanvas({
                 source: "tee-source",
                 layout: {
                     "icon-image": "teepad-icon",
-                    "icon-size": 0.18,
+                    "icon-size": 0.22,
                     "icon-anchor": "bottom",
                     "icon-rotate": ["get", "angle"],
                 },
