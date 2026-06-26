@@ -5,10 +5,9 @@ import type { NextResponse } from "next/server";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-function createCookieAdapter(cookieStore: {
-    getAll(): Array<{ name: string; value: string }>;
-    set(cookie: { name: string; value: string; options?: Record<string, unknown> }): void;
-}) {
+type CookieStore = Awaited<ReturnType<typeof cookies>>;
+
+function createCookieAdapter(cookieStore: CookieStore) {
     return {
         getAll() {
             const all = cookieStore.getAll();
@@ -16,15 +15,6 @@ function createCookieAdapter(cookieStore: {
                 name: cookie.name,
                 value: cookie.value,
             })) ?? null;
-        },
-        setAll(cookies: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
-            for (const cookie of cookies) {
-                cookieStore.set({
-                    name: cookie.name,
-                    value: cookie.value,
-                    ...cookie.options,
-                });
-            }
         },
     };
 }
@@ -66,9 +56,15 @@ export async function supabaseServerWithResponse(response: NextResponse) {
                     value: cookie.value,
                 })) ?? null;
             },
-            setAll(cookies) {
+            setAll(cookies, headers) {
                 for (const cookie of cookies) {
                     response.cookies.set(cookie.name, cookie.value, normalizeCookieOptions(cookie.options));
+                }
+
+                if (headers) {
+                    for (const [name, value] of Object.entries(headers)) {
+                        response.headers.set(name, value);
+                    }
                 }
             },
         },

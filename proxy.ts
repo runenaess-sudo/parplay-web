@@ -12,10 +12,14 @@ export function proxy(req: NextRequest) {
         return NextResponse.next();
     }
 
-    // Sjekk kun cookies
-    const access = req.cookies.get("sb-access-token");
+    // Sjekk om vi har noen gyldige Supabase auth-cookies.
+    const cookies = req.cookies.getAll();
+    const hasSupabaseAuthCookie = cookies.some((cookie) =>
+        cookie.name === "sb-access-token" ||
+        cookie.name.startsWith("sb-") && /(auth|refresh|access)-token$/.test(cookie.name)
+    );
 
-    if (!access) {
+    if (!hasSupabaseAuthCookie) {
         const redirectUrl = req.nextUrl.clone();
         redirectUrl.pathname = "/login";
         return NextResponse.redirect(redirectUrl);
