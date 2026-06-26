@@ -1,5 +1,6 @@
 "use client";
 
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,8 +20,6 @@ export function Header() {
 
     useEffect(() => {
         async function load() {
-            // Lazy import – evalueres KUN i browser
-            const { supabaseBrowser } = await import("@/src/lib/supabase-browser");
             const supabase = supabaseBrowser;
 
             const { data: { session } } = await supabase.auth.getSession();
@@ -110,7 +109,6 @@ export function Header() {
                             <button
                                 className="dropdown-item text-left block whitespace-nowrap hover:bg-white/10"
                                 onClick={async () => {
-                                    const { supabaseBrowser } = await import("@/src/lib/supabase-browser");
                                     await supabaseBrowser.auth.signOut();
                                 }}
                             >

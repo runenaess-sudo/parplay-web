@@ -2,16 +2,14 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export function proxy(req: NextRequest) {
-    const res = NextResponse.next();
-
     // Ikke sjekk RSC-requests
     if (req.headers.get("rsc") === "1") {
-        return res;
+        return NextResponse.next();
     }
 
-    // Ikke sjekk login-siden
-    if (req.nextUrl.pathname.startsWith("/login")) {
-        return res;
+    // Ikke sjekk login-siden og auth-callback
+    if (req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/auth")) {
+        return NextResponse.next();
     }
 
     // Sjekk kun cookies
@@ -23,11 +21,11 @@ export function proxy(req: NextRequest) {
         return NextResponse.redirect(redirectUrl);
     }
 
-    return res;
+    return NextResponse.next();
 }
 
 export const config = {
     matcher: [
-        "/((?!_next|static|favicon.ico|api|.*\\.js|.*\\.css|.*\\.png|.*\\.jpg).*)",
+        "/((?!_next|__nextjs_font|static|favicon.ico|api|.*\\.js|.*\\.css|.*\\.png|.*\\.jpg|.*\\.woff2|.*\\.woff|.*\\.svg|.*\\.ico).*)",
     ],
 };

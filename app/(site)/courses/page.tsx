@@ -1,5 +1,6 @@
 "use client";
 
+import { supabaseBrowser } from "@/lib/supabase-browser";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -33,7 +34,6 @@ type UserPos = {
 // ---------------------------------------------------------
 function useLoadCourses() {
     return async function loadCourses() {
-        const { supabaseBrowser } = await import("@/src/lib/supabase-browser");
         const supabase = supabaseBrowser;
 
         const { data: coursesData } = await supabase

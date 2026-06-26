@@ -1,9 +1,11 @@
 "use server";
 
-import { supabaseServer } from "@/src/lib/supabase-server";
+import { supabaseServer } from "@/lib/supabase-server";
+import { redirect } from "next/navigation";
 
-export async function loginAction(email: string, password: string) {
-    // ⭐ supabaseServer ER async hos deg → må await’es
+export async function loginAction(formData: FormData) {
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
     const supabase = await supabaseServer();
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -12,8 +14,8 @@ export async function loginAction(email: string, password: string) {
     });
 
     if (error) {
-        return { error: error.message };
+        redirect("/login?error=" + encodeURIComponent(error.message));
     }
 
-    return { success: true };
+    redirect("/");
 }

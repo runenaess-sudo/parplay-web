@@ -1,6 +1,6 @@
-import { supabaseBrowser } from "@/src/lib/supabase-browser";
-import { getElevation } from "@/src/utils/elevation";
-import { calculateHoleLength } from "@/src/utils/holeLength";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import { getElevation } from "@/utils/elevation";
+import { calculateHoleLength } from "@/utils/holeLength";
 import { create } from "zustand";
 
 type EditorMode = "none" | "tee" | "basket" | "points";

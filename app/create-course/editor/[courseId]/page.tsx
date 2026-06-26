@@ -1,6 +1,6 @@
 "use client";
 
-import { useCourseEditor } from "@/src/state/useCourseEditor";
+import { useCourseEditor } from "@/state/useCourseEditor";
 import { useParams } from "next/navigation";
 import EditorPanel from "./EditorPanel";
 import LoadEditorData from "./LoadEditorData";

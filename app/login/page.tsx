@@ -1,38 +1,10 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { loginAction } from "./actions";
-
-export default function LoginPage() {
-    const router = useRouter();
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [errorMsg, setErrorMsg] = useState("");
-
-    const handleLogin = async () => {
-        if (!email || !password) {
-            setErrorMsg("Please enter both email and password.");
-            return;
-        }
-
-        setLoading(true);
-
-        const result = await loginAction(email, password);
-
-        setLoading(false);
-
-        if (result.error) {
-            setErrorMsg(result.error);
-            return;
-        }
-
-        router.replace("/");
-    };
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+    const { error } = await searchParams;
 
     return (
-        <div
+        <form
+            action="/api/login"
+            method="post"
             style={{
                 display: "flex",
                 height: "100vh",
@@ -47,9 +19,9 @@ export default function LoginPage() {
 
             <input
                 type="email"
+                name="email"
                 placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                required
                 style={{
                     padding: "12px 16px",
                     width: 260,
@@ -61,9 +33,9 @@ export default function LoginPage() {
 
             <input
                 type="password"
+                name="password"
                 placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                required
                 style={{
                     padding: "12px 16px",
                     width: 260,
@@ -73,11 +45,14 @@ export default function LoginPage() {
                 }}
             />
 
-            {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
+            {error ? (
+                <div style={{ color: "red", marginTop: 8, maxWidth: 260, textAlign: "center" }}>
+                    {error}
+                </div>
+            ) : null}
 
             <button
-                onClick={handleLogin}
-                disabled={loading}
+                type="submit"
                 style={{
                     padding: "12px 16px",
                     width: 260,
@@ -86,11 +61,10 @@ export default function LoginPage() {
                     color: "white",
                     fontSize: 16,
                     cursor: "pointer",
-                    opacity: loading ? 0.6 : 1,
                 }}
             >
-                {loading ? "Logging in..." : "Log in"}
+                Log in
             </button>
-        </div>
+        </form>
     );
 }

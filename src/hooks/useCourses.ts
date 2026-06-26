@@ -1,5 +1,5 @@
 "use client";
-import { supabaseBrowser } from "@/src/lib/supabase-browser";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export function useCourses() {
     async function loadCourses() {

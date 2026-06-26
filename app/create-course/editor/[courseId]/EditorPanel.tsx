@@ -1,7 +1,7 @@
 "use client";
 
-import { Toast } from "@/src/components/Toast";
-import { useCourseEditor } from "@/src/state/useCourseEditor";
+import { Toast } from "@/components/Toast";
+import { useCourseEditor } from "@/state/useCourseEditor";
 import { useMemo } from "react";
 
 export default function EditorPanel() {

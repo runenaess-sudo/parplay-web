@@ -1,7 +1,7 @@
 "use client";
 
-import { supabaseBrowser } from "@/src/lib/supabase-browser";
-import { useCourseEditor } from "@/src/state/useCourseEditor";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useCourseEditor } from "@/state/useCourseEditor";
 import { useEffect } from "react";
 
 export default function LoadEditorData({ courseId }: { courseId: string }) {
