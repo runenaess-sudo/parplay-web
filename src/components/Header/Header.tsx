@@ -21,21 +21,34 @@ export default function Header() {
     const [access, setAccess] = useState<AccessInfo | null>(null);
 
     useEffect(() => {
-        async function load() {
-            const supabase = supabaseBrowser;
-
-            // Load session
-            const { data: { session } } = await supabase.auth.getSession();
+        async function loadSessionAndAccess() {
+            const { data: { session } } = await supabaseBrowser.auth.getSession();
             setSession(session);
 
-            // Load access info directly from DB (no API route)
             if (session?.user) {
-                const access = await getUserAccess();
-                setAccess(access);
+                const nextAccess = await getUserAccess();
+                setAccess(nextAccess);
+            } else {
+                setAccess(null);
             }
         }
 
-        load();
+        loadSessionAndAccess();
+
+        const { data: authSub } = supabaseBrowser.auth.onAuthStateChange(async (_event, nextSession) => {
+            setSession(nextSession);
+
+            if (nextSession?.user) {
+                const nextAccess = await getUserAccess();
+                setAccess(nextAccess);
+            } else {
+                setAccess(null);
+            }
+        });
+
+        return () => {
+            authSub.subscription.unsubscribe();
+        };
     }, []);
 
     const isLoggedIn = !!session?.user;
@@ -45,23 +58,27 @@ export default function Header() {
         <header className="parplay-header">
             <Link href="/" className="text-xl font-semibold">ParPlay</Link>
 
-            <nav className="menu">
-                <MenuItem href="/community" active={pathname.startsWith("/community")}>Community</MenuItem>
+            {isLoggedIn ? (
+                <nav className="menu">
+                    <MenuItem href="/community" active={pathname.startsWith("/community")}>Community</MenuItem>
 
-                <div className="relative group">
-                    <div className="menu-item cursor-default select-none">Courses</div>
+                    <div className="relative group">
+                        <div className="menu-item cursor-default select-none">Courses</div>
 
-                    <div className="absolute left-0 top-full hidden group-hover:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
-                        <Link href="/courses" className="dropdown-item block whitespace-nowrap hover:bg-white/10">View Courses</Link>
+                        <div className="absolute left-0 top-full hidden group-hover:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
+                            <Link href="/courses" className="dropdown-item block whitespace-nowrap hover:bg-white/10">View Courses</Link>
 
-                        {canCreateCourse && (
-                            <Link href="/create-course" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Create Course</Link>
-                        )}
+                            {canCreateCourse && (
+                                <Link href="/create-course" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Create Course</Link>
+                            )}
+                        </div>
                     </div>
-                </div>
 
-                <MenuItem href="/tournaments" active={pathname.startsWith("/tournaments")}>Tournaments</MenuItem>
-            </nav>
+                    <MenuItem href="/tournaments" active={pathname.startsWith("/tournaments")}>Tournaments</MenuItem>
+                </nav>
+            ) : (
+                <div aria-hidden="true" />
+            )}
 
             <nav>
                 {isLoggedIn ? (
