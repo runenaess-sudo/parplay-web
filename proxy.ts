@@ -2,13 +2,15 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export function proxy(req: NextRequest) {
+    const pathname = req.nextUrl.pathname;
+
     // Ikke sjekk RSC-requests
     if (req.headers.get("rsc") === "1") {
         return NextResponse.next();
     }
 
-    // Ikke sjekk login-siden og auth-callback
-    if (req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/auth")) {
+    // Tillat offentlig startside, login og auth-callback.
+    if (pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/auth")) {
         return NextResponse.next();
     }
 
