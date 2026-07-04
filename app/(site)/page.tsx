@@ -55,27 +55,46 @@ export default function Home() {
         gap: "20px",
       }}
     >
-      <Image
-        src="/pp_logo.png"
-        alt="ParPlay"
-        width={320}
-        height={320}
-        priority
-        style={{ width: "min(70vw, 320px)", height: "auto" }}
-      />
-
       <div
         style={{
-          padding: "10px 18px",
-          border: "1px solid rgba(255,255,255,0.25)",
-          borderRadius: "10px",
-          fontSize: "1rem",
-          letterSpacing: "0.02em",
+          width: "min(80vw, 420px)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: "14px",
         }}
       >
-        {countdown.isDone
-          ? "Lansert"
-          : `${countdown.days}d ${String(countdown.hours).padStart(2, "0")}t ${String(countdown.minutes).padStart(2, "0")}m ${String(countdown.seconds).padStart(2, "0")}s til 01.01.2027`}
+        <div
+          style={{
+            fontSize: "clamp(20px, 4.8vw, 24px)",
+            fontStyle: "italic",
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            lineHeight: 1.1,
+            color: "#FFFFFF",
+            textShadow: "0 2px 8px rgba(0,0,0,0.85)",
+            whiteSpace: "nowrap",
+            padding: "0 6px",
+          }}
+        >
+          {countdown.isDone
+            ? "Lansert"
+            : `${countdown.days}d ${String(countdown.hours).padStart(2, "0")}t ${String(countdown.minutes).padStart(2, "0")}m ${String(countdown.seconds).padStart(2, "0")}s`}
+        </div>
+
+        <Image
+          src="/pp_logo.png"
+          alt="ParPlay"
+          width={420}
+          height={420}
+          priority
+          style={{ width: "100%", height: "auto" }}
+        />
+      </div>
+
+      <div style={{ opacity: 0.75, fontSize: "0.95rem", fontStyle: "italic" }}>
+        Til 01.01.2027
       </div>
     </main>
   );
