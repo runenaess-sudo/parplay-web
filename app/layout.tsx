@@ -1,3 +1,5 @@
+import AuthSync from "@/components/AuthSync";
+import Header from "@/components/Header/Header";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -29,6 +31,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <Header />
+        <AuthSync />
         {children}
       </body>
     </html>

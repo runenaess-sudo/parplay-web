@@ -1,18 +1,20 @@
+// src/components/Header/Header.tsx
 "use client";
 
+import { getUserAccess } from "@/lib/access";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MenuItem } from "./MenuItem";
+import { MenuItem } from "../Header/MenuItem"; // juster path hvis MenuItem ligger et annet sted
 
 type AccessInfo = {
     membership: string;
     limits: Record<string, any> | null;
 };
 
-export function Header() {
+export default function Header() {
     const pathname = usePathname();
 
     const [session, setSession] = useState<Session | null>(null);
@@ -22,13 +24,14 @@ export function Header() {
         async function load() {
             const supabase = supabaseBrowser;
 
+            // Load session
             const { data: { session } } = await supabase.auth.getSession();
             setSession(session);
 
+            // Load access info directly from DB (no API route)
             if (session?.user) {
-                const res = await fetch("/api/access");
-                const json = await res.json();
-                setAccess(json);
+                const access = await getUserAccess();
+                setAccess(access);
             }
         }
 
@@ -40,86 +43,44 @@ export function Header() {
 
     return (
         <header className="parplay-header">
-            {/* Logo */}
-            <Link href="/" className="text-xl font-semibold">
-                ParPlay
-            </Link>
+            <Link href="/" className="text-xl font-semibold">ParPlay</Link>
 
-            {/* Main Menu */}
             <nav className="menu">
-                <MenuItem href="/community" active={pathname.startsWith("/community")}>
-                    Community
-                </MenuItem>
+                <MenuItem href="/community" active={pathname.startsWith("/community")}>Community</MenuItem>
 
-                {/* COURSES DROPDOWN */}
                 <div className="relative group">
-                    <div className="menu-item cursor-default select-none">
-                        Courses
-                    </div>
+                    <div className="menu-item cursor-default select-none">Courses</div>
 
-                    <div
-                        className="
-                            absolute left-0 top-full 
-                            hidden group-hover:block 
-                            bg-black/80 text-white 
-                            shadow-xl rounded-md 
-                            backdrop-blur-md
-                            z-50
-                        "
-                    >
-                        <Link href="/courses" className="dropdown-item block whitespace-nowrap hover:bg-white/10">
-                            View Courses
-                        </Link>
+                    <div className="absolute left-0 top-full hidden group-hover:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
+                        <Link href="/courses" className="dropdown-item block whitespace-nowrap hover:bg-white/10">View Courses</Link>
 
                         {canCreateCourse && (
-                            <Link href="/courses/create" className="dropdown-item block whitespace-nowrap hover:bg-white/10">
-                                Create Course
-                            </Link>
+                            <Link href="/create-course" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Create Course</Link>
                         )}
                     </div>
                 </div>
 
-                <MenuItem href="/tournaments" active={pathname.startsWith("/tournaments")}>
-                    Tournaments
-                </MenuItem>
+                <MenuItem href="/tournaments" active={pathname.startsWith("/tournaments")}>Tournaments</MenuItem>
             </nav>
 
-            {/* Profile / Login */}
             <nav>
                 {isLoggedIn ? (
                     <div className="relative group">
-                        <MenuItem href="/profile" active={pathname.startsWith("/profile")}>
-                            My Profile
-                        </MenuItem>
+                        <MenuItem href="/profile" active={pathname.startsWith("/profile")}>My Profile</MenuItem>
 
-                        <div
-                            className="
-                                absolute left-0 top-full 
-                                hidden group-hover:block 
-                                bg-black/80 text-white 
-                                shadow-xl rounded-md 
-                                backdrop-blur-md
-                                z-50
-                            "
-                        >
-                            <Link href="/profile" className="dropdown-item block whitespace-nowrap hover:bg-white/10">
-                                Profile
-                            </Link>
+                        <div className="absolute left-0 top-full hidden group-hover:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
+                            <Link href="/profile" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Profile</Link>
 
                             <button
                                 className="dropdown-item text-left block whitespace-nowrap hover:bg-white/10"
-                                onClick={async () => {
-                                    await supabaseBrowser.auth.signOut();
-                                }}
+                                onClick={async () => { await supabaseBrowser.auth.signOut(); }}
                             >
                                 Logout
                             </button>
                         </div>
                     </div>
                 ) : (
-                    <MenuItem href="/login" active={pathname === "/login"}>
-                        Login
-                    </MenuItem>
+                    <MenuItem href="/login" active={pathname === "/login"}>Login</MenuItem>
                 )}
             </nav>
         </header>

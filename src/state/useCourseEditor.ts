@@ -28,6 +28,9 @@ type CourseEditorState = {
     setTeeAngle: (holeId: string, angle: number) => void;
 
     saveHole: (holeId: string) => Promise<void>;
+
+    // ⭐ NEW
+    createNewHole: (courseId: string) => Promise<void>;
 };
 
 export const useCourseEditor = create<CourseEditorState>((set, get) => ({
@@ -47,7 +50,6 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         });
     },
 
-    // ⭐ AUTO‑SAVE når du bytter hull
     setSelectedHole: async (holeId) => {
         const prevHoleId = get().selectedHoleId;
 
@@ -61,7 +63,6 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         set({ selectedHoleId: holeId });
     },
 
-    // ⭐ AUTO‑SAVE når du går til "none"
     setMode: async (mode) => {
         const prevMode = get().mode;
         const holeId = get().selectedHoleId;
@@ -86,7 +87,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             h.id === holeId ? { ...h, tee_longitude: lng, tee_latitude: lat } : h
         );
 
-        set({ course: { ...course, holes } });
+        set({ course: { ...course, holes: [...holes] } });
     },
 
     setBasket: (holeId, lng, lat) => {
@@ -99,7 +100,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             h.id === holeId ? { ...h, basket_longitude: lng, basket_latitude: lat } : h
         );
 
-        set({ course: { ...course, holes } });
+        set({ course: { ...course, holes: [...holes] } });
     },
 
     addFairwayPoint: (holeId, lng, lat) => {
@@ -117,7 +118,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
                 : h
         );
 
-        set({ course: { ...course, holes } });
+        set({ course: { ...course, holes: [...holes] } });
     },
 
     moveFairwayPoint: (holeId, index, lng, lat) => {
@@ -134,7 +135,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             return { ...h, fairway: points };
         });
 
-        set({ course: { ...course, holes } });
+        set({ course: { ...course, holes: [...holes] } });
     },
 
     removeFairwayPoint: (holeId, index) => {
@@ -151,7 +152,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             return { ...h, fairway: points };
         });
 
-        set({ course: { ...course, holes } });
+        set({ course: { ...course, holes: [...holes] } });
     },
 
     setTeeAngle: (holeId, angle) => {
@@ -164,62 +165,58 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             h.id === holeId ? { ...h, tee_angle: angle } : h
         );
 
-        set({ course: { ...course, holes } });
+        set({
+            course: {
+                ...course,
+                holes: [...holes],
+            },
+        });
     },
 
-    // ⭐ FULL SAVE FUNCTION (Elevation + Length + Supabase + Toast + Debug)
+    // ⭐ SAVE WITH FULL RELOAD
     saveHole: async (holeId: string) => {
         console.log("SAVE HOLE TRIGGERED:", holeId);
 
         const { course } = get();
-        if (!course) {
-            console.log("❌ No course loaded");
-            return;
-        }
+        if (!course) return;
 
         const hole = course.holes.find((h: any) => h.id === holeId);
-        if (!hole) {
-            console.log("❌ Hole not found in state");
-            return;
-        }
+        if (!hole) return;
 
         console.log("HOLE BEFORE SAVE:", hole);
 
-        // Elevation
+        const hasTeePosition =
+            Number.isFinite(hole.tee_latitude) && Number.isFinite(hole.tee_longitude);
+        const hasBasketPosition =
+            Number.isFinite(hole.basket_latitude) && Number.isFinite(hole.basket_longitude);
+
         const teeElevation =
-            hole.tee_latitude && hole.tee_longitude
+            hasTeePosition
                 ? await getElevation(hole.tee_latitude, hole.tee_longitude)
                 : null;
 
         const basketElevation =
-            hole.basket_latitude && hole.basket_longitude
+            hasBasketPosition
                 ? await getElevation(hole.basket_latitude, hole.basket_longitude)
                 : null;
 
-        console.log("ELEVATION RESULTS:", {
-            teeElevation,
-            basketElevation,
-        });
-
         const fairwayPoints = await Promise.all(
-            (hole.fairway ?? []).map(async (p: any, i: number) => {
+            (hole.fairway ?? []).map(async (p: any) => {
                 const elev = await getElevation(p.lat, p.lng);
-                console.log(`FAIRWAY POINT ${i} ELEVATION:`, elev);
                 return { ...p, elevation: elev };
             })
         );
 
-        // Length
         const lineCoords: [number, number][] = [];
-        if (hole.tee_latitude) lineCoords.push([hole.tee_longitude, hole.tee_latitude]);
+        if (hasTeePosition) lineCoords.push([hole.tee_longitude, hole.tee_latitude]);
         fairwayPoints.forEach((p) => lineCoords.push([p.lng, p.lat]));
-        if (hole.basket_latitude) lineCoords.push([hole.basket_longitude, hole.basket_latitude]);
+        if (hasBasketPosition) lineCoords.push([hole.basket_longitude, hole.basket_latitude]);
 
-        const lengthMeters = calculateHoleLength(lineCoords);
+        const lengthMeters =
+            hasTeePosition && hasBasketPosition
+                ? calculateHoleLength(lineCoords)
+                : null;
 
-        console.log("LENGTH CALCULATED:", lengthMeters);
-
-        // ⭐ MATCHER SUPABASE-SCHEMAET DITT
         const payload = {
             tee_latitude: hole.tee_latitude,
             tee_longitude: hole.tee_longitude,
@@ -230,8 +227,16 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             basket_longitude: hole.basket_longitude,
             basket_elevation: basketElevation,
 
+            elevation_diff:
+                basketElevation != null && teeElevation != null
+                    ? basketElevation - teeElevation
+                    : null,
+
             fairway: fairwayPoints,
-            distance: Math.round(lengthMeters),
+            distance: lengthMeters != null ? Math.round(lengthMeters) : null,
+
+            updated_at: new Date().toISOString(),
+            course_name: course.name,
         };
 
         console.log("SUPABASE UPDATE PAYLOAD:", payload);
@@ -242,24 +247,28 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             .eq("id", holeId);
 
         if (error) {
-            console.log("❌ SUPABASE ERROR:", JSON.stringify(error, null, 2));
+            console.log("❌ SUPABASE ERROR:", error);
             get().setToast("Error saving hole");
             return;
         }
 
-        console.log("✅ HOLE SAVED SUCCESSFULLY");
+        console.log("✅ HOLE SAVED — RELOADING FROM SUPABASE");
 
-        // Oppdater local state
-        const updatedHole = {
-            ...hole,
-            tee_elevation: teeElevation,
-            basket_elevation: basketElevation,
-            fairway: fairwayPoints,
-            distance: Math.round(lengthMeters),
-        };
+        const { data: freshHole, error: reloadError } = await supabaseBrowser
+            .from("holes")
+            .select("*")
+            .eq("id", holeId)
+            .single();
+
+        if (reloadError || !freshHole) {
+            console.log("❌ ERROR RELOADING HOLE:", reloadError);
+            return;
+        }
+
+        console.log("🔥 FRESH HOLE FROM DB:", freshHole);
 
         const updatedHoles = course.holes.map((h: any) =>
-            h.id === holeId ? updatedHole : h
+            h.id === holeId ? freshHole : h
         );
 
         set({
@@ -270,5 +279,60 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         });
 
         get().setToast("Hole saved");
+    },
+
+    // ⭐ NEW — ADD NEW HOLE
+    createNewHole: async (courseId: string) => {
+        const supabase = supabaseBrowser;
+        const state = get();
+
+        const nextNumber =
+            state.course?.holes?.length > 0
+                ? Math.max(...state.course.holes.map((h: any) => h.number)) + 1
+                : 1;
+
+        // DEBUG og guard før insert
+        const { data: sessionData } = await supabase.auth.getSession();
+        const { data: userData } = await supabase.auth.getUser();
+
+        console.log("DEBUG sessionData:", sessionData);
+        console.log("DEBUG userData:", userData);
+        console.log("DEBUG access_token:", sessionData?.session?.access_token ?? null);
+
+        if (!userData?.user) {
+            console.error("Not authenticated — cannot create hole");
+            get().setToast("Du må være logget inn for å opprette hull");
+            return;
+        }
+
+        // kjør insert og logg hele responsen
+        const res = await supabase
+            .from("holes")
+            .insert({
+                course_id: courseId,
+                number: nextNumber,
+                par: 3,
+                tee_latitude: null,
+                tee_longitude: null,
+                basket_latitude: null,
+                basket_longitude: null,
+                fairway: [],
+                tee_type: "Turf",
+                basket_type: "Prodigy",
+            })
+            .select()
+            .single();
+
+        console.log("DEBUG insert response:", JSON.stringify(res, null, 2));
+
+        const { data, error } = res;
+
+        set((s) => ({
+            course: {
+                ...s.course,
+                holes: [...s.course.holes, data],
+            },
+            selectedHoleId: data.id,
+        }));
     },
 }));

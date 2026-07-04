@@ -1,12 +1,58 @@
 "use client";
 
 import { useCourseEditor } from "@/state/useCourseEditor";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import EditorPanel from "./EditorPanel";
 import LoadEditorData from "./LoadEditorData";
 import { MapCanvas } from "./MapCanvas";
 
+/* -------------------------------------------------------
+   TYPES
+-------------------------------------------------------- */
+type Hole = {
+    id: string;
+    number: number;
+};
+
+type HoleListOverlayProps = {
+    holes: Hole[];
+    selectedHoleId: string | null;
+    onSelect: (id: string) => void;
+};
+
+/* -------------------------------------------------------
+   HOLE LIST OVERLAY (flyter oppå kartet)
+-------------------------------------------------------- */
+function HoleListOverlay({
+    holes,
+    selectedHoleId,
+    onSelect,
+}: HoleListOverlayProps) {
+    return (
+        <div className="absolute top-0 left-0 right-0 z-30 p-2">
+            <div className="flex gap-2 overflow-x-auto bg-black/60 backdrop-blur-sm rounded-xl p-2">
+                {holes.map((h) => (
+                    <button
+                        key={h.id}
+                        onClick={() => onSelect(h.id)}
+                        className={`px-3 py-1 rounded text-sm whitespace-nowrap ${h.id === selectedHoleId
+                            ? "bg-white text-black font-bold"
+                            : "bg-slate-700 text-slate-200"
+                            }`}
+                    >
+                        {h.number}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/* -------------------------------------------------------
+   PAGE COMPONENT
+-------------------------------------------------------- */
 export default function Page() {
+    const router = useRouter();
     const { courseId } = useParams() as { courseId: string };
 
     const course = useCourseEditor((s) => s.course);
@@ -19,16 +65,25 @@ export default function Page() {
     const moveFairwayPoint = useCourseEditor((s) => s.moveFairwayPoint);
     const removeFairwayPoint = useCourseEditor((s) => s.removeFairwayPoint);
     const setTeeAngle = useCourseEditor((s) => s.setTeeAngle);
+    const setSelectedHole = useCourseEditor((s) => s.setSelectedHole);
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-900">
 
             {/* HEADER */}
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => router.push("/create-course/edit")}
+                        className="text-slate-300 hover:text-white transition text-sm"
+                    >
+                        ← Back
+                    </button>
+
                     <span className="rounded bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-200">
                         ParPlay
                     </span>
+
                     <span className="text-sm font-semibold text-slate-100">
                         Course Editor
                     </span>
@@ -48,27 +103,32 @@ export default function Page() {
 
             {/* MAIN EDITOR */}
             {course && (
-                <div className="flex flex-row flex-1 min-h-0">
+                <div className="relative flex-1 min-h-0">
 
-                    {/* LEFT SIDE: EDITOR PANEL */}
-                    <div className="w-80 shrink-0 border-r border-slate-800">
+                    {/* FLYTENDE VERKTØYPANEL */}
+                    <div className="absolute top-14 left-0 bottom-0 z-40 w-80 bg-black/60 backdrop-blur-md border-r border-white/10">
                         <EditorPanel />
                     </div>
 
-                    {/* RIGHT SIDE: MAP */}
-                    <div className="relative flex-1 min-h-0">
-                        <MapCanvas
-                            course={course}
-                            selectedHoleId={selectedHoleId}
-                            mode={mode}
-                            onSetTee={setTee}
-                            onSetBasket={setBasket}
-                            onAddFairwayPoint={addFairwayPoint}
-                            onMoveFairwayPoint={moveFairwayPoint}
-                            onRemoveFairwayPoint={removeFairwayPoint}
-                            onSetTeeAngle={setTeeAngle}
-                        />
-                    </div>
+                    {/* HULL-LISTE OVERLAY */}
+                    <HoleListOverlay
+                        holes={course.holes as Hole[]}
+                        selectedHoleId={selectedHoleId}
+                        onSelect={setSelectedHole}
+                    />
+
+                    {/* KARTET (FULLSCREEN UNDER ALT) */}
+                    <MapCanvas
+                        course={course}
+                        selectedHoleId={selectedHoleId}
+                        mode={mode}
+                        onSetTee={setTee}
+                        onSetBasket={setBasket}
+                        onAddFairwayPoint={addFairwayPoint}
+                        onMoveFairwayPoint={moveFairwayPoint}
+                        onRemoveFairwayPoint={removeFairwayPoint}
+                        onSetTeeAngle={setTeeAngle}
+                    />
                 </div>
             )}
 

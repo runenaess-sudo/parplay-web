@@ -11,7 +11,6 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
         if (!courseId) return;
 
         async function load() {
-            // 1. Hent course
             const { data: course, error: courseError } = await supabaseBrowser
                 .from("courses")
                 .select("*")
@@ -23,7 +22,6 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 return;
             }
 
-            // 2. Hent holes
             const { data: holes, error: holesError } = await supabaseBrowser
                 .from("holes")
                 .select("*")
@@ -35,15 +33,12 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 return;
             }
 
-            // 3. Riktig parsing av fairway_points
+            // ⭐ Riktig parsing av fairway (ikke fairway_points)
             const parsedHoles = holes.map((h: any) => ({
                 ...h,
-                fairway_points: Array.isArray(h.fairway_points)
-                    ? h.fairway_points
-                    : [],
+                fairway: Array.isArray(h.fairway) ? h.fairway : [],
             }));
 
-            // 4. Send til Zustand
             loadAll({
                 ...course,
                 holes: parsedHoles,

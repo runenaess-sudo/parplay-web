@@ -317,7 +317,6 @@ export function MapCanvas({
                     onAddFairwayPoint(holeId, lng, lat);
                 }
 
-                updatePointsRef.current();
             });
 
             map.on("contextmenu", (e) => {
@@ -341,7 +340,7 @@ export function MapCanvas({
 
                 if (hitHoleId && typeof index === "number") {
                     onRemoveFairwayPoint(hitHoleId, index);
-                    updatePointsRef.current();
+
                 }
             });
 
@@ -362,21 +361,80 @@ export function MapCanvas({
 
                 if (!holeId || typeof index !== "number") return;
 
-                draggingPointRef.current = { holeId, index };
+                // ⭐ Disable map panning while dragging
+                map.dragPan.disable();
                 map.getCanvas().style.cursor = "grabbing";
 
                 const onMove = (ev: mapboxgl.MapMouseEvent) => {
                     const lng = ev.lngLat.lng;
                     const lat = ev.lngLat.lat;
-                    const drag = draggingPointRef.current;
-                    if (!drag) return;
-
-                    onMoveFairwayPoint(drag.holeId, drag.index, lng, lat);
-                    updatePointsRef.current();
+                    onMoveFairwayPoint(holeId, index, lng, lat);
                 };
 
                 const onUp = () => {
-                    draggingPointRef.current = null;
+                    map.dragPan.enable();   // ⭐ Re-enable panning
+                    map.getCanvas().style.cursor = "";
+                    map.off("mousemove", onMove);
+                    map.off("mouseup", onUp);
+                };
+
+                map.on("mousemove", onMove);
+                map.on("mouseup", onUp);
+            });
+
+            map.on("mousedown", (e) => {
+                const features = map.queryRenderedFeatures(e.point, {
+                    layers: ["tee-layer"],
+                });
+
+                const hit = features[0];
+                if (!hit) return;
+
+                const holeId = hit.properties?.holeId;
+                if (!holeId) return;
+
+                map.dragPan.disable();
+                map.getCanvas().style.cursor = "grabbing";
+
+                const onMove = (ev: mapboxgl.MapMouseEvent) => {
+                    const lng = ev.lngLat.lng;
+                    const lat = ev.lngLat.lat;
+                    onSetTee(holeId, lng, lat);
+                };
+
+                const onUp = () => {
+                    map.dragPan.enable();
+                    map.getCanvas().style.cursor = "";
+                    map.off("mousemove", onMove);
+                    map.off("mouseup", onUp);
+                };
+
+                map.on("mousemove", onMove);
+                map.on("mouseup", onUp);
+            });
+
+            map.on("mousedown", (e) => {
+                const features = map.queryRenderedFeatures(e.point, {
+                    layers: ["basket-layer"],
+                });
+
+                const hit = features[0];
+                if (!hit) return;
+
+                const holeId = hit.properties?.holeId;
+                if (!holeId) return;
+
+                map.dragPan.disable();
+                map.getCanvas().style.cursor = "grabbing";
+
+                const onMove = (ev: mapboxgl.MapMouseEvent) => {
+                    const lng = ev.lngLat.lng;
+                    const lat = ev.lngLat.lat;
+                    onSetBasket(holeId, lng, lat);
+                };
+
+                const onUp = () => {
+                    map.dragPan.enable();
                     map.getCanvas().style.cursor = "";
                     map.off("mousemove", onMove);
                     map.off("mouseup", onUp);
@@ -403,7 +461,6 @@ export function MapCanvas({
                 const newAngle = (currentAngle + (delta > 0 ? 5 : -5) + 360) % 360;
 
                 onSetTeeAngle(holeId, newAngle);
-                updatePointsRef.current();
             });
         });
 
@@ -446,12 +503,29 @@ export function MapCanvas({
             new mapboxgl.LngLatBounds(coords[0], coords[0])
         );
 
-        map.fitBounds(bounds, { padding: 120, duration: 600 });
+        // ⭐ SAFE AREA ZOOM
+        map.fitBounds(bounds, {
+            padding: {
+                top: 120,     // hull-list overlay
+                bottom: 80,
+                right: 20,
+                left: 140,   // flytende panel safe area
+            },
+            duration: 600,
+        });
     }, [selectedHoleId]);
 
+
     return (
-        <div className="w-full h-full">
-            <div ref={ref} className="w-full h-full" />
-        </div>
+        <div
+            ref={ref}
+            style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+            }}
+        />
     );
 }
