@@ -48,6 +48,7 @@ export default function Home() {
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
+        transform: "translateY(-48px)",
         background: "#0A0A0A",
         color: "white",
         textAlign: "center",
