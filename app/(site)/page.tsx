@@ -57,17 +57,17 @@ export default function Home() {
     >
       <div
         style={{
-          width: "min(80vw, 420px)",
+          width: "min(90vw, 630px)",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          gap: "14px",
+          gap: "30px",
         }}
       >
         <div
           style={{
-            fontSize: "clamp(20px, 4.8vw, 24px)",
+            fontSize: "clamp(40px, 9.6vw, 48px)",
             fontStyle: "italic",
             fontWeight: 700,
             letterSpacing: "0.04em",
@@ -86,15 +86,11 @@ export default function Home() {
         <Image
           src="/pp_logo.png"
           alt="ParPlay"
-          width={420}
-          height={420}
+          width={630}
+          height={630}
           priority
           style={{ width: "100%", height: "auto" }}
         />
-      </div>
-
-      <div style={{ opacity: 0.75, fontSize: "0.95rem", fontStyle: "italic" }}>
-        Til 01.01.2027
       </div>
     </main>
   );
