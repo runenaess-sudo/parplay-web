@@ -5,7 +5,7 @@ import { getUserAccess } from "@/lib/access";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MenuItem } from "../Header/MenuItem"; // juster path hvis MenuItem ligger et annet sted
 
@@ -16,6 +16,7 @@ type AccessInfo = {
 
 export default function Header() {
     const pathname = usePathname();
+    const router = useRouter();
 
     const [session, setSession] = useState<Session | null>(null);
     const [access, setAccess] = useState<AccessInfo | null>(null);
@@ -52,7 +53,14 @@ export default function Header() {
     }, []);
 
     const isLoggedIn = !!session?.user;
-    const canCreateCourse = access?.limits?.can_create_course === true;
+    const canCreateCourse =
+        access?.membership === "admin" || access?.limits?.can_create_course !== false;
+
+    async function handleLogout() {
+        await supabaseBrowser.auth.signOut();
+        router.push("/");
+        router.refresh();
+    }
 
     return (
         <header className="parplay-header">
@@ -61,6 +69,10 @@ export default function Header() {
             {isLoggedIn ? (
                 <nav className="menu">
                     <MenuItem href="/community" active={pathname.startsWith("/community")}>Community</MenuItem>
+
+                    {access?.membership === "admin" && (
+                        <MenuItem href="/admin" active={pathname.startsWith("/admin")}>Admin</MenuItem>
+                    )}
 
                     <div className="relative group">
                         <div className="menu-item cursor-default select-none">Courses</div>
@@ -90,7 +102,7 @@ export default function Header() {
 
                             <button
                                 className="dropdown-item text-left block whitespace-nowrap hover:bg-white/10"
-                                onClick={async () => { await supabaseBrowser.auth.signOut(); }}
+                                onClick={handleLogout}
                             >
                                 Logout
                             </button>
