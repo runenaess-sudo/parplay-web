@@ -24,10 +24,18 @@ type ScorePlayer = {
 
 type Hole = {
     id: string;
+    layoutIndex: number;
     number: number;
     par: number | null;
     distance: number | null;
 };
+
+function getStrokeColor(score: number, par: number | null) {
+    if (par == null) return "#111111";
+    if (score === par) return "#111111";
+    if (score < par) return "#0e7490";
+    return "#b91c1c";
+}
 
 function extractScore(raw: unknown): number | null {
     if (typeof raw === "number") {
@@ -253,7 +261,14 @@ export default function SharedLiveRoundPage() {
 
                 const byId = new Map((holesRaw ?? []).map((h: any) => [h.id, h]));
                 const ordered = (layoutHolesRes.data ?? [])
-                    .map((row: any) => byId.get(row.hole_id))
+                    .map((row: any, idx: number) => {
+                        const hole = byId.get(row.hole_id);
+                        if (!hole) return null;
+                        return {
+                            ...hole,
+                            layoutIndex: idx + 1,
+                        } as Hole;
+                    })
                     .filter(Boolean) as Hole[];
                 setHoles(ordered);
             } else {
@@ -361,6 +376,104 @@ export default function SharedLiveRoundPage() {
     const syncLabel = syncStatus === "live" ? "Live" : syncStatus === "connecting" ? "Connecting..." : "Auto-refresh";
     const syncColor = syncStatus === "live" ? "#166534" : syncStatus === "connecting" ? "#92400e" : "#1d4ed8";
     const syncBg = syncStatus === "live" ? "#dcfce7" : syncStatus === "connecting" ? "#fef3c7" : "#dbeafe";
+    const frontNine = holes.slice(0, 9);
+    const backNine = holes.slice(9);
+
+    const renderSection = (sectionHoles: Hole[], sectionLabel: string) => {
+        if (!round || sectionHoles.length === 0) return null;
+
+        return (
+            <div key={sectionLabel} style={{ marginBottom: 18 }}>
+                <div style={{ padding: "10px 12px", borderBottom: "1px solid #dbe3ef", background: "#f8fbff", color: "#111111", fontWeight: 700 }}>
+                    {sectionLabel}
+                </div>
+                <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
+                    <thead>
+                        <tr>
+                            <th style={thPlayer}>Hole</th>
+                            {sectionHoles.map((hole) => (
+                                <th key={`layout-hole-${hole.layoutIndex}`} style={thCell}>{hole.layoutIndex}</th>
+                            ))}
+                            <th style={thCell}>Tot</th>
+                            <th style={thCell}>+/-</th>
+                        </tr>
+                        <tr>
+                            <th style={thPlayerMuted}>C-hole</th>
+                            {sectionHoles.map((hole) => (
+                                <th key={`course-hole-${hole.layoutIndex}`} style={thCellMuted}>{hole.number}</th>
+                            ))}
+                            <th style={thCellMuted}>-</th>
+                            <th style={thCellMuted}>-</th>
+                        </tr>
+                        <tr>
+                            <th style={thPlayerMuted}>Length</th>
+                            {sectionHoles.map((hole) => (
+                                <th key={`length-${hole.layoutIndex}`} style={thCellMuted}>{hole.distance ?? "-"}</th>
+                            ))}
+                            <th style={thCellMuted}>-</th>
+                            <th style={thCellMuted}>-</th>
+                        </tr>
+                        <tr>
+                            <th style={thPlayerMuted}>Par</th>
+                            {sectionHoles.map((hole) => (
+                                <th key={`par-${hole.layoutIndex}`} style={thCellMuted}>{hole.par ?? "-"}</th>
+                            ))}
+                            <th style={thCellMuted}>
+                                {sectionHoles.reduce((sum, h) => sum + (h.par ?? 0), 0)}
+                            </th>
+                            <th style={thCellMuted}>-</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {players.map((player) => {
+                            const playerScores = round.scores?.[player.id] ?? {};
+
+                            let sectionStrokes = 0;
+                            let sectionParPlayed = 0;
+                            let playedCount = 0;
+
+                            sectionHoles.forEach((hole) => {
+                                const raw = playerScores[hole.layoutIndex] ?? playerScores[String(hole.layoutIndex)];
+                                const score = extractScore(raw);
+                                if (score != null) {
+                                    sectionStrokes += score;
+                                    sectionParPlayed += hole.par ?? 0;
+                                    playedCount += 1;
+                                }
+                            });
+
+                            const relative = sectionStrokes - sectionParPlayed;
+
+                            return (
+                                <tr key={`${sectionLabel}-${player.id}`}>
+                                    <td style={tdPlayer}>{player.username ?? player.name ?? "Player"}</td>
+                                    {sectionHoles.map((hole) => {
+                                        const raw = playerScores[hole.layoutIndex] ?? playerScores[String(hole.layoutIndex)];
+                                        const score = extractScore(raw);
+                                        const cellKey = `${player.id}:${hole.layoutIndex}`;
+                                        const isLatest = highlightCellKey === cellKey && highlightVisible;
+                                        const textColor = score == null ? "#6b7280" : getStrokeColor(score, hole.par);
+
+                                        return (
+                                            <td key={`${player.id}-${sectionLabel}-${hole.layoutIndex}`} style={isLatest ? tdLatest : tdCell}>
+                                                <span style={{ color: textColor, fontWeight: score == null ? 500 : 700 }}>
+                                                    {score ?? "-"}
+                                                </span>
+                                            </td>
+                                        );
+                                    })}
+                                    <td style={tdTotal}>{playedCount === 0 ? "-" : sectionStrokes}</td>
+                                    <td style={tdRelative}>
+                                        {playedCount === 0 ? "-" : relative === 0 ? "E" : relative > 0 ? `+${relative}` : relative}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
 
     return (
         <main
@@ -374,11 +487,11 @@ export default function SharedLiveRoundPage() {
             <section style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div>
                     <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15 }}>Live Scorecard</h1>
-                    <p style={{ margin: "8px 0 0", color: "#6b7280" }}>
+                    <p style={{ margin: "8px 0 0", color: "#111111" }}>
                         {courseName || "Course"} {layoutName ? `- ${layoutName}` : ""}
                     </p>
                     {round?.started_at ? (
-                        <p style={{ margin: "6px 0 0", color: "#6b7280", fontSize: 14 }}>
+                        <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 14 }}>
                             Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration}
                         </p>
                     ) : null}
@@ -411,59 +524,8 @@ export default function SharedLiveRoundPage() {
                         boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
                     }}
                 >
-                    <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
-                        <thead>
-                            <tr>
-                                <th style={thPlayer}>Player</th>
-                                {holes.map((hole) => (
-                                    <th key={`h-${hole.number}`} style={thCell}>{hole.number}</th>
-                                ))}
-                                <th style={thCell}>Total</th>
-                            </tr>
-                            <tr>
-                                <th style={thPlayerMuted}>Par</th>
-                                {holes.map((hole) => (
-                                    <th key={`p-${hole.number}`} style={thCellMuted}>{hole.par ?? "-"}</th>
-                                ))}
-                                <th style={thCellMuted}>-</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {players.map((player) => {
-                                const playerScores = round.scores?.[player.id] ?? {};
-                                const total = holes.reduce((sum, hole) => {
-                                    const raw = playerScores[hole.number] ?? playerScores[String(hole.number)];
-                                    const score = extractScore(raw);
-                                    return sum + (score ?? 0);
-                                }, 0);
-
-                                const hasAnyScore = holes.some((hole) => {
-                                    const raw = playerScores[hole.number] ?? playerScores[String(hole.number)];
-                                    return extractScore(raw) != null;
-                                });
-
-                                return (
-                                    <tr key={player.id}>
-                                        <td style={tdPlayer}>{player.username ?? player.name ?? "Player"}</td>
-                                        {holes.map((hole) => {
-                                            const raw = playerScores[hole.number] ?? playerScores[String(hole.number)];
-                                            const score = extractScore(raw);
-                                            const cellKey = `${player.id}:${hole.number}`;
-                                            const isLatest = highlightCellKey === cellKey && highlightVisible;
-                                            return (
-                                                <td key={`${player.id}-${hole.number}`} style={isLatest ? tdLatest : tdCell}>
-                                                    {score ?? "-"}
-                                                </td>
-                                            );
-                                        })}
-                                        <td style={tdTotal}>
-                                            {!hasAnyScore ? "-" : total === 0 ? "E" : total > 0 ? `+${total}` : total}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                    {renderSection(frontNine, "Front")}
+                    {renderSection(backNine, "Back")}
                 </div>
             ) : null}
         </main>
@@ -488,23 +550,25 @@ const thPlayer: React.CSSProperties = {
     zIndex: 2,
     background: "#f8fafc",
     fontWeight: 700,
+    color: "#111111",
 };
 
 const thCell: React.CSSProperties = {
     ...baseCell,
     background: "#f8fafc",
     fontWeight: 700,
+    color: "#111111",
 };
 
 const thPlayerMuted: React.CSSProperties = {
     ...thPlayer,
-    color: "#6b7280",
+    color: "#111111",
     fontWeight: 600,
 };
 
 const thCellMuted: React.CSSProperties = {
     ...thCell,
-    color: "#6b7280",
+    color: "#111111",
     fontWeight: 600,
 };
 
@@ -517,11 +581,13 @@ const tdPlayer: React.CSSProperties = {
     zIndex: 1,
     background: "#ffffff",
     fontWeight: 600,
+    color: "#111111",
 };
 
 const tdCell: React.CSSProperties = {
     ...baseCell,
     background: "#ffffff",
+    color: "#111111",
 };
 
 const tdLatest: React.CSSProperties = {
@@ -531,12 +597,21 @@ const tdLatest: React.CSSProperties = {
     borderWidth: 2,
     borderStyle: "solid",
     fontWeight: 700,
+    color: "#111111",
 };
 
 const tdTotal: React.CSSProperties = {
     ...baseCell,
     minWidth: 60,
     fontWeight: 700,
-    color: "#1d4ed8",
+    color: "#111111",
+    background: "#f8fafc",
+};
+
+const tdRelative: React.CSSProperties = {
+    ...baseCell,
+    minWidth: 64,
+    fontWeight: 700,
+    color: "#111111",
     background: "#ffffff",
 };
