@@ -20,6 +20,7 @@ type ScorePlayer = {
     id: string;
     username: string | null;
     name: string | null;
+    avatarUrl: string | null;
 };
 
 type Hole = {
@@ -30,11 +31,70 @@ type Hole = {
     distance: number | null;
 };
 
-function getStrokeColor(score: number, par: number | null) {
-    if (par == null) return "#111111";
-    if (score === par) return "#111111";
-    if (score < par) return "#0e7490";
-    return "#b91c1c";
+function getScoreBadgeStyle(score: number | null, par: number | null): React.CSSProperties {
+    if (score == null || par == null) {
+        return {
+            border: "1.5px solid #d1d5db",
+            color: "#111111",
+            background: "#ffffff",
+        };
+    }
+
+    if (score === 1) {
+        return {
+            border: "2px solid #f5c542",
+            color: "#111111",
+            background: "#fff7d6",
+        };
+    }
+
+    const diff = score - par;
+
+    if (diff <= -3) {
+        return {
+            border: "2px solid #94a3b8",
+            color: "#111111",
+            background: "#f8fafc",
+        };
+    }
+
+    if (diff === -2) {
+        return {
+            border: "2px solid #facc15",
+            color: "#111111",
+            background: "#fffbeb",
+        };
+    }
+
+    if (diff === -1) {
+        return {
+            border: "2px solid #86efac",
+            color: "#111111",
+            background: "#f0fdf4",
+        };
+    }
+
+    if (diff === 1) {
+        return {
+            border: "2px solid #f9a8d4",
+            color: "#111111",
+            background: "#fdf2f8",
+        };
+    }
+
+    if (diff >= 2) {
+        return {
+            border: "2px solid #7f1d1d",
+            color: "#ffffff",
+            background: "#991b1b",
+        };
+    }
+
+    return {
+        border: "1.5px solid #d1d5db",
+        color: "#111111",
+        background: "#ffffff",
+    };
 }
 
 function getInitials(name: string) {
@@ -180,12 +240,14 @@ export default function SharedLiveRoundPage() {
                         id: entry?.id,
                         name: entry?.name ?? null,
                         username: entry?.username ?? null,
+                        avatarUrl: null as string | null,
                     };
                 })
                 .filter((entry) => typeof entry.id === "string" && entry.id.length > 0) as Array<{
                     id: string;
                     name: string | null;
                     username: string | null;
+                    avatarUrl: string | null;
                 }>;
 
             const ids = normalized.map((p) => p.id);
@@ -196,17 +258,19 @@ export default function SharedLiveRoundPage() {
 
             const { data: profileRows } = await supabaseBrowser
                 .from("profiles")
-                .select("id, username")
+                .select("id, username, avatar_url")
                 .in("id", ids);
 
             if (cancelled) return;
 
             const usernameById = new Map((profileRows ?? []).map((row: any) => [String(row.id), row.username ?? null]));
+            const avatarById = new Map((profileRows ?? []).map((row: any) => [String(row.id), row.avatar_url ?? null]));
             setPlayers(
                 normalized.map((p) => ({
                     id: p.id,
                     username: usernameById.get(p.id) ?? p.username ?? null,
                     name: p.name,
+                    avatarUrl: avatarById.get(p.id) ?? null,
                 }))
             );
         };
@@ -395,7 +459,7 @@ export default function SharedLiveRoundPage() {
     }, [round?.started_at, round?.finished_at, nowMs]);
 
     const syncLabel = syncStatus === "live" ? "Live" : syncStatus === "connecting" ? "Connecting..." : "Auto-refresh";
-    const syncColor = syncStatus === "live" ? "#166534" : syncStatus === "connecting" ? "#92400e" : "#1d4ed8";
+    const syncColor = "#111111";
     const syncBg = syncStatus === "live" ? "#dcfce7" : syncStatus === "connecting" ? "#fef3c7" : "#dbeafe";
     const isPortrait = viewport.height > viewport.width;
     const freezeLeaderCols = isPortrait || viewport.width < 900;
@@ -409,6 +473,7 @@ export default function SharedLiveRoundPage() {
         if (!round) return [] as Array<{
             id: string;
             name: string;
+            avatarUrl: string | null;
             rd: number;
             thru: number;
             total: number;
@@ -439,6 +504,7 @@ export default function SharedLiveRoundPage() {
             return {
                 id: player.id,
                 name: displayName,
+                avatarUrl: player.avatarUrl,
                 rd,
                 thru,
                 total,
@@ -506,7 +572,7 @@ export default function SharedLiveRoundPage() {
                         boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
                     }}
                 >
-                    <table style={{ borderCollapse: "collapse", width: freezeLeaderCols ? "max-content" : "100%", minWidth: "100%", tableLayout: freezeLeaderCols ? "auto" : "fixed" }}>
+                    <table style={{ borderCollapse: "separate", borderSpacing: 0, width: freezeLeaderCols ? "max-content" : "100%", minWidth: "100%", tableLayout: freezeLeaderCols ? "auto" : "fixed" }}>
                         <thead>
                             <tr>
                                 <th
@@ -517,6 +583,7 @@ export default function SharedLiveRoundPage() {
                                         position: freezeLeaderCols ? "sticky" : "static",
                                         left: freezeLeaderCols ? 0 : "auto",
                                         zIndex: freezeLeaderCols ? 4 : 1,
+                                        boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
                                     }}
                                 >
                                     Pos
@@ -529,6 +596,7 @@ export default function SharedLiveRoundPage() {
                                         position: freezeLeaderCols ? "sticky" : "static",
                                         left: freezeLeaderCols ? posColWidth : "auto",
                                         zIndex: freezeLeaderCols ? 4 : 1,
+                                        boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
                                     }}
                                 >
                                     Player
@@ -565,6 +633,7 @@ export default function SharedLiveRoundPage() {
                                                 position: freezeLeaderCols ? "sticky" : "static",
                                                 left: freezeLeaderCols ? 0 : "auto",
                                                 zIndex: freezeLeaderCols ? 3 : 1,
+                                                boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
                                             }}
                                         >
                                             {posLabel}
@@ -577,10 +646,28 @@ export default function SharedLiveRoundPage() {
                                                 position: freezeLeaderCols ? "sticky" : "static",
                                                 left: freezeLeaderCols ? posColWidth : "auto",
                                                 zIndex: freezeLeaderCols ? 3 : 1,
+                                                boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
                                             }}
                                         >
                                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                <span style={{ ...avatarBubble, width: avatarSize, height: avatarSize }}>{getInitials(row.name)}</span>
+                                                {row.avatarUrl ? (
+                                                    <img
+                                                        src={row.avatarUrl}
+                                                        alt={row.name}
+                                                        width={avatarSize}
+                                                        height={avatarSize}
+                                                        style={{
+                                                            width: avatarSize,
+                                                            height: avatarSize,
+                                                            borderRadius: 999,
+                                                            objectFit: "cover",
+                                                            border: "1px solid #cbd5e1",
+                                                            flexShrink: 0,
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <span style={{ ...avatarBubble, width: avatarSize, height: avatarSize }}>{getInitials(row.name)}</span>
+                                                )}
                                                 <span style={{ color: "#111111", fontWeight: 600, whiteSpace: "nowrap" }}>{row.name}</span>
                                             </div>
                                         </td>
@@ -591,11 +678,17 @@ export default function SharedLiveRoundPage() {
                                             const score = extractScore(raw);
                                             const cellKey = `${row.id}:${hole.layoutIndex}`;
                                             const isLatest = highlightCellKey === cellKey && highlightVisible;
-                                            const textColor = score == null ? "#6b7280" : getStrokeColor(score, hole.par);
+                                            const badgeStyle = getScoreBadgeStyle(score, hole.par);
 
                                             return (
                                                 <td key={`${row.id}-${hole.layoutIndex}`} style={{ ...(isLatest ? tdLatestCompact : tdCellCompact), minWidth: holeColWidth, width: holeColWidth }}>
-                                                    <span style={{ color: textColor, fontWeight: score == null ? 500 : 700 }}>
+                                                    <span
+                                                        style={{
+                                                            ...scoreBadgeBase,
+                                                            ...badgeStyle,
+                                                            color: score == null ? "#6b7280" : badgeStyle.color,
+                                                        }}
+                                                    >
                                                         {score ?? "-"}
                                                     </span>
                                                 </td>
@@ -726,5 +819,18 @@ const avatarBubble: React.CSSProperties = {
     fontSize: 10,
     fontWeight: 700,
     flexShrink: 0,
+};
+
+const scoreBadgeBase: React.CSSProperties = {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0 5px",
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: 1,
 };
 
