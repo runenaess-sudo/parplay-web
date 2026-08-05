@@ -104,6 +104,7 @@ export default function SharedLiveRoundPage() {
     const [nowMs, setNowMs] = useState(Date.now());
     const [highlightCellKey, setHighlightCellKey] = useState<string | null>(null);
     const [highlightVisible, setHighlightVisible] = useState(true);
+    const [syncStatus, setSyncStatus] = useState<"connecting" | "live" | "polling">("connecting");
 
     const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const blinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -272,6 +273,36 @@ export default function SharedLiveRoundPage() {
     useEffect(() => {
         if (!roundId || !shareToken) return;
 
+        const poller = setInterval(async () => {
+            const { data } = await supabaseBrowser
+                .from("rounds_live")
+                .select("id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token")
+                .eq("id", roundId)
+                .eq("share_token", shareToken)
+                .eq("share_enabled", true)
+                .maybeSingle();
+
+            if (!data) return;
+
+            const next = data as LiveRound;
+            setRound((prev) => {
+                const changed = detectLastChangedCell(prev?.scores, next.scores);
+                if (changed) triggerCellHighlight(changed);
+                return {
+                    ...(prev ?? next),
+                    ...next,
+                };
+            });
+        }, 4000);
+
+        return () => clearInterval(poller);
+    }, [roundId, shareToken]);
+
+    useEffect(() => {
+        if (!roundId || !shareToken) return;
+
+        setSyncStatus("connecting");
+
         const channel = supabaseBrowser
             .channel(`web-live-round-${roundId}`)
             .on(
@@ -284,7 +315,9 @@ export default function SharedLiveRoundPage() {
                 },
                 (payload) => {
                     const next = payload.new as LiveRound;
-                    if (next.share_token !== shareToken) return;
+                    if (typeof next.share_token === "string" && next.share_token !== shareToken) {
+                        return;
+                    }
 
                     setRound((prev) => {
                         const changed = detectLastChangedCell(prev?.scores, next.scores);
@@ -296,7 +329,15 @@ export default function SharedLiveRoundPage() {
                     });
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                if (status === "SUBSCRIBED") {
+                    setSyncStatus("live");
+                    return;
+                }
+                if (status === "CLOSED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+                    setSyncStatus("polling");
+                }
+            });
 
         return () => {
             supabaseBrowser.removeChannel(channel);
@@ -317,25 +358,59 @@ export default function SharedLiveRoundPage() {
         return formatDuration(round.started_at, round.finished_at, nowMs);
     }, [round?.started_at, round?.finished_at, nowMs]);
 
+    const syncLabel = syncStatus === "live" ? "Live" : syncStatus === "connecting" ? "Connecting..." : "Auto-refresh";
+    const syncColor = syncStatus === "live" ? "#166534" : syncStatus === "connecting" ? "#92400e" : "#1d4ed8";
+    const syncBg = syncStatus === "live" ? "#dcfce7" : syncStatus === "connecting" ? "#fef3c7" : "#dbeafe";
+
     return (
-        <main style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 16px 40px" }}>
-            <section style={{ marginBottom: 16 }}>
-                <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15 }}>Live Scorecard</h1>
-                <p style={{ margin: "8px 0 0", color: "#6b7280" }}>
-                    {courseName || "Course"} {layoutName ? `- ${layoutName}` : ""}
-                </p>
-                {round?.started_at ? (
-                    <p style={{ margin: "6px 0 0", color: "#6b7280", fontSize: 14 }}>
-                        Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration}
+        <main
+            style={{
+                maxWidth: 1180,
+                margin: "0 auto",
+                padding: "24px 16px 40px",
+                background: "radial-gradient(1200px 500px at 10% -15%, #eff6ff 0%, #ffffff 45%)",
+            }}
+        >
+            <section style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                    <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15 }}>Live Scorecard</h1>
+                    <p style={{ margin: "8px 0 0", color: "#6b7280" }}>
+                        {courseName || "Course"} {layoutName ? `- ${layoutName}` : ""}
                     </p>
-                ) : null}
+                    {round?.started_at ? (
+                        <p style={{ margin: "6px 0 0", color: "#6b7280", fontSize: 14 }}>
+                            Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration}
+                        </p>
+                    ) : null}
+                </div>
+                <div
+                    style={{
+                        padding: "8px 12px",
+                        borderRadius: 999,
+                        background: syncBg,
+                        color: syncColor,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        border: `1px solid ${syncColor}33`,
+                    }}
+                >
+                    {syncLabel}
+                </div>
             </section>
 
             {loading ? <p>Loading scorecard...</p> : null}
             {!loading && errorText ? <p style={{ color: "#b91c1c" }}>{errorText}</p> : null}
 
             {!loading && !errorText && round ? (
-                <div style={{ overflowX: "auto", border: "1px solid #e5e7eb", borderRadius: 12 }}>
+                <div
+                    style={{
+                        overflowX: "auto",
+                        border: "1px solid #dbe3ef",
+                        borderRadius: 14,
+                        background: "#ffffff",
+                        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+                    }}
+                >
                     <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
                         <thead>
                             <tr>
