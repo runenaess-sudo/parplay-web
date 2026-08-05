@@ -3,14 +3,20 @@ import { NextResponse } from "next/server";
 
 export function proxy(req: NextRequest) {
     const pathname = req.nextUrl.pathname;
+    const isSharedLiveRoundPath = pathname.startsWith("/future/round/");
 
     // Ikke sjekk RSC-requests
     if (req.headers.get("rsc") === "1") {
         return NextResponse.next();
     }
 
-    // Tillat offentlig startside, login og auth-callback.
-    if (pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/auth")) {
+    // Tillat offentlig startside, login/auth og delte live-runder.
+    if (
+        pathname === "/" ||
+        pathname.startsWith("/login") ||
+        pathname.startsWith("/auth") ||
+        isSharedLiveRoundPath
+    ) {
         return NextResponse.next();
     }
 
