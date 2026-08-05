@@ -37,6 +37,14 @@ function getStrokeColor(score: number, par: number | null) {
     return "#b91c1c";
 }
 
+function getInitials(name: string) {
+    const clean = name.trim();
+    if (!clean) return "P";
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
 function extractScore(raw: unknown): number | null {
     if (typeof raw === "number") {
         return Number.isFinite(raw) ? raw : null;
@@ -113,6 +121,7 @@ export default function SharedLiveRoundPage() {
     const [highlightCellKey, setHighlightCellKey] = useState<string | null>(null);
     const [highlightVisible, setHighlightVisible] = useState(true);
     const [syncStatus, setSyncStatus] = useState<"connecting" | "live" | "polling">("connecting");
+    const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
     const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const blinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -365,6 +374,18 @@ export default function SharedLiveRoundPage() {
     }, []);
 
     useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const applyViewport = () => {
+            setViewport({ width: window.innerWidth, height: window.innerHeight });
+        };
+
+        applyViewport();
+        window.addEventListener("resize", applyViewport);
+        return () => window.removeEventListener("resize", applyViewport);
+    }, []);
+
+    useEffect(() => {
         return () => clearBlinkTimers();
     }, []);
 
@@ -376,104 +397,65 @@ export default function SharedLiveRoundPage() {
     const syncLabel = syncStatus === "live" ? "Live" : syncStatus === "connecting" ? "Connecting..." : "Auto-refresh";
     const syncColor = syncStatus === "live" ? "#166534" : syncStatus === "connecting" ? "#92400e" : "#1d4ed8";
     const syncBg = syncStatus === "live" ? "#dcfce7" : syncStatus === "connecting" ? "#fef3c7" : "#dbeafe";
-    const frontNine = holes.slice(0, 9);
-    const backNine = holes.slice(9);
+    const isPortrait = viewport.height > viewport.width;
+    const freezeLeaderCols = isPortrait || viewport.width < 900;
+    const posColWidth = freezeLeaderCols ? 36 : 30;
+    const playerColWidth = freezeLeaderCols ? 184 : 130;
+    const holeColWidth = freezeLeaderCols ? 52 : 30;
+    const adminColWidth = freezeLeaderCols ? 58 : 40;
+    const avatarSize = freezeLeaderCols ? 22 : 18;
 
-    const renderSection = (sectionHoles: Hole[], sectionLabel: string) => {
-        if (!round || sectionHoles.length === 0) return null;
+    const leaderboard = useMemo(() => {
+        if (!round) return [] as Array<{
+            id: string;
+            name: string;
+            rd: number;
+            thru: number;
+            total: number;
+            rating: string;
+            scores: Record<string, { score?: number } | number>;
+        }>;
 
-        return (
-            <div key={sectionLabel} style={{ marginBottom: 18 }}>
-                <div style={{ padding: "10px 12px", borderBottom: "1px solid #dbe3ef", background: "#f8fbff", color: "#111111", fontWeight: 700 }}>
-                    {sectionLabel}
-                </div>
-                <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
-                    <thead>
-                        <tr>
-                            <th style={thPlayer}>Hole</th>
-                            {sectionHoles.map((hole) => (
-                                <th key={`layout-hole-${hole.layoutIndex}`} style={thCell}>{hole.layoutIndex}</th>
-                            ))}
-                            <th style={thCell}>Tot</th>
-                            <th style={thCell}>+/-</th>
-                        </tr>
-                        <tr>
-                            <th style={thPlayerMuted}>C-hole</th>
-                            {sectionHoles.map((hole) => (
-                                <th key={`course-hole-${hole.layoutIndex}`} style={thCellMuted}>{hole.number}</th>
-                            ))}
-                            <th style={thCellMuted}>-</th>
-                            <th style={thCellMuted}>-</th>
-                        </tr>
-                        <tr>
-                            <th style={thPlayerMuted}>Length</th>
-                            {sectionHoles.map((hole) => (
-                                <th key={`length-${hole.layoutIndex}`} style={thCellMuted}>{hole.distance ?? "-"}</th>
-                            ))}
-                            <th style={thCellMuted}>-</th>
-                            <th style={thCellMuted}>-</th>
-                        </tr>
-                        <tr>
-                            <th style={thPlayerMuted}>Par</th>
-                            {sectionHoles.map((hole) => (
-                                <th key={`par-${hole.layoutIndex}`} style={thCellMuted}>{hole.par ?? "-"}</th>
-                            ))}
-                            <th style={thCellMuted}>
-                                {sectionHoles.reduce((sum, h) => sum + (h.par ?? 0), 0)}
-                            </th>
-                            <th style={thCellMuted}>-</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {players.map((player) => {
-                            const playerScores = round.scores?.[player.id] ?? {};
+        const rows = players.map((player) => {
+            const playerScores = round.scores?.[player.id] ?? {};
 
-                            let sectionStrokes = 0;
-                            let sectionParPlayed = 0;
-                            let playedCount = 0;
+            let total = 0;
+            let parPlayed = 0;
+            let thru = 0;
 
-                            sectionHoles.forEach((hole) => {
-                                const raw = playerScores[hole.layoutIndex] ?? playerScores[String(hole.layoutIndex)];
-                                const score = extractScore(raw);
-                                if (score != null) {
-                                    sectionStrokes += score;
-                                    sectionParPlayed += hole.par ?? 0;
-                                    playedCount += 1;
-                                }
-                            });
+            holes.forEach((hole) => {
+                const raw = playerScores[hole.layoutIndex] ?? playerScores[String(hole.layoutIndex)];
+                const score = extractScore(raw);
+                if (score != null) {
+                    total += score;
+                    parPlayed += hole.par ?? 0;
+                    thru += 1;
+                }
+            });
 
-                            const relative = sectionStrokes - sectionParPlayed;
+            const rd = total - parPlayed;
+            const displayName = player.username ?? player.name ?? "Player";
 
-                            return (
-                                <tr key={`${sectionLabel}-${player.id}`}>
-                                    <td style={tdPlayer}>{player.username ?? player.name ?? "Player"}</td>
-                                    {sectionHoles.map((hole) => {
-                                        const raw = playerScores[hole.layoutIndex] ?? playerScores[String(hole.layoutIndex)];
-                                        const score = extractScore(raw);
-                                        const cellKey = `${player.id}:${hole.layoutIndex}`;
-                                        const isLatest = highlightCellKey === cellKey && highlightVisible;
-                                        const textColor = score == null ? "#6b7280" : getStrokeColor(score, hole.par);
+            return {
+                id: player.id,
+                name: displayName,
+                rd,
+                thru,
+                total,
+                rating: "-",
+                scores: playerScores,
+            };
+        });
 
-                                        return (
-                                            <td key={`${player.id}-${sectionLabel}-${hole.layoutIndex}`} style={isLatest ? tdLatest : tdCell}>
-                                                <span style={{ color: textColor, fontWeight: score == null ? 500 : 700 }}>
-                                                    {score ?? "-"}
-                                                </span>
-                                            </td>
-                                        );
-                                    })}
-                                    <td style={tdTotal}>{playedCount === 0 ? "-" : sectionStrokes}</td>
-                                    <td style={tdRelative}>
-                                        {playedCount === 0 ? "-" : relative === 0 ? "E" : relative > 0 ? `+${relative}` : relative}
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        );
-    };
+        rows.sort((a, b) => {
+            if (a.rd !== b.rd) return a.rd - b.rd;
+            if (a.thru !== b.thru) return b.thru - a.thru;
+            if (a.total !== b.total) return a.total - b.total;
+            return a.name.localeCompare(b.name);
+        });
+
+        return rows;
+    }, [round, players, holes]);
 
     return (
         <main
@@ -517,15 +499,115 @@ export default function SharedLiveRoundPage() {
             {!loading && !errorText && round ? (
                 <div
                     style={{
-                        overflowX: "auto",
+                        overflowX: freezeLeaderCols ? "auto" : "hidden",
                         border: "1px solid #dbe3ef",
                         borderRadius: 14,
                         background: "#ffffff",
                         boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
                     }}
                 >
-                    {renderSection(frontNine, "Front")}
-                    {renderSection(backNine, "Back")}
+                    <table style={{ borderCollapse: "collapse", width: freezeLeaderCols ? "max-content" : "100%", minWidth: "100%", tableLayout: freezeLeaderCols ? "auto" : "fixed" }}>
+                        <thead>
+                            <tr>
+                                <th
+                                    style={{
+                                        ...thPinned,
+                                        minWidth: posColWidth,
+                                        width: posColWidth,
+                                        position: freezeLeaderCols ? "sticky" : "static",
+                                        left: freezeLeaderCols ? 0 : "auto",
+                                        zIndex: freezeLeaderCols ? 4 : 1,
+                                    }}
+                                >
+                                    Pos
+                                </th>
+                                <th
+                                    style={{
+                                        ...thPinnedName,
+                                        minWidth: playerColWidth,
+                                        width: playerColWidth,
+                                        position: freezeLeaderCols ? "sticky" : "static",
+                                        left: freezeLeaderCols ? posColWidth : "auto",
+                                        zIndex: freezeLeaderCols ? 4 : 1,
+                                    }}
+                                >
+                                    Player
+                                </th>
+                                <th style={thPinnedSmall}>Rd</th>
+                                <th style={thPinnedSmall}>Thru</th>
+                                {holes.map((hole) => (
+                                    <th key={`h-${hole.layoutIndex}`} style={{ ...thHoleBox, minWidth: holeColWidth, width: holeColWidth }}>
+                                        <div style={{ fontSize: freezeLeaderCols ? 12 : 10, fontWeight: 700, lineHeight: 1.05 }}>{hole.layoutIndex}</div>
+                                        <div style={{ fontSize: freezeLeaderCols ? 10 : 9, fontStyle: "italic", color: "#4b5563", lineHeight: 1.05, marginTop: 2 }}>
+                                            {hole.distance ?? "-"}
+                                        </div>
+                                        <div style={{ fontSize: freezeLeaderCols ? 11 : 9, fontWeight: 600, lineHeight: 1.05, marginTop: 2 }}>
+                                            {hole.par ?? "-"}
+                                        </div>
+                                    </th>
+                                ))}
+                                <th style={{ ...thTail, minWidth: adminColWidth, width: adminColWidth }}>Tot</th>
+                                <th style={{ ...thTail, minWidth: adminColWidth, width: adminColWidth }}>Rt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {leaderboard.map((row, index) => {
+                                const tieStart = leaderboard.findIndex((candidate) => candidate.rd === row.rd && candidate.thru === row.thru);
+                                const posLabel = tieStart === index ? `${index + 1}` : `T${tieStart + 1}`;
+
+                                return (
+                                    <tr key={row.id}>
+                                        <td
+                                            style={{
+                                                ...tdPinned,
+                                                minWidth: posColWidth,
+                                                width: posColWidth,
+                                                position: freezeLeaderCols ? "sticky" : "static",
+                                                left: freezeLeaderCols ? 0 : "auto",
+                                                zIndex: freezeLeaderCols ? 3 : 1,
+                                            }}
+                                        >
+                                            {posLabel}
+                                        </td>
+                                        <td
+                                            style={{
+                                                ...tdPinnedName,
+                                                minWidth: playerColWidth,
+                                                width: playerColWidth,
+                                                position: freezeLeaderCols ? "sticky" : "static",
+                                                left: freezeLeaderCols ? posColWidth : "auto",
+                                                zIndex: freezeLeaderCols ? 3 : 1,
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                <span style={{ ...avatarBubble, width: avatarSize, height: avatarSize }}>{getInitials(row.name)}</span>
+                                                <span style={{ color: "#111111", fontWeight: 600, whiteSpace: "nowrap" }}>{row.name}</span>
+                                            </div>
+                                        </td>
+                                        <td style={tdPinnedSmall}>{row.thru === 0 ? "-" : row.rd === 0 ? "E" : row.rd > 0 ? `+${row.rd}` : row.rd}</td>
+                                        <td style={tdPinnedSmall}>{row.thru}</td>
+                                        {holes.map((hole) => {
+                                            const raw = row.scores[hole.layoutIndex] ?? row.scores[String(hole.layoutIndex)];
+                                            const score = extractScore(raw);
+                                            const cellKey = `${row.id}:${hole.layoutIndex}`;
+                                            const isLatest = highlightCellKey === cellKey && highlightVisible;
+                                            const textColor = score == null ? "#6b7280" : getStrokeColor(score, hole.par);
+
+                                            return (
+                                                <td key={`${row.id}-${hole.layoutIndex}`} style={{ ...(isLatest ? tdLatestCompact : tdCellCompact), minWidth: holeColWidth, width: holeColWidth }}>
+                                                    <span style={{ color: textColor, fontWeight: score == null ? 500 : 700 }}>
+                                                        {score ?? "-"}
+                                                    </span>
+                                                </td>
+                                            );
+                                        })}
+                                        <td style={{ ...tdTail, minWidth: adminColWidth, width: adminColWidth }}>{row.thru === 0 ? "-" : row.total}</td>
+                                        <td style={{ ...tdTail, minWidth: adminColWidth, width: adminColWidth }}>{row.rating}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             ) : null}
         </main>
@@ -536,61 +618,85 @@ const baseCell: React.CSSProperties = {
     borderBottom: "1px solid #e5e7eb",
     borderRight: "1px solid #e5e7eb",
     textAlign: "center",
-    padding: "10px 8px",
+    padding: "6px 6px",
+    minWidth: 42,
+    fontSize: 12,
+    lineHeight: 1.15,
+};
+
+const thPinned: React.CSSProperties = {
+    ...baseCell,
+    minWidth: 36,
+    position: "sticky",
+    left: 0,
+    zIndex: 4,
+    background: "#f4f6f8",
+    fontWeight: 700,
+    color: "#111111",
+};
+
+const thPinnedName: React.CSSProperties = {
+    ...thPinned,
+    textAlign: "left",
+    minWidth: 184,
+    left: 36,
+};
+
+const thPinnedSmall: React.CSSProperties = {
+    ...thPinned,
+    minWidth: 50,
+    left: "auto",
+    position: "static",
+};
+
+const thHoleBox: React.CSSProperties = {
+    ...baseCell,
+    background: "#f1f5f9",
+    fontWeight: 600,
+    color: "#111111",
     minWidth: 48,
-    fontSize: 14,
+    paddingTop: 5,
+    paddingBottom: 5,
 };
 
-const thPlayer: React.CSSProperties = {
+const thTail: React.CSSProperties = {
+    ...thHoleBox,
+    minWidth: 56,
+};
+
+const tdPinned: React.CSSProperties = {
     ...baseCell,
-    textAlign: "left",
-    minWidth: 170,
+    minWidth: 36,
     position: "sticky",
     left: 0,
-    zIndex: 2,
-    background: "#f8fafc",
-    fontWeight: 700,
-    color: "#111111",
-};
-
-const thCell: React.CSSProperties = {
-    ...baseCell,
-    background: "#f8fafc",
-    fontWeight: 700,
-    color: "#111111",
-};
-
-const thPlayerMuted: React.CSSProperties = {
-    ...thPlayer,
-    color: "#111111",
-    fontWeight: 600,
-};
-
-const thCellMuted: React.CSSProperties = {
-    ...thCell,
-    color: "#111111",
-    fontWeight: 600,
-};
-
-const tdPlayer: React.CSSProperties = {
-    ...baseCell,
-    textAlign: "left",
-    minWidth: 170,
-    position: "sticky",
-    left: 0,
-    zIndex: 1,
+    zIndex: 3,
     background: "#ffffff",
-    fontWeight: 600,
+    fontWeight: 700,
     color: "#111111",
 };
 
-const tdCell: React.CSSProperties = {
+const tdPinnedName: React.CSSProperties = {
+    ...tdPinned,
+    textAlign: "left",
+    minWidth: 184,
+    left: 36,
+};
+
+const tdPinnedSmall: React.CSSProperties = {
+    ...baseCell,
+    minWidth: 50,
+    background: "#ffffff",
+    fontWeight: 700,
+    color: "#111111",
+};
+
+const tdCellCompact: React.CSSProperties = {
     ...baseCell,
     background: "#ffffff",
     color: "#111111",
 };
 
-const tdLatest: React.CSSProperties = {
+const tdLatestCompact: React.CSSProperties = {
     ...baseCell,
     background: "#fef08a",
     borderColor: "#eab308",
@@ -600,18 +706,25 @@ const tdLatest: React.CSSProperties = {
     color: "#111111",
 };
 
-const tdTotal: React.CSSProperties = {
+const tdTail: React.CSSProperties = {
     ...baseCell,
-    minWidth: 60,
+    minWidth: 56,
     fontWeight: 700,
     color: "#111111",
     background: "#f8fafc",
 };
 
-const tdRelative: React.CSSProperties = {
-    ...baseCell,
-    minWidth: 64,
+const avatarBubble: React.CSSProperties = {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#e2e8f0",
+    color: "#1f2937",
+    fontSize: 10,
     fontWeight: 700,
-    color: "#111111",
-    background: "#ffffff",
+    flexShrink: 0,
 };
+
