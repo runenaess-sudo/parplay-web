@@ -18,6 +18,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ParPlay",
   description: "ParPlay Web Platform",
+  openGraph: {
+    title: "ParPlay",
+    description: "ParPlay Web Platform",
+    images: ["/og/parplay-horizontal.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ParPlay",
+    description: "ParPlay Web Platform",
+    images: ["/og/parplay-horizontal.png"],
+  },
 };
 
 export default function RootLayout({
