@@ -32,20 +32,21 @@ type Hole = {
     distance: number | null;
 };
 
-function getScoreBadgeStyle(score: number | null, par: number | null): React.CSSProperties {
+function getScoreDisplayStyle(score: number | null, par: number | null) {
     if (score == null || par == null) {
         return {
-            border: "1.5px solid #d1d5db",
-            color: "#111111",
-            background: "#ffffff",
+            textColor: "#6b7280",
+            bubbleStyle: null as React.CSSProperties | null,
         };
     }
 
     if (score === 1) {
         return {
-            border: "2px solid #f5c542",
-            color: "#111111",
-            background: "#fff7d6",
+            textColor: "#111111",
+            bubbleStyle: {
+                background: "#fde68a",
+                color: "#111111",
+            } as React.CSSProperties,
         };
     }
 
@@ -53,48 +54,57 @@ function getScoreBadgeStyle(score: number | null, par: number | null): React.CSS
 
     if (diff <= -3) {
         return {
-            border: "2px solid #94a3b8",
-            color: "#111111",
-            background: "#f8fafc",
+            textColor: "#111111",
+            bubbleStyle: {
+                background: "#cbd5e1",
+                color: "#111111",
+            } as React.CSSProperties,
         };
     }
 
     if (diff === -2) {
         return {
-            border: "2px solid #facc15",
-            color: "#111111",
-            background: "#fffbeb",
+            textColor: "#111111",
+            bubbleStyle: {
+                background: "#facc15",
+                color: "#111111",
+            } as React.CSSProperties,
         };
     }
 
     if (diff === -1) {
         return {
-            border: "2px solid #86efac",
-            color: "#111111",
-            background: "#f0fdf4",
+            textColor: "#111111",
+            bubbleStyle: {
+                background: "#86efac",
+                color: "#111111",
+            } as React.CSSProperties,
         };
     }
 
     if (diff === 1) {
         return {
-            border: "2px solid #f9a8d4",
-            color: "#111111",
-            background: "#fdf2f8",
+            textColor: "#111111",
+            bubbleStyle: {
+                background: "#f9a8d4",
+                color: "#111111",
+            } as React.CSSProperties,
         };
     }
 
     if (diff >= 2) {
         return {
-            border: "2px solid #7f1d1d",
-            color: "#ffffff",
-            background: "#991b1b",
+            textColor: "#ffffff",
+            bubbleStyle: {
+                background: "#991b1b",
+                color: "#ffffff",
+            } as React.CSSProperties,
         };
     }
 
     return {
-        border: "1.5px solid #d1d5db",
-        color: "#111111",
-        background: "#ffffff",
+        textColor: "#111111",
+        bubbleStyle: null as React.CSSProperties | null,
     };
 }
 
@@ -661,7 +671,7 @@ export default function SharedLiveRoundPage() {
                                         position: freezeLeaderCols ? "sticky" : "static",
                                         left: freezeLeaderCols ? 0 : "auto",
                                         zIndex: freezeLeaderCols ? 4 : 1,
-                                        boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
+                                        boxShadow: "none",
                                     }}
                                 >
                                     Pos
@@ -674,7 +684,7 @@ export default function SharedLiveRoundPage() {
                                         position: freezeLeaderCols ? "sticky" : "static",
                                         left: freezeLeaderCols ? posColWidth : "auto",
                                         zIndex: freezeLeaderCols ? 4 : 1,
-                                        boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
+                                        boxShadow: "none",
                                     }}
                                 >
                                     Player
@@ -711,7 +721,7 @@ export default function SharedLiveRoundPage() {
                                                 position: freezeLeaderCols ? "sticky" : "static",
                                                 left: freezeLeaderCols ? 0 : "auto",
                                                 zIndex: freezeLeaderCols ? 3 : 1,
-                                                boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
+                                                boxShadow: "none",
                                             }}
                                         >
                                             {posLabel}
@@ -724,7 +734,7 @@ export default function SharedLiveRoundPage() {
                                                 position: freezeLeaderCols ? "sticky" : "static",
                                                 left: freezeLeaderCols ? posColWidth : "auto",
                                                 zIndex: freezeLeaderCols ? 3 : 1,
-                                                boxShadow: freezeLeaderCols ? "2px 0 0 #e5e7eb" : "none",
+                                                boxShadow: "none",
                                             }}
                                         >
                                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -756,19 +766,15 @@ export default function SharedLiveRoundPage() {
                                             const score = extractScore(raw);
                                             const cellKey = `${row.id}:${hole.layoutIndex}`;
                                             const isLatest = highlightCellKey === cellKey && highlightVisible;
-                                            const badgeStyle = getScoreBadgeStyle(score, hole.par);
+                                            const displayStyle = getScoreDisplayStyle(score, hole.par);
 
                                             return (
                                                 <td key={`${row.id}-${hole.layoutIndex}`} style={{ ...(isLatest ? tdLatestCompact : tdCellCompact), minWidth: holeColWidth, width: holeColWidth }}>
-                                                    <span
-                                                        style={{
-                                                            ...scoreBadgeBase,
-                                                            ...badgeStyle,
-                                                            color: score == null ? "#6b7280" : badgeStyle.color,
-                                                        }}
-                                                    >
-                                                        {score ?? "-"}
-                                                    </span>
+                                                    {displayStyle.bubbleStyle ? (
+                                                        <span style={{ ...scoreCircleBase, ...displayStyle.bubbleStyle }}>{score ?? "-"}</span>
+                                                    ) : (
+                                                        <span style={{ color: displayStyle.textColor, fontWeight: 700 }}>{score ?? "-"}</span>
+                                                    )}
                                                 </td>
                                             );
                                         })}
@@ -789,7 +795,7 @@ export default function SharedLiveRoundPage() {
 
 const baseCell: React.CSSProperties = {
     borderBottom: "1px solid #e5e7eb",
-    borderRight: "1px solid #e5e7eb",
+    borderRight: "none",
     textAlign: "center",
     padding: "6px 6px",
     minWidth: 42,
@@ -901,7 +907,7 @@ const avatarBubble: React.CSSProperties = {
     flexShrink: 0,
 };
 
-const scoreBadgeBase: React.CSSProperties = {
+const scoreCircleBase: React.CSSProperties = {
     minWidth: 22,
     height: 22,
     borderRadius: 999,
