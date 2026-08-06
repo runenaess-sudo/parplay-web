@@ -117,6 +117,33 @@ function extractScore(raw: unknown): number | null {
     return null;
 }
 
+function deriveHolesFromScores(scores: LiveRound["scores"] | undefined): Hole[] {
+    if (!scores || typeof scores !== "object") return [];
+
+    const indexSet = new Set<number>();
+
+    Object.values(scores).forEach((playerScoreMap) => {
+        if (!playerScoreMap || typeof playerScoreMap !== "object") return;
+
+        Object.keys(playerScoreMap).forEach((key) => {
+            const idx = Number(key);
+            if (Number.isFinite(idx) && idx > 0) {
+                indexSet.add(idx);
+            }
+        });
+    });
+
+    return Array.from(indexSet)
+        .sort((a, b) => a - b)
+        .map((layoutIndex) => ({
+            id: `score-fallback-${layoutIndex}`,
+            layoutIndex,
+            number: layoutIndex,
+            par: null,
+            distance: null,
+        }));
+}
+
 function formatDuration(startedAt: string, finishedAt: string | null, nowMs: number) {
     const start = new Date(startedAt).getTime();
     const end = finishedAt ? new Date(finishedAt).getTime() : nowMs;
@@ -511,6 +538,9 @@ export default function SharedLiveRoundPage() {
     const holeColWidth = freezeLeaderCols ? 52 : 30;
     const adminColWidth = freezeLeaderCols ? 58 : 40;
     const avatarSize = freezeLeaderCols ? 22 : 18;
+    const derivedHoles = useMemo(() => deriveHolesFromScores(round?.scores), [round?.scores]);
+    const visibleHoles = holes.length > 0 ? holes : derivedHoles;
+    const usingFallbackHoleMeta = holes.length === 0 && visibleHoles.length > 0;
 
     const leaderboard = useMemo(() => {
         if (!round) return [] as Array<{
@@ -531,7 +561,7 @@ export default function SharedLiveRoundPage() {
             let parPlayed = 0;
             let thru = 0;
 
-            holes.forEach((hole) => {
+            visibleHoles.forEach((hole) => {
                 const raw = playerScores[hole.layoutIndex] ?? playerScores[String(hole.layoutIndex)];
                 const score = extractScore(raw);
                 if (score != null) {
@@ -564,7 +594,7 @@ export default function SharedLiveRoundPage() {
         });
 
         return rows;
-    }, [round, players, holes, ratingByPlayerId]);
+    }, [round, players, visibleHoles, ratingByPlayerId]);
 
     return (
         <main
@@ -615,6 +645,11 @@ export default function SharedLiveRoundPage() {
                         boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
                     }}
                 >
+                    {usingFallbackHoleMeta ? (
+                        <div style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", background: "#fffbeb", color: "#7c2d12", fontSize: 12, fontWeight: 600 }}>
+                            Live scores are updating, but hole metadata is unavailable for this public view.
+                        </div>
+                    ) : null}
                     <table style={{ borderCollapse: "separate", borderSpacing: 0, width: freezeLeaderCols ? "max-content" : "100%", minWidth: "100%", tableLayout: freezeLeaderCols ? "auto" : "fixed" }}>
                         <thead>
                             <tr>
@@ -646,7 +681,7 @@ export default function SharedLiveRoundPage() {
                                 </th>
                                 <th style={thPinnedSmall}>Rd</th>
                                 <th style={thPinnedSmall}>Thru</th>
-                                {holes.map((hole) => (
+                                {visibleHoles.map((hole) => (
                                     <th key={`h-${hole.layoutIndex}`} style={{ ...thHoleBox, minWidth: holeColWidth, width: holeColWidth }}>
                                         <div style={{ fontSize: freezeLeaderCols ? 12 : 10, fontWeight: 700, lineHeight: 1.05 }}>{hole.layoutIndex}</div>
                                         <div style={{ fontSize: freezeLeaderCols ? 10 : 9, fontStyle: "italic", color: "#4b5563", lineHeight: 1.05, marginTop: 2 }}>
@@ -716,7 +751,7 @@ export default function SharedLiveRoundPage() {
                                         </td>
                                         <td style={tdPinnedSmall}>{row.thru === 0 ? "-" : row.rd === 0 ? "E" : row.rd > 0 ? `+${row.rd}` : row.rd}</td>
                                         <td style={tdPinnedSmall}>{row.thru}</td>
-                                        {holes.map((hole) => {
+                                        {visibleHoles.map((hole) => {
                                             const raw = row.scores[hole.layoutIndex] ?? row.scores[String(hole.layoutIndex)];
                                             const score = extractScore(raw);
                                             const cellKey = `${row.id}:${hole.layoutIndex}`;
