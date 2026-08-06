@@ -14,6 +14,7 @@ type LiveRound = {
     started_at: string;
     finished_at: string | null;
     status: string | null;
+    mode?: string | null;
     share_token?: string | null;
     weather?: unknown;
 };
@@ -167,6 +168,47 @@ function getWeatherIcon(code: number | null) {
     if (code <= 75) return "🌨";
     if (code <= 95) return "⛈";
     return "⛅";
+}
+
+function getRoundStatusBadge(status: string | null | undefined) {
+    const normalized = String(status ?? "active").trim().toLowerCase();
+
+    if (normalized === "finished") {
+        return { label: "Finished", bg: "#e2e8f0", color: "#111111" };
+    }
+
+    if (normalized === "paused") {
+        return { label: "Paused", bg: "#fee2e2", color: "#7f1d1d" };
+    }
+
+    if (normalized === "not_started") {
+        return { label: "Not started", bg: "#dbeafe", color: "#1e3a8a" };
+    }
+
+    if (normalized === "in_progress" || normalized === "active") {
+        return { label: "Active", bg: "#dcfce7", color: "#166534" };
+    }
+
+    const label = normalized.replace(/_/g, " ");
+    return {
+        label: label.length ? label.charAt(0).toUpperCase() + label.slice(1) : "Active",
+        bg: "#f3f4f6",
+        color: "#111111",
+    };
+}
+
+function getRoundModeLabel(mode: string | null | undefined) {
+    const normalized = String(mode ?? "casual").trim().toLowerCase();
+
+    if (normalized === "friend-league" || normalized === "friendleague") return "Friend League";
+    if (normalized === "regular" || normalized === "regular-round") return "Regular";
+    if (normalized === "casual" || normalized === "casual-round") return "Casual";
+    if (normalized === "battle" || normalized === "battle-round") return "Battle";
+    if (normalized === "matchplay" || normalized === "matchplay-round") return "Matchplay";
+
+    const words = normalized.replace(/[_-]+/g, " ").split(" ").filter(Boolean);
+    if (words.length === 0) return "Casual";
+    return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
 function deriveHolesFromScores(scores: LiveRound["scores"] | undefined): Hole[] {
@@ -363,7 +405,7 @@ export default function SharedLiveRoundPage() {
 
             const { data: liveRound, error: roundError } = await supabaseBrowser
                 .from("rounds_live")
-                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token, weather")
+                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, mode, share_token, weather")
                 .eq("id", roundId)
                 .eq("share_token", shareToken)
                 .eq("share_enabled", true)
@@ -494,7 +536,7 @@ export default function SharedLiveRoundPage() {
         const poller = setInterval(async () => {
             const { data } = await supabaseBrowser
                 .from("rounds_live")
-                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token, weather")
+                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, mode, share_token, weather")
                 .eq("id", roundId)
                 .eq("share_token", shareToken)
                 .eq("share_enabled", true)
@@ -588,6 +630,8 @@ export default function SharedLiveRoundPage() {
         return formatDuration(round.started_at, round.finished_at, nowMs);
     }, [round?.started_at, round?.finished_at, nowMs]);
     const weather = useMemo(() => normalizeWeather(round?.weather), [round?.weather]);
+    const roundStatus = useMemo(() => getRoundStatusBadge(round?.status), [round?.status]);
+    const modeLabel = useMemo(() => getRoundModeLabel(round?.mode), [round?.mode]);
 
     const syncLabel = syncStatus === "live" ? "Live" : syncStatus === "connecting" ? "Connecting..." : "Auto-refresh";
     const syncColor = "#111111";
@@ -699,23 +743,23 @@ export default function SharedLiveRoundPage() {
                                 style={{
                                     padding: "6px 10px",
                                     borderRadius: 999,
-                                    background: syncBg,
-                                    color: syncColor,
+                                    background: roundStatus.bg,
+                                    color: roundStatus.color,
                                     fontWeight: 700,
                                     fontSize: 12,
-                                    border: `1px solid ${syncColor}33`,
+                                    border: `1px solid ${roundStatus.color}33`,
                                     lineHeight: 1,
                                 }}
                             >
-                                {syncLabel}
+                                {roundStatus.label}
                             </span>
                         </div>
                         <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 15, lineHeight: 1.2 }}>
-                            {courseName || "Course"}{layoutName ? ` (${layoutName})` : ""}
+                            {courseName || "Course"}{layoutName ? ` (${layoutName})` : ""} | Mode: {modeLabel}
                         </p>
                         {round?.started_at ? (
                             <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 13, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration} | Weather: {getWeatherIcon(weather?.code ?? null)} {weather?.temp == null ? "-" : `${Math.round(weather.temp)}°C`} | 💨 {weather?.wind == null ? "-" : `${Math.round(weather.wind)} m/s`}
+                                Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration} | Weather: {getWeatherIcon(weather?.code ?? null)} {weather?.temp == null ? "-" : `${Math.round(weather.temp)}°C`} | 💨 {weather?.wind == null ? "-" : `${Math.round(weather.wind)} m/s`} | Sync: {syncLabel}
                             </p>
                         ) : null}
                     </div>
