@@ -15,6 +15,13 @@ type LiveRound = {
     finished_at: string | null;
     status: string | null;
     share_token?: string | null;
+    weather?: unknown;
+};
+
+type RoundWeather = {
+    temp: number | null;
+    wind: number | null;
+    code: number | null;
 };
 
 type ScorePlayer = {
@@ -127,6 +134,41 @@ function extractScore(raw: unknown): number | null {
     return null;
 }
 
+function normalizeWeather(raw: unknown): RoundWeather | null {
+    if (!raw) return null;
+
+    let weatherObj: any = raw;
+    if (typeof raw === "string") {
+        try {
+            weatherObj = JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+
+    const temp = Number(weatherObj?.temp);
+    const wind = Number(weatherObj?.wind);
+    const code = Number(weatherObj?.code);
+
+    return {
+        temp: Number.isFinite(temp) ? temp : null,
+        wind: Number.isFinite(wind) ? wind : null,
+        code: Number.isFinite(code) ? code : null,
+    };
+}
+
+function getWeatherIcon(code: number | null) {
+    if (code == null) return "⛅";
+    if (code === 0) return "☀";
+    if (code <= 3) return "🌤";
+    if (code <= 45) return "🌫";
+    if (code <= 55) return "🌦";
+    if (code <= 65) return "🌧";
+    if (code <= 75) return "🌨";
+    if (code <= 95) return "⛈";
+    return "⛅";
+}
+
 function deriveHolesFromScores(scores: LiveRound["scores"] | undefined): Hole[] {
     if (!scores || typeof scores !== "object") return [];
 
@@ -215,6 +257,7 @@ export default function SharedLiveRoundPage() {
     const [layoutName, setLayoutName] = useState("");
     const [loading, setLoading] = useState(true);
     const [errorText, setErrorText] = useState<string | null>(null);
+    const [courseImageUrl, setCourseImageUrl] = useState<string | null>(null);
     const [nowMs, setNowMs] = useState(Date.now());
     const [highlightCellKey, setHighlightCellKey] = useState<string | null>(null);
     const [highlightVisible, setHighlightVisible] = useState(true);
@@ -320,7 +363,7 @@ export default function SharedLiveRoundPage() {
 
             const { data: liveRound, error: roundError } = await supabaseBrowser
                 .from("rounds_live")
-                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token")
+                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token, weather")
                 .eq("id", roundId)
                 .eq("share_token", shareToken)
                 .eq("share_enabled", true)
@@ -339,7 +382,7 @@ export default function SharedLiveRoundPage() {
             setRound(nextRound);
             await hydratePlayers(nextRound.players ?? []);
 
-            const [layoutRes, courseRes, layoutHolesRes] = await Promise.all([
+            const [layoutRes, courseRes, courseImageRes, layoutHolesRes] = await Promise.all([
                 supabaseBrowser
                     .from("course_layouts")
                     .select("name")
@@ -351,6 +394,12 @@ export default function SharedLiveRoundPage() {
                     .eq("id", nextRound.course_id)
                     .maybeSingle(),
                 supabaseBrowser
+                    .from("course_images")
+                    .select("image_url, sort_order")
+                    .eq("course_id", nextRound.course_id)
+                    .order("sort_order", { ascending: true })
+                    .limit(1),
+                supabaseBrowser
                     .from("layout_holes")
                     .select("hole_id, order_index")
                     .eq("layout_id", nextRound.layout_id)
@@ -361,6 +410,7 @@ export default function SharedLiveRoundPage() {
 
             setLayoutName(layoutRes.data?.name ?? "");
             setCourseName(courseRes.data?.name ?? "");
+            setCourseImageUrl(courseImageRes.data?.[0]?.image_url ?? null);
 
             const holeIds = (layoutHolesRes.data ?? []).map((row: any) => row.hole_id).filter(Boolean);
             if (holeIds.length > 0) {
@@ -444,7 +494,7 @@ export default function SharedLiveRoundPage() {
         const poller = setInterval(async () => {
             const { data } = await supabaseBrowser
                 .from("rounds_live")
-                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token")
+                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token, weather")
                 .eq("id", roundId)
                 .eq("share_token", shareToken)
                 .eq("share_enabled", true)
@@ -537,6 +587,7 @@ export default function SharedLiveRoundPage() {
         if (!round?.started_at) return "-";
         return formatDuration(round.started_at, round.finished_at, nowMs);
     }, [round?.started_at, round?.finished_at, nowMs]);
+    const weather = useMemo(() => normalizeWeather(round?.weather), [round?.weather]);
 
     const syncLabel = syncStatus === "live" ? "Live" : syncStatus === "connecting" ? "Connecting..." : "Auto-refresh";
     const syncColor = "#111111";
@@ -616,29 +667,58 @@ export default function SharedLiveRoundPage() {
             }}
         >
             <section style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div>
-                    <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15, color: "#111111" }}>Live Scorecard</h1>
-                    <p style={{ margin: "8px 0 0", color: "#111111" }}>
-                        {courseName || "Course"} {layoutName ? `- ${layoutName}` : ""}
-                    </p>
-                    {round?.started_at ? (
-                        <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 14 }}>
-                            Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
+                    <div
+                        style={{
+                            width: 132,
+                            height: 84,
+                            borderRadius: 10,
+                            overflow: "hidden",
+                            background: "linear-gradient(135deg, #e2e8f0, #cbd5e1)",
+                            border: "1px solid #d1d5db",
+                            flexShrink: 0,
+                        }}
+                    >
+                        {courseImageUrl ? (
+                            <img
+                                src={courseImageUrl}
+                                alt={courseName || "Course image"}
+                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                            />
+                        ) : (
+                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 12, fontWeight: 700 }}>
+                                Course
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1, color: "#111111" }}>Live Scorecard</h1>
+                            <span
+                                style={{
+                                    padding: "6px 10px",
+                                    borderRadius: 999,
+                                    background: syncBg,
+                                    color: syncColor,
+                                    fontWeight: 700,
+                                    fontSize: 12,
+                                    border: `1px solid ${syncColor}33`,
+                                    lineHeight: 1,
+                                }}
+                            >
+                                {syncLabel}
+                            </span>
+                        </div>
+                        <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 15, lineHeight: 1.2 }}>
+                            {courseName || "Course"}{layoutName ? ` (${layoutName})` : ""}
                         </p>
-                    ) : null}
-                </div>
-                <div
-                    style={{
-                        padding: "8px 12px",
-                        borderRadius: 999,
-                        background: syncBg,
-                        color: syncColor,
-                        fontWeight: 700,
-                        fontSize: 13,
-                        border: `1px solid ${syncColor}33`,
-                    }}
-                >
-                    {syncLabel}
+                        {round?.started_at ? (
+                            <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 13, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration} | Weather: {getWeatherIcon(weather?.code ?? null)} {weather?.temp == null ? "-" : `${Math.round(weather.temp)}°C`} | 💨 {weather?.wind == null ? "-" : `${Math.round(weather.wind)} m/s`}
+                            </p>
+                        ) : null}
+                    </div>
                 </div>
             </section>
 
