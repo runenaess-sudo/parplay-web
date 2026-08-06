@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type LiveRound = {
     id: string;
+    round_id?: string | null;
     players: Array<{ id: string; name?: string | null; username?: string | null } | string>;
     scores: Record<string, Record<string, { score?: number } | number>>;
     course_id: string;
@@ -182,6 +183,7 @@ export default function SharedLiveRoundPage() {
     const [highlightVisible, setHighlightVisible] = useState(true);
     const [syncStatus, setSyncStatus] = useState<"connecting" | "live" | "polling">("connecting");
     const [viewport, setViewport] = useState({ width: 0, height: 0 });
+    const [ratingByPlayerId, setRatingByPlayerId] = useState<Record<string, number | null>>({});
 
     const blinkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const blinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -281,7 +283,7 @@ export default function SharedLiveRoundPage() {
 
             const { data: liveRound, error: roundError } = await supabaseBrowser
                 .from("rounds_live")
-                .select("id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token")
+                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token")
                 .eq("id", roundId)
                 .eq("share_token", shareToken)
                 .eq("share_enabled", true)
@@ -359,12 +361,53 @@ export default function SharedLiveRoundPage() {
     }, [roundId, shareToken]);
 
     useEffect(() => {
+        if (!round?.started_at || !round?.course_id || !round?.layout_id || players.length === 0) return;
+
+        let cancelled = false;
+
+        const loadRatings = async () => {
+            const playerIds = players.map((p) => p.id).filter(Boolean);
+            if (playerIds.length === 0) return;
+
+            const { data } = await supabaseBrowser
+                .from("rounds")
+                .select("player_id, round_rating, started_at, is_incomplete")
+                .eq("course_id", round.course_id)
+                .eq("layout_id", round.layout_id)
+                .eq("started_at", round.started_at)
+                .eq("is_incomplete", false)
+                .in("player_id", playerIds);
+
+            if (cancelled) return;
+
+            const nextMap: Record<string, number | null> = {};
+            (data ?? []).forEach((row: any) => {
+                const playerId = String(row.player_id ?? "").trim();
+                if (!playerId) return;
+                const rating = Number(row.round_rating);
+                nextMap[playerId] = Number.isFinite(rating) ? rating : null;
+            });
+
+            setRatingByPlayerId((prev) => ({ ...prev, ...nextMap }));
+        };
+
+        void loadRatings();
+
+        const timer = setInterval(loadRatings, 4000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [round?.started_at, round?.course_id, round?.layout_id, players]);
+
+    useEffect(() => {
         if (!roundId || !shareToken) return;
 
         const poller = setInterval(async () => {
             const { data } = await supabaseBrowser
                 .from("rounds_live")
-                .select("id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token")
+                .select("id, round_id, players, scores, course_id, layout_id, started_at, finished_at, status, share_token")
                 .eq("id", roundId)
                 .eq("share_token", shareToken)
                 .eq("share_enabled", true)
@@ -462,7 +505,7 @@ export default function SharedLiveRoundPage() {
     const syncColor = "#111111";
     const syncBg = syncStatus === "live" ? "#dcfce7" : syncStatus === "connecting" ? "#fef3c7" : "#dbeafe";
     const isPortrait = viewport.height > viewport.width;
-    const freezeLeaderCols = isPortrait || viewport.width < 900;
+    const freezeLeaderCols = isPortrait || viewport.width <= 980;
     const posColWidth = freezeLeaderCols ? 36 : 30;
     const playerColWidth = freezeLeaderCols ? 184 : 130;
     const holeColWidth = freezeLeaderCols ? 52 : 30;
@@ -477,7 +520,7 @@ export default function SharedLiveRoundPage() {
             rd: number;
             thru: number;
             total: number;
-            rating: string;
+            roundRating: number | null;
             scores: Record<string, { score?: number } | number>;
         }>;
 
@@ -508,7 +551,7 @@ export default function SharedLiveRoundPage() {
                 rd,
                 thru,
                 total,
-                rating: "-",
+                roundRating: ratingByPlayerId[player.id] ?? null,
                 scores: playerScores,
             };
         });
@@ -521,7 +564,7 @@ export default function SharedLiveRoundPage() {
         });
 
         return rows;
-    }, [round, players, holes]);
+    }, [round, players, holes, ratingByPlayerId]);
 
     return (
         <main
@@ -695,7 +738,9 @@ export default function SharedLiveRoundPage() {
                                             );
                                         })}
                                         <td style={{ ...tdTail, minWidth: adminColWidth, width: adminColWidth }}>{row.thru === 0 ? "-" : row.total}</td>
-                                        <td style={{ ...tdTail, minWidth: adminColWidth, width: adminColWidth }}>{row.rating}</td>
+                                        <td style={{ ...tdTail, minWidth: adminColWidth, width: adminColWidth }}>
+                                            {row.roundRating == null ? "-" : Math.round(row.roundRating)}
+                                        </td>
                                     </tr>
                                 );
                             })}
