@@ -577,7 +577,7 @@ export default function SharedLiveRoundPage() {
         >
             <section style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div>
-                    <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15 }}>Live Scorecard</h1>
+                    <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.15, color: "#111111" }}>Live Scorecard</h1>
                     <p style={{ margin: "8px 0 0", color: "#111111" }}>
                         {courseName || "Course"} {layoutName ? `- ${layoutName}` : ""}
                     </p>
