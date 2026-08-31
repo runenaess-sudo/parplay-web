@@ -1,7 +1,9 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 
 import * as turf from "@turf/turf";
-import type { Feature, LineString, Point, Polygon } from "geojson";
+import { editableCoordinates, type HoleFeature, type HoleFeatureType } from "@/types/holeFeatures";
+import type { Feature, Geometry, LineString, Point, Polygon } from "geojson";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
@@ -20,6 +22,12 @@ type MapCanvasProps = {
     onMoveFairwayPoint: (holeId: string, index: number, lng: number, lat: number) => void;
     onRemoveFairwayPoint: (holeId: string, index: number) => void;
     onSetTeeAngle: (holeId: string, angle: number) => void;
+    featureTool: HoleFeatureType | null;
+    drawingCoordinates: [number, number][];
+    selectedFeatureId: string | null;
+    onAddFeatureCoordinate: (lng: number, lat: number) => void;
+    onSelectFeature: (id: string | null) => void;
+    onMoveFeatureVertex: (id: string, index: number, lng: number, lat: number, persist?: boolean) => void;
 };
 
 export function MapCanvas({
@@ -32,6 +40,12 @@ export function MapCanvas({
     onMoveFairwayPoint,
     onRemoveFairwayPoint,
     onSetTeeAngle,
+    featureTool,
+    drawingCoordinates,
+    selectedFeatureId,
+    onAddFeatureCoordinate,
+    onSelectFeature,
+    onMoveFeatureVertex,
 }: MapCanvasProps) {
     const ref = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -39,9 +53,11 @@ export function MapCanvas({
     const courseRef = useRef<any>(course);
     const selectedHoleRef = useRef<string | null>(selectedHoleId);
     const modeRef = useRef<EditorMode>(mode);
+    const featureToolRef = useRef<HoleFeatureType | null>(featureTool);
+    const drawingCoordinatesRef = useRef<[number, number][]>(drawingCoordinates);
+    const selectedFeatureRef = useRef<string | null>(selectedFeatureId);
 
     const updatePointsRef = useRef<() => void>(() => { });
-    const draggingPointRef = useRef<{ holeId: string; index: number } | null>(null);
 
     useEffect(() => {
         courseRef.current = course;
@@ -54,6 +70,10 @@ export function MapCanvas({
     useEffect(() => {
         modeRef.current = mode;
     }, [mode]);
+
+    useEffect(() => { featureToolRef.current = featureTool; }, [featureTool]);
+    useEffect(() => { drawingCoordinatesRef.current = drawingCoordinates; }, [drawingCoordinates]);
+    useEffect(() => { selectedFeatureRef.current = selectedFeatureId; }, [selectedFeatureId]);
 
     useEffect(() => {
         if (!ref.current) return;
@@ -106,6 +126,23 @@ export function MapCanvas({
 
             await Promise.all(preload.map(([id, src]) => loadIcon(id, src)));
 
+            const addStripePattern = (id: string, color: [number, number, number, number]) => {
+                if (map.hasImage(id)) return;
+                const width = 8;
+                const data = new Uint8Array(width * width * 4);
+                for (let y = 0; y < width; y += 1) {
+                    for (let x = 0; x < width; x += 1) {
+                        if ((x + y) % width < 2) {
+                            const offset = (y * width + x) * 4;
+                            data.set(color, offset);
+                        }
+                    }
+                }
+                map.addImage(id, { width, height: width, data }, { pixelRatio: 1 });
+            };
+            addStripePattern("ob-hatch", [255, 255, 255, 180]);
+            addStripePattern("hazard-hatch", [140, 140, 140, 190]);
+
             map.addSource("tee-source", {
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
@@ -130,6 +167,10 @@ export function MapCanvas({
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
             });
+
+            for (const id of ["hole-feature-area-source", "hole-feature-line-source", "hole-feature-stake-source", "hole-feature-point-source", "hole-feature-vertex-source", "hole-feature-draft-source"]) {
+                map.addSource(id, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+            }
 
             map.addLayer({
                 id: "fairway-area-layer",
@@ -185,12 +226,88 @@ export function MapCanvas({
                 },
             });
 
+            map.addLayer({
+                id: "hole-feature-area-layer",
+                type: "fill",
+                source: "hole-feature-area-source",
+                paint: {
+                    "fill-pattern": ["match", ["get", "featureType"], "OB_AREA", "ob-hatch", "hazard-hatch"],
+                    "fill-opacity": 0.72,
+                },
+            });
+            map.addLayer({
+                id: "hole-feature-area-outline-layer",
+                type: "line",
+                source: "hole-feature-area-source",
+                paint: {
+                    "line-color": ["match", ["get", "featureType"], "OB_AREA", "#ffffff", "#9ca3af"],
+                    "line-width": 3,
+                },
+            });
+            map.addLayer({
+                id: "hole-feature-line-layer",
+                type: "line",
+                source: "hole-feature-line-source",
+                paint: { "line-color": "#ffffff", "line-width": 3, "line-dasharray": [1, 1] },
+            });
+            map.addLayer({
+                id: "hole-feature-stake-layer",
+                type: "circle",
+                source: "hole-feature-stake-source",
+                paint: { "circle-radius": 5, "circle-color": "#ffffff", "circle-stroke-color": "#111827", "circle-stroke-width": 2 },
+            });
+            map.addLayer({
+                id: "hole-feature-point-layer",
+                type: "circle",
+                source: "hole-feature-point-source",
+                paint: {
+                    "circle-radius": 12,
+                    "circle-color": ["match", ["get", "featureType"], "MANDO", "#facc15", "#2563eb"],
+                    "circle-stroke-color": "#111827",
+                    "circle-stroke-width": 2,
+                },
+            });
+            map.addLayer({
+                id: "hole-feature-point-label-layer",
+                type: "symbol",
+                source: "hole-feature-point-source",
+                layout: {
+                    "text-field": ["match", ["get", "featureType"], "MANDO", "M", "DZ"],
+                    "text-size": 11,
+                    "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+                },
+                paint: { "text-color": "#111827" },
+            });
+            map.addLayer({
+                id: "hole-feature-vertex-layer",
+                type: "circle",
+                source: "hole-feature-vertex-source",
+                paint: { "circle-radius": 6, "circle-color": "#f59e0b", "circle-stroke-color": "#111827", "circle-stroke-width": 2 },
+            });
+            map.addLayer({
+                id: "hole-feature-draft-line-layer",
+                type: "line",
+                source: "hole-feature-draft-source",
+                paint: { "line-color": "#f59e0b", "line-width": 3, "line-dasharray": [2, 1] },
+            });
+            map.addLayer({
+                id: "hole-feature-draft-point-layer",
+                type: "circle",
+                source: "hole-feature-draft-source",
+                paint: { "circle-radius": 5, "circle-color": "#f59e0b", "circle-stroke-color": "#111827", "circle-stroke-width": 1 },
+            });
+
             const updatePoints = () => {
                 const teeFeatures: Feature<Point>[] = [];
                 const basketFeatures: Feature<Point>[] = [];
                 const fairwayFeatures: Feature<Point>[] = [];
                 const fairwayLineFeatures: Feature<LineString>[] = [];
                 const fairwayAreaFeatures: Feature<Polygon>[] = [];
+                const areaFeatures: Feature<Polygon>[] = [];
+                const lineFeatures: Feature<LineString>[] = [];
+                const stakeFeatures: Feature<Point>[] = [];
+                const pointFeatures: Feature<Point>[] = [];
+                const vertexFeatures: Feature<Point>[] = [];
 
                 courseRef.current.holes.forEach((hole: any) => {
                     if (hole.tee_latitude && hole.tee_longitude) {
@@ -272,6 +389,33 @@ export function MapCanvas({
                     }
                 });
 
+                const selectedHole = courseRef.current.holes.find((hole: any) => hole.id === selectedHoleRef.current);
+                ((selectedHole?.hole_features ?? []) as HoleFeature[]).forEach((feature) => {
+                    if (!feature.geometry) return;
+                    const geoFeature = {
+                        type: "Feature" as const,
+                        properties: { featureId: feature.id, featureType: feature.feature_type },
+                        geometry: feature.geometry,
+                    } as Feature<Geometry>;
+                    if (feature.geometry.type === "Polygon") areaFeatures.push(geoFeature as Feature<Polygon>);
+                    if (feature.geometry.type === "LineString") {
+                        lineFeatures.push(geoFeature as Feature<LineString>);
+                        feature.geometry.coordinates.forEach((coordinate, index) => stakeFeatures.push({
+                            type: "Feature",
+                            properties: { featureId: feature.id, featureType: feature.feature_type, vertexIndex: index },
+                            geometry: { type: "Point", coordinates: coordinate },
+                        }));
+                    }
+                    if (feature.geometry.type === "Point") pointFeatures.push(geoFeature as Feature<Point>);
+                    if (feature.id === selectedFeatureRef.current) {
+                        editableCoordinates(feature).forEach((coordinate, index) => vertexFeatures.push({
+                            type: "Feature",
+                            properties: { featureId: feature.id, vertexIndex: index },
+                            geometry: { type: "Point", coordinates: coordinate },
+                        }));
+                    }
+                });
+
                 (map.getSource("tee-source") as mapboxgl.GeoJSONSource).setData({
                     type: "FeatureCollection",
                     features: teeFeatures,
@@ -296,6 +440,19 @@ export function MapCanvas({
                     type: "FeatureCollection",
                     features: fairwayAreaFeatures,
                 });
+                (map.getSource("hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: areaFeatures });
+                (map.getSource("hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: lineFeatures });
+                (map.getSource("hole-feature-stake-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: stakeFeatures });
+                (map.getSource("hole-feature-point-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: pointFeatures });
+                (map.getSource("hole-feature-vertex-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: vertexFeatures });
+                const draft = drawingCoordinatesRef.current;
+                const draftFeatures: Feature<Point | LineString>[] = draft.map((coordinate, index) => ({
+                    type: "Feature", properties: { index }, geometry: { type: "Point", coordinates: coordinate },
+                }));
+                if (draft.length >= 2) draftFeatures.push({
+                    type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: draft },
+                });
+                (map.getSource("hole-feature-draft-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: draftFeatures });
             };
 
             updatePointsRef.current = updatePoints;
@@ -309,6 +466,11 @@ export function MapCanvas({
                 const lng = e.lngLat.lng;
                 const lat = e.lngLat.lat;
 
+                if (featureToolRef.current && featureToolRef.current !== "INFO") {
+                    onAddFeatureCoordinate(lng, lat);
+                    return;
+                }
+
                 if (currentMode === "tee") {
                     onSetTee(holeId, lng, lat);
                 } else if (currentMode === "basket") {
@@ -317,6 +479,34 @@ export function MapCanvas({
                     onAddFairwayPoint(holeId, lng, lat);
                 }
 
+            });
+
+            for (const layer of ["hole-feature-area-layer", "hole-feature-area-outline-layer", "hole-feature-line-layer", "hole-feature-stake-layer", "hole-feature-point-layer", "hole-feature-point-label-layer"]) {
+                map.on("click", layer, (event) => {
+                    const id = event.features?.[0]?.properties?.featureId;
+                    if (typeof id === "string") onSelectFeature(id);
+                });
+            }
+
+            map.on("mousedown", "hole-feature-vertex-layer", (event) => {
+                const featureId = event.features?.[0]?.properties?.featureId;
+                const vertexIndex = Number(event.features?.[0]?.properties?.vertexIndex);
+                if (typeof featureId !== "string" || !Number.isInteger(vertexIndex)) return;
+                event.preventDefault();
+                map.dragPan.disable();
+                map.getCanvas().style.cursor = "grabbing";
+                const onMove = (moveEvent: mapboxgl.MapMouseEvent) => {
+                    onMoveFeatureVertex(featureId, vertexIndex, moveEvent.lngLat.lng, moveEvent.lngLat.lat, false);
+                };
+                const onUp = (upEvent: mapboxgl.MapMouseEvent) => {
+                    map.dragPan.enable();
+                    map.getCanvas().style.cursor = "";
+                    map.off("mousemove", onMove);
+                    map.off("mouseup", onUp);
+                    onMoveFeatureVertex(featureId, vertexIndex, upEvent.lngLat.lng, upEvent.lngLat.lat, true);
+                };
+                map.on("mousemove", onMove);
+                map.on("mouseup", onUp);
             });
 
             map.on("contextmenu", (e) => {
@@ -469,7 +659,7 @@ export function MapCanvas({
 
     useEffect(() => {
         updatePointsRef.current();
-    }, [course]);
+    }, [course, drawingCoordinates, selectedFeatureId]);
 
     useEffect(() => {
         const map = mapRef.current;

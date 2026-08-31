@@ -58,6 +58,9 @@ export default function Page() {
     const course = useCourseEditor((s) => s.course);
     const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
     const mode = useCourseEditor((s) => s.mode);
+    const featureTool = useCourseEditor((s) => s.featureTool);
+    const drawingCoordinates = useCourseEditor((s) => s.drawingCoordinates);
+    const selectedFeatureId = useCourseEditor((s) => s.selectedFeatureId);
 
     const setTee = useCourseEditor((s) => s.setTee);
     const setBasket = useCourseEditor((s) => s.setBasket);
@@ -66,6 +69,9 @@ export default function Page() {
     const removeFairwayPoint = useCourseEditor((s) => s.removeFairwayPoint);
     const setTeeAngle = useCourseEditor((s) => s.setTeeAngle);
     const setSelectedHole = useCourseEditor((s) => s.setSelectedHole);
+    const addFeatureCoordinate = useCourseEditor((s) => s.addFeatureCoordinate);
+    const selectFeature = useCourseEditor((s) => s.selectFeature);
+    const moveFeatureVertex = useCourseEditor((s) => s.moveFeatureVertex);
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-900">
@@ -128,6 +134,14 @@ export default function Page() {
                         onMoveFairwayPoint={moveFairwayPoint}
                         onRemoveFairwayPoint={removeFairwayPoint}
                         onSetTeeAngle={setTeeAngle}
+                        featureTool={featureTool}
+                        drawingCoordinates={drawingCoordinates}
+                        selectedFeatureId={selectedFeatureId}
+                        onAddFeatureCoordinate={(lng, lat) => { void addFeatureCoordinate(lng, lat); }}
+                        onSelectFeature={selectFeature}
+                        onMoveFeatureVertex={(id, index, lng, lat, persist) => {
+                            void moveFeatureVertex(id, index, lng, lat, persist);
+                        }}
                     />
                 </div>
             )}

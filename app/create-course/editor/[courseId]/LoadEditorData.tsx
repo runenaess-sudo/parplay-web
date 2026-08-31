@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useCourseEditor } from "@/state/useCourseEditor";
@@ -33,10 +34,25 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 return;
             }
 
+            const holeIds = (holes ?? []).map((hole) => hole.id);
+            const featureResult = holeIds.length > 0
+                ? await supabaseBrowser
+                    .from("hole_features")
+                    .select("*")
+                    .in("hole_id", holeIds)
+                    .order("sort_order", { ascending: true })
+                : { data: [], error: null };
+
+            if (featureResult.error) {
+                console.error("Could not load hole features", featureResult.error);
+                return;
+            }
+
             // ⭐ Riktig parsing av fairway (ikke fairway_points)
             const parsedHoles = holes.map((h: any) => ({
                 ...h,
                 fairway: Array.isArray(h.fairway) ? h.fairway : [],
+                hole_features: (featureResult.data ?? []).filter((feature) => feature.hole_id === h.id),
             }));
 
             loadAll({
@@ -46,7 +62,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
         }
 
         load();
-    }, [courseId]);
+    }, [courseId, loadAll]);
 
     return null;
 }

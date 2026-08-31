@@ -1,6 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { getElevation } from "@/utils/elevation";
 import { calculateHoleLength } from "@/utils/holeLength";
+import {
+    editableCoordinates,
+    geometryFromCoordinates,
+    minimumVertexCount,
+    type HoleFeature,
+    type HoleFeatureGeometry,
+    type HoleFeatureType,
+    type SpatialHoleFeatureType,
+} from "@/types/holeFeatures";
 import { create } from "zustand";
 
 type EditorMode = "none" | "tee" | "basket" | "points";
@@ -9,6 +19,9 @@ type CourseEditorState = {
     course: any | null;
     selectedHoleId: string | null;
     mode: EditorMode;
+    featureTool: HoleFeatureType | null;
+    drawingCoordinates: [number, number][];
+    selectedFeatureId: string | null;
 
     toast: string | null;
     setToast: (msg: string) => void;
@@ -17,6 +30,15 @@ type CourseEditorState = {
     loadAll: (courseData: any) => void;
     setSelectedHole: (holeId: string) => void;
     setMode: (mode: EditorMode) => void;
+    startFeatureTool: (type: HoleFeatureType | null) => void;
+    addFeatureCoordinate: (lng: number, lat: number) => Promise<void>;
+    finishFeatureDrawing: () => Promise<void>;
+    cancelFeatureDrawing: () => void;
+    selectFeature: (id: string | null) => void;
+    updateFeatureComment: (id: string, description: string) => Promise<void>;
+    updateFeatureGeometry: (id: string, geometry: HoleFeatureGeometry, persist?: boolean) => Promise<void>;
+    moveFeatureVertex: (id: string, index: number, lng: number, lat: number, persist?: boolean) => Promise<void>;
+    deleteFeature: (id: string) => Promise<void>;
 
     setTee: (holeId: string, lng: number, lat: number) => void;
     setBasket: (holeId: string, lng: number, lat: number) => void;
@@ -37,6 +59,9 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     course: null,
     selectedHoleId: null,
     mode: "none",
+    featureTool: null,
+    drawingCoordinates: [],
+    selectedFeatureId: null,
 
     toast: null,
     setToast: (msg) => set({ toast: msg }),
@@ -60,7 +85,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             await get().saveHole(prevHoleId);
         }
 
-        set({ selectedHoleId: holeId });
+        set({ selectedHoleId: holeId, selectedFeatureId: null, featureTool: null, drawingCoordinates: [] });
     },
 
     setMode: async (mode) => {
@@ -74,7 +99,149 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             await get().saveHole(holeId);
         }
 
-        set({ mode });
+        set({ mode, featureTool: null, drawingCoordinates: [], selectedFeatureId: null });
+    },
+
+    startFeatureTool: (type) => set({
+        featureTool: type,
+        drawingCoordinates: [],
+        selectedFeatureId: null,
+        mode: "none",
+    }),
+
+    cancelFeatureDrawing: () => set({ featureTool: null, drawingCoordinates: [] }),
+
+    selectFeature: (id) => set({
+        selectedFeatureId: id,
+        featureTool: null,
+        drawingCoordinates: [],
+        mode: "none",
+    }),
+
+    addFeatureCoordinate: async (lng, lat) => {
+        const { featureTool, selectedHoleId, drawingCoordinates } = get();
+        if (!featureTool || !selectedHoleId || featureTool === "INFO") return;
+        const next = [...drawingCoordinates, [lng, lat] as [number, number]];
+        set({ drawingCoordinates: next });
+        if (featureTool === "MANDO" || featureTool === "DROPZONE") {
+            await get().finishFeatureDrawing();
+        }
+    },
+
+    finishFeatureDrawing: async () => {
+        const { featureTool, selectedHoleId, drawingCoordinates, course } = get();
+        if (!featureTool || !selectedHoleId || !course) return;
+
+        const coordinates = featureTool === "INFO" ? [] : drawingCoordinates;
+        if (featureTool !== "INFO" && coordinates.length < minimumVertexCount(featureTool)) {
+            get().setToast(`Add at least ${minimumVertexCount(featureTool)} point(s).`);
+            return;
+        }
+
+        const id = crypto.randomUUID();
+        const hole = course.holes.find((item: any) => item.id === selectedHoleId);
+        const features = (hole?.hole_features ?? []) as HoleFeature[];
+        const geometry = featureTool === "INFO"
+            ? null
+            : geometryFromCoordinates(featureTool as SpatialHoleFeatureType, coordinates);
+        const feature: HoleFeature = {
+            id,
+            hole_id: selectedHoleId,
+            feature_type: featureTool,
+            geometry,
+            description: null,
+            properties: {},
+            sort_order: features.length,
+        };
+        const { error } = await supabaseBrowser.from("hole_features").insert(feature);
+        if (error) {
+            console.error("Failed to create hole feature", error);
+            get().setToast("Error saving feature");
+            return;
+        }
+        const holes = course.holes.map((item: any) => item.id === selectedHoleId
+            ? { ...item, hole_features: [...(item.hole_features ?? []), feature] }
+            : item);
+        set({
+            course: { ...course, holes },
+            featureTool: null,
+            drawingCoordinates: [],
+            selectedFeatureId: id,
+        });
+        get().setToast("Feature saved");
+    },
+
+    updateFeatureComment: async (id, description) => {
+        const { course } = get();
+        if (!course) return;
+        const normalized = description.trim() || null;
+        const { error } = await supabaseBrowser.from("hole_features")
+            .update({ description: normalized }).eq("id", id);
+        if (error) {
+            console.error("Failed to update feature comment", error);
+            get().setToast("Error saving comment");
+            return;
+        }
+        const holes = course.holes.map((hole: any) => ({
+            ...hole,
+            hole_features: (hole.hole_features ?? []).map((feature: HoleFeature) =>
+                feature.id === id ? { ...feature, description: normalized } : feature),
+        }));
+        set({ course: { ...course, holes } });
+        get().setToast("Comment saved");
+    },
+
+    updateFeatureGeometry: async (id, geometry, persist = true) => {
+        const { course } = get();
+        if (!course) return;
+        if (persist) {
+            const { error } = await supabaseBrowser.from("hole_features")
+                .update({ geometry }).eq("id", id);
+            if (error) {
+                console.error("Failed to update feature geometry", error);
+                get().setToast("Error saving geometry");
+                return;
+            }
+        }
+        const holes = course.holes.map((hole: any) => ({
+            ...hole,
+            hole_features: (hole.hole_features ?? []).map((feature: HoleFeature) =>
+                feature.id === id ? { ...feature, geometry } : feature),
+        }));
+        set({ course: { ...course, holes } });
+    },
+
+    moveFeatureVertex: async (id, index, lng, lat, persist = true) => {
+        const { course } = get();
+        if (!course) return;
+        const feature = course.holes.flatMap((hole: any) => hole.hole_features ?? [])
+            .find((item: HoleFeature) => item.id === id) as HoleFeature | undefined;
+        if (!feature) return;
+        const coordinates = editableCoordinates(feature);
+        if (!coordinates[index]) return;
+        coordinates[index] = [lng, lat];
+        const geometry = geometryFromCoordinates(
+            feature.feature_type as SpatialHoleFeatureType,
+            coordinates,
+        );
+        await get().updateFeatureGeometry(id, geometry, persist);
+    },
+
+    deleteFeature: async (id) => {
+        const { course } = get();
+        if (!course) return;
+        const { error } = await supabaseBrowser.from("hole_features").delete().eq("id", id);
+        if (error) {
+            console.error("Failed to delete hole feature", error);
+            get().setToast("Error deleting feature");
+            return;
+        }
+        const holes = course.holes.map((hole: any) => ({
+            ...hole,
+            hole_features: (hole.hole_features ?? []).filter((feature: HoleFeature) => feature.id !== id),
+        }));
+        set({ course: { ...course, holes }, selectedFeatureId: null });
+        get().setToast("Feature deleted");
     },
 
     setTee: (holeId, lng, lat) => {
@@ -268,7 +435,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         console.log("🔥 FRESH HOLE FROM DB:", freshHole);
 
         const updatedHoles = course.holes.map((h: any) =>
-            h.id === holeId ? freshHole : h
+            h.id === holeId ? { ...freshHole, hole_features: h.hole_features ?? [] } : h
         );
 
         set({
@@ -327,10 +494,16 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         const { data, error } = res;
 
+        if (error || !data) {
+            console.error("Failed to create hole", error);
+            get().setToast("Error creating hole");
+            return;
+        }
+
         set((s) => ({
             course: {
                 ...s.course,
-                holes: [...s.course.holes, data],
+                holes: [...s.course.holes, { ...data, hole_features: [] }],
             },
             selectedHoleId: data.id,
         }));
