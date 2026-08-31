@@ -45,6 +45,7 @@ type CourseEditorState = {
 
     addFairwayPoint: (holeId: string, lng: number, lat: number) => void;
     moveFairwayPoint: (holeId: string, index: number, lng: number, lat: number) => void;
+    setFairwayPointWidth: (holeId: string, index: number, width: number) => void;
     removeFairwayPoint: (holeId: string, index: number) => void;
 
     setTeeAngle: (holeId: string, angle: number) => void;
@@ -298,11 +299,25 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             if (h.id !== holeId) return h;
             const points = [...(h.fairway ?? [])];
             if (!points[index]) return h;
-            points[index] = { lng, lat };
+            points[index] = { ...points[index], lng, lat };
             return { ...h, fairway: points };
         });
 
         set({ course: { ...course, holes: [...holes] } });
+    },
+
+    setFairwayPointWidth: (holeId, index, width) => {
+        if (!Number.isFinite(width) || width <= 0 || width > 100) return;
+        const course = get().course;
+        if (!course) return;
+        const holes = course.holes.map((h: any) => {
+            if (h.id !== holeId) return h;
+            const points = [...(h.fairway ?? [])];
+            if (!points[index]) return h;
+            points[index] = { ...points[index], width: Math.round(width * 10) / 10 };
+            return { ...h, fairway: points };
+        });
+        set({ course: { ...course, holes } });
     },
 
     removeFairwayPoint: (holeId, index) => {

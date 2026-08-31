@@ -1,8 +1,12 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 
-import * as turf from "@turf/turf";
 import { editableCoordinates, type HoleFeature, type HoleFeatureType } from "@/types/holeFeatures";
+import {
+    buildFairwayCorridor,
+    fairwayDistanceMeters,
+    fairwayWidthHandles,
+} from "@/utils/fairwayCorridor";
 import type { Feature, Geometry, LineString, Point, Polygon } from "geojson";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -20,6 +24,7 @@ type MapCanvasProps = {
     onSetBasket: (holeId: string, lng: number, lat: number) => void;
     onAddFairwayPoint: (holeId: string, lng: number, lat: number) => void;
     onMoveFairwayPoint: (holeId: string, index: number, lng: number, lat: number) => void;
+    onSetFairwayPointWidth: (holeId: string, index: number, width: number) => void;
     onRemoveFairwayPoint: (holeId: string, index: number) => void;
     onSetTeeAngle: (holeId: string, angle: number) => void;
     featureTool: HoleFeatureType | null;
@@ -38,6 +43,7 @@ export function MapCanvas({
     onSetBasket,
     onAddFairwayPoint,
     onMoveFairwayPoint,
+    onSetFairwayPointWidth,
     onRemoveFairwayPoint,
     onSetTeeAngle,
     featureTool,
@@ -56,6 +62,7 @@ export function MapCanvas({
     const featureToolRef = useRef<HoleFeatureType | null>(featureTool);
     const drawingCoordinatesRef = useRef<[number, number][]>(drawingCoordinates);
     const selectedFeatureRef = useRef<string | null>(selectedFeatureId);
+    const selectedFairwayPointRef = useRef<{ holeId: string; index: number } | null>(null);
 
     const updatePointsRef = useRef<() => void>(() => { });
 
@@ -65,10 +72,16 @@ export function MapCanvas({
 
     useEffect(() => {
         selectedHoleRef.current = selectedHoleId;
+        selectedFairwayPointRef.current = null;
+        updatePointsRef.current();
     }, [selectedHoleId]);
 
     useEffect(() => {
         modeRef.current = mode;
+        if (mode !== "points") {
+            selectedFairwayPointRef.current = null;
+            updatePointsRef.current();
+        }
     }, [mode]);
 
     useEffect(() => { featureToolRef.current = featureTool; }, [featureTool]);
@@ -168,6 +181,11 @@ export function MapCanvas({
                 data: { type: "FeatureCollection", features: [] },
             });
 
+            map.addSource("fairway-width-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
             for (const id of ["hole-feature-area-source", "hole-feature-line-source", "hole-feature-stake-source", "hole-feature-point-source", "hole-feature-vertex-source", "hole-feature-draft-source"]) {
                 map.addSource(id, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
             }
@@ -233,6 +251,31 @@ export function MapCanvas({
                 paint: {
                     "fill-pattern": ["match", ["get", "featureType"], "OB_AREA", "ob-hatch", "hazard-hatch"],
                     "fill-opacity": 0.72,
+                },
+            });
+
+            map.addLayer({
+                id: "fairway-width-line-layer",
+                type: "line",
+                source: "fairway-width-source",
+                filter: ["==", ["geometry-type"], "LineString"],
+                paint: {
+                    "line-color": "#facc15",
+                    "line-width": 2,
+                    "line-dasharray": [2, 1],
+                },
+            });
+
+            map.addLayer({
+                id: "fairway-width-handle-layer",
+                type: "circle",
+                source: "fairway-width-source",
+                filter: ["==", ["geometry-type"], "Point"],
+                paint: {
+                    "circle-radius": 7,
+                    "circle-color": "#facc15",
+                    "circle-stroke-color": "#111827",
+                    "circle-stroke-width": 2,
                 },
             });
             map.addLayer({
@@ -303,6 +346,7 @@ export function MapCanvas({
                 const fairwayFeatures: Feature<Point>[] = [];
                 const fairwayLineFeatures: Feature<LineString>[] = [];
                 const fairwayAreaFeatures: Feature<Polygon>[] = [];
+                const fairwayWidthFeatures: Feature<Point | LineString>[] = [];
                 const areaFeatures: Feature<Polygon>[] = [];
                 const lineFeatures: Feature<LineString>[] = [];
                 const stakeFeatures: Feature<Point>[] = [];
@@ -372,22 +416,46 @@ export function MapCanvas({
 
                         fairwayLineFeatures.push(line);
 
-                        try {
-                            const turfLine = turf.lineString(lineCoords);
-                            const buffered = turf.buffer(turfLine, 6, {
-                                units: "meters",
-                            }) as Feature<Polygon>;
-
+                        const corridor = buildFairwayCorridor(
+                            { lng: hole.tee_longitude, lat: hole.tee_latitude },
+                            hole.fairway ?? [],
+                            { lng: hole.basket_longitude, lat: hole.basket_latitude },
+                            hole.fairway_width ?? 6,
+                        );
+                        if (corridor) {
                             fairwayAreaFeatures.push({
                                 type: "Feature",
                                 properties: { holeId: hole.id },
-                                geometry: buffered.geometry,
+                                geometry: { type: "Polygon", coordinates: [corridor] },
                             });
-                        } catch {
-                            // ignore buffer errors
                         }
                     }
                 });
+
+                const selectedFairwayPoint = selectedFairwayPointRef.current;
+                if (selectedFairwayPoint) {
+                    const hole = courseRef.current.holes.find((item: any) => item.id === selectedFairwayPoint.holeId);
+                    const points = hole?.fairway ?? [];
+                    const handles = hole ? fairwayWidthHandles(
+                        { lng: hole.tee_longitude, lat: hole.tee_latitude },
+                        points,
+                        selectedFairwayPoint.index,
+                        { lng: hole.basket_longitude, lat: hole.basket_latitude },
+                        hole.fairway_width ?? 6,
+                    ) : null;
+                    if (handles) {
+                        fairwayWidthFeatures.push({
+                            type: "Feature",
+                            properties: { holeId: hole.id, index: selectedFairwayPoint.index },
+                            geometry: { type: "LineString", coordinates: handles },
+                        });
+                        handles.forEach((coordinates, side) => fairwayWidthFeatures.push({
+                            type: "Feature",
+                            properties: { holeId: hole.id, index: selectedFairwayPoint.index, side },
+                            geometry: { type: "Point", coordinates },
+                        }));
+                    }
+                }
 
                 const selectedHole = courseRef.current.holes.find((hole: any) => hole.id === selectedHoleRef.current);
                 ((selectedHole?.hole_features ?? []) as HoleFeature[]).forEach((feature) => {
@@ -440,6 +508,10 @@ export function MapCanvas({
                     type: "FeatureCollection",
                     features: fairwayAreaFeatures,
                 });
+                (map.getSource("fairway-width-source") as mapboxgl.GeoJSONSource).setData({
+                    type: "FeatureCollection",
+                    features: fairwayWidthFeatures,
+                });
                 (map.getSource("hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: areaFeatures });
                 (map.getSource("hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: lineFeatures });
                 (map.getSource("hole-feature-stake-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: stakeFeatures });
@@ -476,6 +548,10 @@ export function MapCanvas({
                 } else if (currentMode === "basket") {
                     onSetBasket(holeId, lng, lat);
                 } else if (currentMode === "points") {
+                    const existingControl = map.queryRenderedFeatures(e.point, {
+                        layers: ["fairway-layer", "fairway-width-handle-layer"],
+                    });
+                    if (existingControl.length > 0) return;
                     onAddFairwayPoint(holeId, lng, lat);
                 }
 
@@ -487,6 +563,44 @@ export function MapCanvas({
                     if (typeof id === "string") onSelectFeature(id);
                 });
             }
+
+            map.on("click", "fairway-layer", (event) => {
+                if (modeRef.current !== "points") return;
+                const holeId = event.features?.[0]?.properties?.holeId;
+                const index = Number(event.features?.[0]?.properties?.index);
+                if (typeof holeId !== "string" || !Number.isInteger(index)) return;
+                selectedFairwayPointRef.current = { holeId, index };
+                updatePointsRef.current();
+            });
+
+            map.on("mousedown", "fairway-width-handle-layer", (event) => {
+                const holeId = event.features?.[0]?.properties?.holeId;
+                const index = Number(event.features?.[0]?.properties?.index);
+                if (typeof holeId !== "string" || !Number.isInteger(index)) return;
+                const hole = courseRef.current.holes.find((item: any) => item.id === holeId);
+                const center = hole?.fairway?.[index];
+                if (!center) return;
+                event.preventDefault();
+                map.dragPan.disable();
+                map.getCanvas().style.cursor = "ew-resize";
+
+                const updateWidth = (moveEvent: mapboxgl.MapMouseEvent) => {
+                    const width = Math.max(1, Math.min(100, fairwayDistanceMeters(
+                        center,
+                        { lng: moveEvent.lngLat.lng, lat: moveEvent.lngLat.lat },
+                    )));
+                    onSetFairwayPointWidth(holeId, index, width);
+                };
+                const onUp = (upEvent: mapboxgl.MapMouseEvent) => {
+                    updateWidth(upEvent);
+                    map.dragPan.enable();
+                    map.getCanvas().style.cursor = "";
+                    map.off("mousemove", updateWidth);
+                    map.off("mouseup", onUp);
+                };
+                map.on("mousemove", updateWidth);
+                map.on("mouseup", onUp);
+            });
 
             map.on("mousedown", "hole-feature-vertex-layer", (event) => {
                 const featureId = event.features?.[0]?.properties?.featureId;

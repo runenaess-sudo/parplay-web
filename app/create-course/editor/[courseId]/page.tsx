@@ -66,6 +66,7 @@ export default function Page() {
     const setBasket = useCourseEditor((s) => s.setBasket);
     const addFairwayPoint = useCourseEditor((s) => s.addFairwayPoint);
     const moveFairwayPoint = useCourseEditor((s) => s.moveFairwayPoint);
+    const setFairwayPointWidth = useCourseEditor((s) => s.setFairwayPointWidth);
     const removeFairwayPoint = useCourseEditor((s) => s.removeFairwayPoint);
     const setTeeAngle = useCourseEditor((s) => s.setTeeAngle);
     const setSelectedHole = useCourseEditor((s) => s.setSelectedHole);
@@ -132,6 +133,7 @@ export default function Page() {
                         onSetBasket={setBasket}
                         onAddFairwayPoint={addFairwayPoint}
                         onMoveFairwayPoint={moveFairwayPoint}
+                        onSetFairwayPointWidth={setFairwayPointWidth}
                         onRemoveFairwayPoint={removeFairwayPoint}
                         onSetTeeAngle={setTeeAngle}
                         featureTool={featureTool}
