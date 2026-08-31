@@ -185,6 +185,10 @@ export function MapCanvas({
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
             });
+            map.addSource("fairway-width-label-source", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
 
             for (const id of ["hole-feature-area-source", "hole-feature-line-source", "hole-feature-stake-source", "hole-feature-point-source", "hole-feature-vertex-source", "hole-feature-draft-source"]) {
                 map.addSource(id, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -276,6 +280,24 @@ export function MapCanvas({
                     "circle-color": "#facc15",
                     "circle-stroke-color": "#111827",
                     "circle-stroke-width": 2,
+                },
+            });
+            map.addLayer({
+                id: "fairway-width-label-layer",
+                type: "symbol",
+                source: "fairway-width-label-source",
+                layout: {
+                    "text-field": ["get", "label"],
+                    "text-size": 14,
+                    "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+                    "text-offset": [0, -1.4],
+                    "text-anchor": "bottom",
+                    "text-allow-overlap": true,
+                },
+                paint: {
+                    "text-color": "#ffffff",
+                    "text-halo-color": "#111827",
+                    "text-halo-width": 2,
                 },
             });
             map.addLayer({
@@ -584,15 +606,39 @@ export function MapCanvas({
                 map.dragPan.disable();
                 map.getCanvas().style.cursor = "ew-resize";
 
+                const setWidthLabel = (lng: number, lat: number, halfWidth: number) => {
+                    (map.getSource("fairway-width-label-source") as mapboxgl.GeoJSONSource).setData({
+                        type: "FeatureCollection",
+                        features: [{
+                            type: "Feature",
+                            properties: { label: `${Math.round(halfWidth * 2)} m` },
+                            geometry: { type: "Point", coordinates: [lng, lat] },
+                        }],
+                    });
+                };
+                const clearWidthLabel = () => {
+                    (map.getSource("fairway-width-label-source") as mapboxgl.GeoJSONSource).setData({
+                        type: "FeatureCollection",
+                        features: [],
+                    });
+                };
+
                 const updateWidth = (moveEvent: mapboxgl.MapMouseEvent) => {
                     const width = Math.max(1, Math.min(100, fairwayDistanceMeters(
                         center,
                         { lng: moveEvent.lngLat.lng, lat: moveEvent.lngLat.lat },
                     )));
                     onSetFairwayPointWidth(holeId, index, width);
+                    setWidthLabel(moveEvent.lngLat.lng, moveEvent.lngLat.lat, width);
                 };
+                const initialWidth = fairwayDistanceMeters(center, {
+                    lng: event.lngLat.lng,
+                    lat: event.lngLat.lat,
+                });
+                setWidthLabel(event.lngLat.lng, event.lngLat.lat, initialWidth);
                 const onUp = (upEvent: mapboxgl.MapMouseEvent) => {
                     updateWidth(upEvent);
+                    clearWidthLabel();
                     map.dragPan.enable();
                     map.getCanvas().style.cursor = "";
                     map.off("mousemove", updateWidth);
