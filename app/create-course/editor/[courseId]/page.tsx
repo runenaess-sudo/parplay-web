@@ -80,23 +80,7 @@ export default function Page() {
     const [weakSelection, setWeakSelection] = useState<{ featureId: string; holeId: string } | null>(null);
 
     const selectWeakFeature = (featureId: string) => {
-        const canonicalFeature = ((course?.canonical_hole_features ?? []) as HoleFeature[])
-            .find((feature) => feature.id === featureId);
-        console.log("[SHARED_FEATURE_CLICK_DEBUG] page callback", {
-            callbackFired: true,
-            featureId,
-            selectedHoleId,
-            canonicalResolved: Boolean(canonicalFeature),
-            featureType: canonicalFeature?.feature_type ?? null,
-            originHoleId: canonicalFeature?.origin_hole_id ?? canonicalFeature?.hole_id ?? null,
-        });
-        if (selectedHoleId) {
-            setWeakSelection({ featureId, holeId: selectedHoleId });
-            console.log("[SHARED_FEATURE_CLICK_DEBUG] confirmation state set", {
-                featureId,
-                holeId: selectedHoleId,
-            });
-        }
+        if (selectedHoleId) setWeakSelection({ featureId, holeId: selectedHoleId });
     };
     const canonicalFeatures = new Map<string, HoleFeature>(
         ((course?.canonical_hole_features ?? []) as HoleFeature[]).map((feature) => [feature.id, feature]),
