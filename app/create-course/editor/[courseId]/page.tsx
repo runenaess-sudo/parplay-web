@@ -1,7 +1,9 @@
 "use client";
 
 import { useCourseEditor } from "@/state/useCourseEditor";
+import { type HoleFeature } from "@/types/holeFeatures";
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import EditorPanel from "./EditorPanel";
 import LoadEditorData from "./LoadEditorData";
 import { MapCanvas } from "./MapCanvas";
@@ -73,6 +75,27 @@ export default function Page() {
     const addFeatureCoordinate = useCourseEditor((s) => s.addFeatureCoordinate);
     const selectFeature = useCourseEditor((s) => s.selectFeature);
     const moveFeatureVertex = useCourseEditor((s) => s.moveFeatureVertex);
+    const attachFeatureToHole = useCourseEditor((s) => s.attachFeatureToHole);
+    const featureLinkPending = useCourseEditor((s) => s.featureLinkPending);
+    const [weakSelection, setWeakSelection] = useState<{ featureId: string; holeId: string } | null>(null);
+
+    const selectWeakFeature = (featureId: string) => {
+        if (selectedHoleId) setWeakSelection({ featureId, holeId: selectedHoleId });
+    };
+    const canonicalFeatures = new Map<string, HoleFeature>(
+        ((course?.canonical_hole_features ?? []) as HoleFeature[]).map((feature) => [feature.id, feature]),
+    );
+    const selectedWeakFeature = weakSelection?.holeId === selectedHoleId
+        ? canonicalFeatures.get(weakSelection.featureId) ?? null
+        : null;
+    const currentWeakTargetHole = course?.holes.find((hole: Hole) => hole.id === selectedHoleId) ?? null;
+    const weakOriginHole = selectedWeakFeature
+        ? course?.holes.find((hole: Hole) =>
+            hole.id === (selectedWeakFeature.origin_hole_id ?? selectedWeakFeature.hole_id)) ?? null
+        : null;
+    const weakFeatureLabel = selectedWeakFeature?.feature_type === "OB_LINE"
+        ? "OB line"
+        : selectedWeakFeature?.feature_type === "OB_AREA" ? "OB area" : "hazard area";
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-900">
@@ -141,10 +164,34 @@ export default function Page() {
                         selectedFeatureId={selectedFeatureId}
                         onAddFeatureCoordinate={(lng, lat) => { void addFeatureCoordinate(lng, lat); }}
                         onSelectFeature={selectFeature}
+                        onSelectWeakFeature={selectWeakFeature}
                         onMoveFeatureVertex={(id, index, lng, lat, persist) => {
                             void moveFeatureVertex(id, index, lng, lat, persist);
                         }}
                     />
+
+                    {selectedWeakFeature && currentWeakTargetHole && weakOriginHole && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+                            onClick={() => { if (!featureLinkPending) setWeakSelection(null); }}>
+                            <div className="w-full max-w-sm rounded-xl border border-white/10 bg-slate-900 p-5 text-white shadow-2xl"
+                                onClick={(event) => event.stopPropagation()}>
+                                <h2 className="text-lg font-bold">Use existing {weakFeatureLabel}?</h2>
+                                <p className="mt-2 text-sm text-slate-300">
+                                    This feature currently belongs to Hole {weakOriginHole.number}. Do you want to use it for Hole {currentWeakTargetHole.number} as well?
+                                </p>
+                                <div className="mt-5 flex justify-end gap-2">
+                                    <button disabled={featureLinkPending} onClick={() => setWeakSelection(null)}
+                                        className="rounded bg-slate-700 px-3 py-2 text-sm disabled:opacity-40">Cancel</button>
+                                    <button disabled={featureLinkPending} onClick={async () => {
+                                        const attached = await attachFeatureToHole(selectedWeakFeature.id, currentWeakTargetHole.id);
+                                        if (attached) setWeakSelection(null);
+                                    }} className="rounded bg-blue-700 px-3 py-2 text-sm font-semibold disabled:opacity-40">
+                                        {featureLinkPending ? "Adding…" : `Use on Hole ${currentWeakTargetHole.number}`}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -9,11 +9,41 @@ import {
     type HoleFeature,
     type HoleFeatureGeometry,
     type HoleFeatureType,
+    type MandoPassSide,
+    type ObLineSide,
     type SpatialHoleFeatureType,
+    isMandoPassSide,
+    isObLineSide,
 } from "@/types/holeFeatures";
 import { create } from "zustand";
 
 type EditorMode = "none" | "tee" | "basket" | "points";
+
+function applyFeatureApplicability(course: any, rows: Array<{ id: string; hole_id: string }>) {
+    const canonical = new Map<string, HoleFeature>(
+        ((course.canonical_hole_features ?? []) as HoleFeature[]).map((feature) => [feature.id, feature]),
+    );
+    const applicable = new Map<string, Set<string>>();
+    rows.forEach((row) => {
+        const holeIds = applicable.get(row.id) ?? new Set<string>();
+        holeIds.add(row.hole_id);
+        applicable.set(row.id, holeIds);
+    });
+    const normalized = new Map([...canonical].map(([id, feature]) => [id, {
+        ...feature,
+        origin_hole_id: feature.origin_hole_id ?? feature.hole_id,
+        applicable_hole_ids: [...(applicable.get(id) ?? new Set([feature.hole_id]))],
+    }]));
+    return {
+        ...course,
+        canonical_hole_features: [...normalized.values()],
+        holes: course.holes.map((hole: any) => ({
+            ...hole,
+            hole_features: [...normalized.values()].filter((feature) =>
+                feature.applicable_hole_ids.includes(hole.id)),
+        })),
+    };
+}
 
 type CourseEditorState = {
     course: any | null;
@@ -22,6 +52,7 @@ type CourseEditorState = {
     featureTool: HoleFeatureType | null;
     drawingCoordinates: [number, number][];
     selectedFeatureId: string | null;
+    featureLinkPending: boolean;
 
     toast: string | null;
     setToast: (msg: string) => void;
@@ -36,9 +67,14 @@ type CourseEditorState = {
     cancelFeatureDrawing: () => void;
     selectFeature: (id: string | null) => void;
     updateFeatureComment: (id: string, description: string) => Promise<void>;
+    setMandoPassSide: (id: string, passSide: MandoPassSide) => Promise<void>;
+    pairMandos: (id: string, partnerId: string) => Promise<void>;
+    setObLineSide: (id: string, obSide: ObLineSide) => Promise<void>;
     updateFeatureGeometry: (id: string, geometry: HoleFeatureGeometry, persist?: boolean) => Promise<void>;
     moveFeatureVertex: (id: string, index: number, lng: number, lat: number, persist?: boolean) => Promise<void>;
     deleteFeature: (id: string) => Promise<void>;
+    attachFeatureToHole: (featureId: string, holeId: string) => Promise<boolean>;
+    detachFeatureFromHole: (featureId: string, holeId: string) => Promise<boolean>;
 
     setTee: (holeId: string, lng: number, lat: number) => void;
     setBasket: (holeId: string, lng: number, lat: number) => void;
@@ -63,6 +99,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     featureTool: null,
     drawingCoordinates: [],
     selectedFeatureId: null,
+    featureLinkPending: false,
 
     toast: null,
     setToast: (msg) => set({ toast: msg }),
@@ -148,13 +185,23 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         const feature: HoleFeature = {
             id,
             hole_id: selectedHoleId,
+            origin_hole_id: selectedHoleId,
+            applicable_hole_ids: [selectedHoleId],
             feature_type: featureTool,
             geometry,
             description: null,
             properties: {},
             sort_order: features.length,
         };
-        const { error } = await supabaseBrowser.from("hole_features").insert(feature);
+        const { error } = await supabaseBrowser.from("hole_features").insert({
+            id: feature.id,
+            hole_id: feature.hole_id,
+            feature_type: feature.feature_type,
+            geometry: feature.geometry,
+            description: feature.description,
+            properties: feature.properties,
+            sort_order: feature.sort_order,
+        });
         if (error) {
             console.error("Failed to create hole feature", error);
             get().setToast("Error saving feature");
@@ -164,7 +211,11 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             ? { ...item, hole_features: [...(item.hole_features ?? []), feature] }
             : item);
         set({
-            course: { ...course, holes },
+            course: {
+                ...course,
+                canonical_hole_features: [...(course.canonical_hole_features ?? []), feature],
+                holes,
+            },
             featureTool: null,
             drawingCoordinates: [],
             selectedFeatureId: id,
@@ -188,8 +239,130 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             hole_features: (hole.hole_features ?? []).map((feature: HoleFeature) =>
                 feature.id === id ? { ...feature, description: normalized } : feature),
         }));
-        set({ course: { ...course, holes } });
+        set({ course: {
+            ...course,
+            canonical_hole_features: (course.canonical_hole_features ?? []).map((feature: HoleFeature) =>
+                feature.id === id ? { ...feature, description: normalized } : feature),
+            holes,
+        } });
         get().setToast("Comment saved");
+    },
+
+    setMandoPassSide: async (id, passSide) => {
+        if (!isMandoPassSide(passSide) || passSide === "BETWEEN") return;
+        const { course } = get();
+        if (!course) return;
+        const feature = course.holes.flatMap((hole: any) => hole.hole_features ?? [])
+            .find((item: HoleFeature) => item.id === id) as HoleFeature | undefined;
+        if (!feature || feature.feature_type !== "MANDO") return;
+
+        const properties: Record<string, unknown> = {
+            ...(feature.properties ?? {}),
+            pass_side: passSide,
+        };
+        delete properties.group_id;
+        const { error } = await supabaseBrowser.from("hole_features")
+            .update({ properties }).eq("id", id);
+        if (error) {
+            console.error("Failed to update mando pass side", error);
+            get().setToast("Error saving mando side");
+            return;
+        }
+        const holes = course.holes.map((hole: any) => ({
+            ...hole,
+            hole_features: (hole.hole_features ?? []).map((item: HoleFeature) =>
+                item.id === id ? { ...item, properties } : item),
+        }));
+        set({ course: {
+            ...course,
+            canonical_hole_features: (course.canonical_hole_features ?? []).map((feature: HoleFeature) =>
+                feature.id === id ? { ...feature, properties } : feature),
+            holes,
+        } });
+        get().setToast("Mando side saved");
+    },
+
+    pairMandos: async (id, partnerId) => {
+        if (!id || !partnerId || id === partnerId) return;
+        const { course } = get();
+        if (!course) return;
+        const features = course.holes.flatMap((hole: any) => hole.hole_features ?? []) as HoleFeature[];
+        const first = features.find((item) => item.id === id);
+        const second = features.find((item) => item.id === partnerId);
+        if (
+            !first || !second ||
+            first.feature_type !== "MANDO" || second.feature_type !== "MANDO" ||
+            first.hole_id !== second.hole_id
+        ) return;
+
+        const groupId = crypto.randomUUID();
+        const firstProperties = { ...(first.properties ?? {}), pass_side: "BETWEEN", group_id: groupId };
+        const secondProperties = { ...(second.properties ?? {}), pass_side: "BETWEEN", group_id: groupId };
+        const { error } = await supabaseBrowser.from("hole_features").upsert([
+            {
+                id: first.id, hole_id: first.hole_id, feature_type: first.feature_type,
+                geometry: first.geometry, description: first.description,
+                properties: firstProperties, sort_order: first.sort_order,
+            },
+            {
+                id: second.id, hole_id: second.hole_id, feature_type: second.feature_type,
+                geometry: second.geometry, description: second.description,
+                properties: secondProperties, sort_order: second.sort_order,
+            },
+        ], { onConflict: "id" });
+        if (error) {
+            console.error("Failed to pair mando points", error);
+            get().setToast("Error saving double mando");
+            return;
+        }
+        const holes = course.holes.map((hole: any) => ({
+            ...hole,
+            hole_features: (hole.hole_features ?? []).map((item: HoleFeature) => {
+                if (item.id === id) return { ...item, properties: firstProperties };
+                if (item.id === partnerId) return { ...item, properties: secondProperties };
+                return item;
+            }),
+        }));
+        set({ course: {
+            ...course,
+            canonical_hole_features: (course.canonical_hole_features ?? []).map((feature: HoleFeature) => {
+                if (feature.id === id) return { ...feature, properties: firstProperties };
+                if (feature.id === partnerId) return { ...feature, properties: secondProperties };
+                return feature;
+            }),
+            holes,
+        } });
+        get().setToast("Double mando saved");
+    },
+
+    setObLineSide: async (id, obSide) => {
+        if (!isObLineSide(obSide)) return;
+        const { course } = get();
+        if (!course) return;
+        const feature = course.holes.flatMap((hole: any) => hole.hole_features ?? [])
+            .find((item: HoleFeature) => item.id === id) as HoleFeature | undefined;
+        if (!feature || feature.feature_type !== "OB_LINE") return;
+
+        const properties = { ...(feature.properties ?? {}), ob_side: obSide };
+        const { error } = await supabaseBrowser.from("hole_features")
+            .update({ properties }).eq("id", id);
+        if (error) {
+            console.error("Failed to update OB line side", error);
+            get().setToast("Error saving OB side");
+            return;
+        }
+        const holes = course.holes.map((hole: any) => ({
+            ...hole,
+            hole_features: (hole.hole_features ?? []).map((item: HoleFeature) =>
+                item.id === id ? { ...item, properties } : item),
+        }));
+        set({ course: {
+            ...course,
+            canonical_hole_features: (course.canonical_hole_features ?? []).map((feature: HoleFeature) =>
+                feature.id === id ? { ...feature, properties } : feature),
+            holes,
+        } });
+        get().setToast("OB side saved");
     },
 
     updateFeatureGeometry: async (id, geometry, persist = true) => {
@@ -209,7 +382,12 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             hole_features: (hole.hole_features ?? []).map((feature: HoleFeature) =>
                 feature.id === id ? { ...feature, geometry } : feature),
         }));
-        set({ course: { ...course, holes } });
+        set({ course: {
+            ...course,
+            canonical_hole_features: (course.canonical_hole_features ?? []).map((feature: HoleFeature) =>
+                feature.id === id ? { ...feature, geometry } : feature),
+            holes,
+        } });
     },
 
     moveFeatureVertex: async (id, index, lng, lat, persist = true) => {
@@ -241,8 +419,79 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             ...hole,
             hole_features: (hole.hole_features ?? []).filter((feature: HoleFeature) => feature.id !== id),
         }));
-        set({ course: { ...course, holes }, selectedFeatureId: null });
+        set({ course: {
+            ...course,
+            canonical_hole_features: (course.canonical_hole_features ?? [])
+                .filter((feature: HoleFeature) => feature.id !== id),
+            holes,
+        }, selectedFeatureId: null });
         get().setToast("Feature deleted");
+    },
+
+    attachFeatureToHole: async (featureId, holeId) => {
+        if (get().featureLinkPending) return false;
+        set({ featureLinkPending: true });
+        try {
+            const { error } = await supabaseBrowser.rpc("attach_hole_feature_to_hole", {
+                p_feature_id: featureId,
+                p_hole_id: holeId,
+            });
+            if (error) {
+                console.error("Failed to attach shared hole feature", error);
+                get().setToast("Error sharing feature with this hole");
+                return false;
+            }
+            const course = get().course;
+            if (!course) return false;
+            const holeIds = course.holes.map((hole: any) => hole.id);
+            const { data, error: refreshError } = await supabaseBrowser
+                .from("effective_hole_features")
+                .select("id,hole_id")
+                .in("hole_id", holeIds);
+            if (refreshError) {
+                console.error("Failed to refresh shared feature applicability", refreshError);
+                get().setToast("Feature linked, but editor refresh failed");
+                return false;
+            }
+            set({ course: applyFeatureApplicability(course, data ?? []), selectedFeatureId: featureId });
+            get().setToast("Feature added to this hole");
+            return true;
+        } finally {
+            set({ featureLinkPending: false });
+        }
+    },
+
+    detachFeatureFromHole: async (featureId, holeId) => {
+        if (get().featureLinkPending) return false;
+        set({ featureLinkPending: true });
+        try {
+            const { error } = await supabaseBrowser.rpc("detach_hole_feature_from_hole", {
+                p_feature_id: featureId,
+                p_hole_id: holeId,
+            });
+            if (error) {
+                console.error("Failed to detach shared hole feature", error);
+                get().setToast("Error removing feature from this hole");
+                return false;
+            }
+            const course = get().course;
+            if (!course) return false;
+            const holeIds = course.holes.map((hole: any) => hole.id);
+            const { data, error: refreshError } = await supabaseBrowser
+                .from("effective_hole_features")
+                .select("id,hole_id")
+                .in("hole_id", holeIds);
+            if (refreshError) {
+                console.error("Failed to refresh shared feature applicability", refreshError);
+                get().setToast("Feature removed, but editor refresh failed");
+                return false;
+            }
+            set({ course: applyFeatureApplicability(course, data ?? []), selectedFeatureId: null });
+            get().setToast("Feature removed from this hole");
+            return true;
+        } finally {
+            set({ featureLinkPending: false });
+        }
     },
 
     setTee: (holeId, lng, lat) => {

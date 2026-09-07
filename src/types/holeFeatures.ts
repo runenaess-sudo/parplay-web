@@ -12,10 +12,17 @@ export const HOLE_FEATURE_TYPES = [
 export type HoleFeatureType = (typeof HOLE_FEATURE_TYPES)[number];
 export type SpatialHoleFeatureType = Exclude<HoleFeatureType, "INFO">;
 export type HoleFeatureGeometry = Point | LineString | Polygon;
+export type MandoPassSide = "LEFT" | "RIGHT" | "BETWEEN";
+export type ObLineSide = "LEFT" | "RIGHT";
+
+export const MANDO_PASS_SIDES = ["LEFT", "RIGHT", "BETWEEN"] as const satisfies readonly MandoPassSide[];
+export const OB_LINE_SIDES = ["LEFT", "RIGHT"] as const satisfies readonly ObLineSide[];
 
 export type HoleFeature = {
     id: string;
     hole_id: string;
+    origin_hole_id?: string;
+    applicable_hole_ids?: string[];
     feature_type: HoleFeatureType;
     geometry: HoleFeatureGeometry | null;
     description: string | null;
@@ -25,8 +32,22 @@ export type HoleFeature = {
     updated_at?: string;
 };
 
+export const SHARED_HOLE_FEATURE_TYPES = ["OB_LINE", "OB_AREA", "HAZARD_AREA"] as const;
+
+export function isSharedHoleFeatureType(type: HoleFeatureType) {
+    return SHARED_HOLE_FEATURE_TYPES.includes(type as (typeof SHARED_HOLE_FEATURE_TYPES)[number]);
+}
+
 export function featureTypeLabel(type: HoleFeatureType) {
     return type.replaceAll("_", " ");
+}
+
+export function isMandoPassSide(value: unknown): value is MandoPassSide {
+    return MANDO_PASS_SIDES.includes(value as MandoPassSide);
+}
+
+export function isObLineSide(value: unknown): value is ObLineSide {
+    return OB_LINE_SIDES.includes(value as ObLineSide);
 }
 
 export function minimumVertexCount(type: SpatialHoleFeatureType) {

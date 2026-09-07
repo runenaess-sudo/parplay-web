@@ -3,24 +3,110 @@
 
 import { Toast } from "@/components/Toast";
 import { useCourseEditor } from "@/state/useCourseEditor";
-import { featureTypeLabel, HOLE_FEATURE_TYPES, type HoleFeature } from "@/types/holeFeatures";
+import {
+    featureTypeLabel,
+    HOLE_FEATURE_TYPES,
+    isMandoPassSide,
+    isObLineSide,
+    isSharedHoleFeatureType,
+    type HoleFeature,
+    type ObLineSide,
+} from "@/types/holeFeatures";
 import { useState } from "react";
 
-function FeatureDetails({ feature, onSave, onDelete }: {
+function FeatureDetails({ feature, mandoPartners, originHoleNumber, currentHoleNumber,
+    applicableHoleNumbers, linkPending, onSave, onDelete, onDetach, onMandoSide, onPairMando, onObLineSide }: {
     feature: HoleFeature;
+    mandoPartners: HoleFeature[];
+    originHoleNumber: number | null;
+    currentHoleNumber: number;
+    applicableHoleNumbers: number[];
+    linkPending: boolean;
     onSave: (description: string) => void;
     onDelete: () => void;
+    onDetach?: () => void;
+    onMandoSide: (side: "LEFT" | "RIGHT") => void;
+    onPairMando: (partnerId: string) => void;
+    onObLineSide: (side: ObLineSide) => void;
 }) {
     const [comment, setComment] = useState(feature.description ?? "");
+    const [mandoPartnerId, setMandoPartnerId] = useState("");
+    const mandoSide = isMandoPassSide(feature.properties?.pass_side)
+        ? feature.properties.pass_side
+        : null;
+    const obLineSide = isObLineSide(feature.properties?.ob_side)
+        ? feature.properties.ob_side
+        : null;
+    const choiceClass = (selected: boolean) =>
+        `flex-1 rounded px-2 py-1.5 text-xs font-semibold ${selected
+            ? "bg-amber-500 text-black"
+            : "bg-neutral-700 hover:bg-neutral-600"}`;
+
     return (
         <div className="space-y-2 rounded border border-white/10 p-2">
             <p className="text-xs font-bold">{featureTypeLabel(feature.feature_type)}</p>
+            {onDetach && originHoleNumber != null && (
+                <p className="text-[11px] text-sky-300">Shared from Hole {originHoleNumber}</p>
+            )}
+            {!onDetach && applicableHoleNumbers.length > 1 && (
+                <p className="text-[11px] text-sky-300">Used on Holes {applicableHoleNumbers.join(", ")}</p>
+            )}
+            {feature.feature_type === "MANDO" && (
+                <div className="space-y-2 rounded bg-slate-900/70 p-2">
+                    <p className="text-xs font-semibold">Required passing side</p>
+                    <div className="flex gap-2">
+                        <button onClick={() => onMandoSide("LEFT")} className={choiceClass(mandoSide === "LEFT")}>Left</button>
+                        <button onClick={() => onMandoSide("RIGHT")} className={choiceClass(mandoSide === "RIGHT")}>Right</button>
+                    </div>
+                    <p className="text-[10px] text-neutral-400">For a double mando, select the other mando point. Both points will require passage between them.</p>
+                    <div className="flex gap-2">
+                        <select
+                            value={mandoPartnerId}
+                            onChange={(event) => setMandoPartnerId(event.target.value)}
+                            className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1.5 text-xs text-white"
+                        >
+                            <option value="">Select second mando</option>
+                            {mandoPartners.map((partner, index) => (
+                                <option key={partner.id} value={partner.id}>
+                                    Mando {index + 1}{partner.description ? ` — ${partner.description}` : ""}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            disabled={!mandoPartnerId}
+                            onClick={() => onPairMando(mandoPartnerId)}
+                            className="rounded bg-blue-700 px-2 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                            Pair
+                        </button>
+                    </div>
+                    {mandoSide === "BETWEEN" && typeof feature.properties?.group_id === "string" && (
+                        <p className="break-all text-[10px] text-emerald-300">Double mando group: {feature.properties.group_id}</p>
+                    )}
+                </div>
+            )}
+            {feature.feature_type === "OB_LINE" && (
+                <div className="space-y-2 rounded bg-slate-900/70 p-2">
+                    <p className="text-xs font-semibold">OB side</p>
+                    <p className="text-[10px] text-neutral-400">Left/right is viewed along the drawn line from its first point toward its last point.</p>
+                    <div className="flex gap-2">
+                        <button onClick={() => onObLineSide("LEFT")} className={choiceClass(obLineSide === "LEFT")}>Left</button>
+                        <button onClick={() => onObLineSide("RIGHT")} className={choiceClass(obLineSide === "RIGHT")}>Right</button>
+                    </div>
+                </div>
+            )}
             <textarea value={comment} maxLength={2000} onChange={(event) => setComment(event.target.value)}
                 placeholder="Comment or rule description" className="min-h-20 w-full rounded bg-slate-900 p-2 text-xs text-white" />
             <div className="flex gap-2">
                 <button onClick={() => onSave(comment)} className="flex-1 rounded bg-blue-700 px-2 py-1.5 text-xs font-semibold">Save comment</button>
                 <button onClick={onDelete} className="rounded bg-red-800 px-2 py-1.5 text-xs font-semibold">Delete</button>
             </div>
+            {onDetach && (
+                <button disabled={linkPending} onClick={onDetach}
+                    className="w-full rounded border border-amber-500/50 px-2 py-1.5 text-xs font-semibold text-amber-200 disabled:opacity-40">
+                    Remove from Hole {currentHoleNumber}
+                </button>
+            )}
             {feature.geometry && <p className="text-[10px] text-neutral-400">Drag its map vertices to correct geometry.</p>}
         </div>
     );
@@ -42,7 +128,12 @@ export default function EditorPanel() {
     const cancelFeatureDrawing = useCourseEditor((s) => s.cancelFeatureDrawing);
     const selectFeature = useCourseEditor((s) => s.selectFeature);
     const updateFeatureComment = useCourseEditor((s) => s.updateFeatureComment);
+    const setMandoPassSide = useCourseEditor((s) => s.setMandoPassSide);
+    const pairMandos = useCourseEditor((s) => s.pairMandos);
+    const setObLineSide = useCourseEditor((s) => s.setObLineSide);
     const deleteFeature = useCourseEditor((s) => s.deleteFeature);
+    const detachFeatureFromHole = useCourseEditor((s) => s.detachFeatureFromHole);
+    const featureLinkPending = useCourseEditor((s) => s.featureLinkPending);
 
     const toast = useCourseEditor((s) => s.toast);
     const clearToast = useCourseEditor((s) => s.clearToast);
@@ -51,6 +142,16 @@ export default function EditorPanel() {
     const hole = course?.holes.find((h: any) => h.id === selectedHoleId);
     const features = (hole?.hole_features ?? []) as HoleFeature[];
     const selectedFeature = features.find((feature) => feature.id === selectedFeatureId) ?? null;
+    const selectedOriginHole = selectedFeature
+        ? course?.holes.find((item: any) => item.id === (selectedFeature.origin_hole_id ?? selectedFeature.hole_id))
+        : null;
+    const selectedApplicableHoleNumbers = selectedFeature
+        ? course?.holes
+            .filter((item: any) => (selectedFeature.applicable_hole_ids ?? [selectedFeature.hole_id]).includes(item.id))
+            .map((item: any) => item.number) ?? []
+        : [];
+    const selectedFeatureIsLinked = Boolean(selectedFeature && isSharedHoleFeatureType(selectedFeature.feature_type) && selectedHoleId
+        && (selectedFeature.origin_hole_id ?? selectedFeature.hole_id) !== selectedHoleId);
 
     const elevationStats = (() => {
         if (!hole) return null;
@@ -165,9 +266,26 @@ export default function EditorPanel() {
 
                             {selectedFeature && (
                                 <FeatureDetails key={selectedFeature.id} feature={selectedFeature}
+                                    mandoPartners={features.filter((feature) =>
+                                        feature.feature_type === "MANDO" && feature.id !== selectedFeature.id)}
+                                    originHoleNumber={selectedOriginHole?.number ?? null}
+                                    currentHoleNumber={hole.number}
+                                    applicableHoleNumbers={selectedApplicableHoleNumbers}
+                                    linkPending={featureLinkPending}
                                     onSave={(description) => { void updateFeatureComment(selectedFeature.id, description); }}
+                                    onMandoSide={(side) => { void setMandoPassSide(selectedFeature.id, side); }}
+                                    onPairMando={(partnerId) => { void pairMandos(selectedFeature.id, partnerId); }}
+                                    onObLineSide={(side) => { void setObLineSide(selectedFeature.id, side); }}
+                                    onDetach={selectedFeatureIsLinked ? () => {
+                                        if (window.confirm(`Remove this feature from Hole ${hole.number}? The physical feature will remain on its other holes.`)) {
+                                            void detachFeatureFromHole(selectedFeature.id, hole.id);
+                                        }
+                                    } : undefined}
                                     onDelete={() => {
-                                        if (window.confirm(`Delete ${featureTypeLabel(selectedFeature.feature_type)}?`)) {
+                                        const message = selectedApplicableHoleNumbers.length > 1
+                                            ? "Delete this physical feature from every hole using it?"
+                                            : `Delete ${featureTypeLabel(selectedFeature.feature_type)}?`;
+                                        if (window.confirm(message)) {
                                             void deleteFeature(selectedFeature.id);
                                         }
                                     }} />

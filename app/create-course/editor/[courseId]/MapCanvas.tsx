@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 
-import { editableCoordinates, type HoleFeature, type HoleFeatureType } from "@/types/holeFeatures";
+import { editableCoordinates, isSharedHoleFeatureType, type HoleFeature, type HoleFeatureType } from "@/types/holeFeatures";
 import {
     buildFairwayCorridor,
     fairwayDistanceMeters,
@@ -32,6 +32,7 @@ type MapCanvasProps = {
     selectedFeatureId: string | null;
     onAddFeatureCoordinate: (lng: number, lat: number) => void;
     onSelectFeature: (id: string | null) => void;
+    onSelectWeakFeature: (id: string) => void;
     onMoveFeatureVertex: (id: string, index: number, lng: number, lat: number, persist?: boolean) => void;
 };
 
@@ -51,6 +52,7 @@ export function MapCanvas({
     selectedFeatureId,
     onAddFeatureCoordinate,
     onSelectFeature,
+    onSelectWeakFeature,
     onMoveFeatureVertex,
 }: MapCanvasProps) {
     const ref = useRef<HTMLDivElement | null>(null);
@@ -190,7 +192,7 @@ export function MapCanvas({
                 data: { type: "FeatureCollection", features: [] },
             });
 
-            for (const id of ["hole-feature-area-source", "hole-feature-line-source", "hole-feature-stake-source", "hole-feature-point-source", "hole-feature-vertex-source", "hole-feature-draft-source"]) {
+            for (const id of ["weak-hole-feature-area-source", "weak-hole-feature-line-source", "hole-feature-area-source", "hole-feature-line-source", "hole-feature-stake-source", "hole-feature-point-source", "hole-feature-vertex-source", "hole-feature-draft-source"]) {
                 map.addSource(id, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
             }
 
@@ -246,6 +248,32 @@ export function MapCanvas({
                     "icon-size": 0.12,
                     "icon-anchor": "center",
                 },
+            });
+
+            map.addLayer({
+                id: "weak-hole-feature-area-layer",
+                type: "fill",
+                source: "weak-hole-feature-area-source",
+                paint: {
+                    "fill-color": ["match", ["get", "featureType"], "OB_AREA", "#ffffff", "#9ca3af"],
+                    "fill-opacity": 0.14,
+                },
+            });
+            map.addLayer({
+                id: "weak-hole-feature-area-outline-layer",
+                type: "line",
+                source: "weak-hole-feature-area-source",
+                paint: {
+                    "line-color": ["match", ["get", "featureType"], "OB_AREA", "#ffffff", "#9ca3af"],
+                    "line-width": 2,
+                    "line-opacity": 0.38,
+                },
+            });
+            map.addLayer({
+                id: "weak-hole-feature-line-layer",
+                type: "line",
+                source: "weak-hole-feature-line-source",
+                paint: { "line-color": "#ffffff", "line-width": 2, "line-opacity": 0.38, "line-dasharray": [1, 1] },
             });
 
             map.addLayer({
@@ -374,6 +402,8 @@ export function MapCanvas({
                 const stakeFeatures: Feature<Point>[] = [];
                 const pointFeatures: Feature<Point>[] = [];
                 const vertexFeatures: Feature<Point>[] = [];
+                const weakAreaFeatures: Feature<Polygon>[] = [];
+                const weakLineFeatures: Feature<LineString>[] = [];
 
                 courseRef.current.holes.forEach((hole: any) => {
                     if (hole.tee_latitude && hole.tee_longitude) {
@@ -480,6 +510,26 @@ export function MapCanvas({
                 }
 
                 const selectedHole = courseRef.current.holes.find((hole: any) => hole.id === selectedHoleRef.current);
+                const canonicalFeatures = (courseRef.current.canonical_hole_features ?? []) as HoleFeature[];
+                const weakCandidates = canonicalFeatures.filter((feature) =>
+                    Boolean(feature.geometry)
+                    && isSharedHoleFeatureType(feature.feature_type)
+                    && !(feature.applicable_hole_ids ?? [feature.hole_id])
+                        .includes(selectedHoleRef.current ?? ""));
+                weakCandidates.forEach((feature) => {
+                    if (!feature.geometry) return;
+                    const geoFeature = {
+                        type: "Feature" as const,
+                        properties: { featureId: feature.id, featureType: feature.feature_type },
+                        geometry: feature.geometry,
+                    };
+                    if (feature.geometry.type === "Polygon" && feature.geometry.coordinates[0]?.length >= 4) {
+                        weakAreaFeatures.push(geoFeature as Feature<Polygon>);
+                    }
+                    if (feature.geometry.type === "LineString" && feature.geometry.coordinates.length >= 2) {
+                        weakLineFeatures.push(geoFeature as Feature<LineString>);
+                    }
+                });
                 ((selectedHole?.hole_features ?? []) as HoleFeature[]).forEach((feature) => {
                     if (!feature.geometry) return;
                     const geoFeature = {
@@ -534,6 +584,33 @@ export function MapCanvas({
                     type: "FeatureCollection",
                     features: fairwayWidthFeatures,
                 });
+                (map.getSource("weak-hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: weakAreaFeatures });
+                (map.getSource("weak-hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: weakLineFeatures });
+                if (process.env.NODE_ENV !== "production") {
+                    console.debug("[SHARED_FEATURE_DEBUG] weak feature pipeline", {
+                        selectedHoleId: selectedHoleRef.current,
+                        canonical: canonicalFeatures.map((feature) => ({
+                            id: feature.id,
+                            hole_id: feature.hole_id,
+                            origin_hole_id: feature.origin_hole_id,
+                            feature_type: feature.feature_type,
+                            geometry_type: feature.geometry?.type ?? null,
+                            applicable_hole_ids: feature.applicable_hole_ids ?? [feature.hole_id],
+                        })),
+                        weakCandidates: weakCandidates.map((feature) => ({
+                            id: feature.id,
+                            origin_hole_id: feature.origin_hole_id ?? feature.hole_id,
+                            feature_type: feature.feature_type,
+                            geometry_type: feature.geometry?.type ?? null,
+                        })),
+                        weakLineGeoJsonIds: weakLineFeatures.map((feature) => feature.properties?.featureId),
+                        weakAreaGeoJsonIds: weakAreaFeatures.map((feature) => feature.properties?.featureId),
+                        weakLineSourceReady: Boolean(map.getSource("weak-hole-feature-line-source")),
+                        weakAreaSourceReady: Boolean(map.getSource("weak-hole-feature-area-source")),
+                        weakLineLayerReady: Boolean(map.getLayer("weak-hole-feature-line-layer")),
+                        weakAreaLayerReady: Boolean(map.getLayer("weak-hole-feature-area-layer")),
+                    });
+                }
                 (map.getSource("hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: areaFeatures });
                 (map.getSource("hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: lineFeatures });
                 (map.getSource("hole-feature-stake-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: stakeFeatures });
@@ -583,6 +660,21 @@ export function MapCanvas({
                 map.on("click", layer, (event) => {
                     const id = event.features?.[0]?.properties?.featureId;
                     if (typeof id === "string") onSelectFeature(id);
+                });
+            }
+
+            for (const layer of ["weak-hole-feature-area-layer", "weak-hole-feature-area-outline-layer", "weak-hole-feature-line-layer"]) {
+                map.on("click", layer, (event) => {
+                    if (modeRef.current !== "none" || featureToolRef.current
+                        || drawingCoordinatesRef.current.length > 0 || selectedFeatureRef.current) return;
+                    const strongHit = map.queryRenderedFeatures(event.point, {
+                        layers: ["hole-feature-area-layer", "hole-feature-area-outline-layer", "hole-feature-line-layer"],
+                    });
+                    if (strongHit.length > 0) return;
+                    const id = event.features?.[0]?.properties?.featureId;
+                    if (typeof id !== "string") return;
+                    event.originalEvent.stopPropagation();
+                    onSelectWeakFeature(id);
                 });
             }
 
@@ -845,6 +937,22 @@ export function MapCanvas({
         if (hole.basket_latitude && hole.basket_longitude) {
             coords.push([hole.basket_longitude, hole.basket_latitude]);
         }
+
+        ((courseRef.current.canonical_hole_features ?? []) as HoleFeature[]).forEach((feature) => {
+            if (!feature.geometry || !isSharedHoleFeatureType(feature.feature_type)) return;
+            if ((feature.applicable_hole_ids ?? [feature.hole_id]).includes(holeId)) return;
+            const weakCoordinates = feature.geometry.type === "LineString"
+                ? feature.geometry.coordinates
+                : feature.geometry.type === "Polygon" ? feature.geometry.coordinates[0] : [];
+            weakCoordinates.forEach((coordinate) => {
+                const lng = Number(coordinate[0]);
+                const lat = Number(coordinate[1]);
+                if (Number.isFinite(lng) && Number.isFinite(lat)
+                    && lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) {
+                    coords.push([lng, lat]);
+                }
+            });
+        });
 
         if (coords.length === 0) return;
 
