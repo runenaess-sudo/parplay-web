@@ -275,6 +275,12 @@ export function MapCanvas({
                 source: "weak-hole-feature-line-source",
                 paint: { "line-color": "#ffffff", "line-width": 2, "line-opacity": 0.38, "line-dasharray": [1, 1] },
             });
+            map.addLayer({
+                id: "weak-hole-feature-line-hit-layer",
+                type: "line",
+                source: "weak-hole-feature-line-source",
+                paint: { "line-color": "#ffffff", "line-width": 16, "line-opacity": 0.001 },
+            });
 
             map.addLayer({
                 id: "hole-feature-area-layer",
@@ -586,31 +592,6 @@ export function MapCanvas({
                 });
                 (map.getSource("weak-hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: weakAreaFeatures });
                 (map.getSource("weak-hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: weakLineFeatures });
-                if (process.env.NODE_ENV !== "production") {
-                    console.debug("[SHARED_FEATURE_DEBUG] weak feature pipeline", {
-                        selectedHoleId: selectedHoleRef.current,
-                        canonical: canonicalFeatures.map((feature) => ({
-                            id: feature.id,
-                            hole_id: feature.hole_id,
-                            origin_hole_id: feature.origin_hole_id,
-                            feature_type: feature.feature_type,
-                            geometry_type: feature.geometry?.type ?? null,
-                            applicable_hole_ids: feature.applicable_hole_ids ?? [feature.hole_id],
-                        })),
-                        weakCandidates: weakCandidates.map((feature) => ({
-                            id: feature.id,
-                            origin_hole_id: feature.origin_hole_id ?? feature.hole_id,
-                            feature_type: feature.feature_type,
-                            geometry_type: feature.geometry?.type ?? null,
-                        })),
-                        weakLineGeoJsonIds: weakLineFeatures.map((feature) => feature.properties?.featureId),
-                        weakAreaGeoJsonIds: weakAreaFeatures.map((feature) => feature.properties?.featureId),
-                        weakLineSourceReady: Boolean(map.getSource("weak-hole-feature-line-source")),
-                        weakAreaSourceReady: Boolean(map.getSource("weak-hole-feature-area-source")),
-                        weakLineLayerReady: Boolean(map.getLayer("weak-hole-feature-line-layer")),
-                        weakAreaLayerReady: Boolean(map.getLayer("weak-hole-feature-area-layer")),
-                    });
-                }
                 (map.getSource("hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: areaFeatures });
                 (map.getSource("hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: lineFeatures });
                 (map.getSource("hole-feature-stake-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: stakeFeatures });
@@ -663,7 +644,7 @@ export function MapCanvas({
                 });
             }
 
-            for (const layer of ["weak-hole-feature-area-layer", "weak-hole-feature-area-outline-layer", "weak-hole-feature-line-layer"]) {
+            for (const layer of ["weak-hole-feature-area-layer", "weak-hole-feature-area-outline-layer", "weak-hole-feature-line-layer", "weak-hole-feature-line-hit-layer"]) {
                 map.on("click", layer, (event) => {
                     if (modeRef.current !== "none" || featureToolRef.current
                         || drawingCoordinatesRef.current.length > 0 || selectedFeatureRef.current) return;
