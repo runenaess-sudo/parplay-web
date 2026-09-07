@@ -65,6 +65,7 @@ export function MapCanvas({
     const drawingCoordinatesRef = useRef<[number, number][]>(drawingCoordinates);
     const selectedFeatureRef = useRef<string | null>(selectedFeatureId);
     const selectedFairwayPointRef = useRef<{ holeId: string; index: number } | null>(null);
+    const clickDebugLoadLoggedRef = useRef(false);
 
     const updatePointsRef = useRef<() => void>(() => { });
 
@@ -592,6 +593,15 @@ export function MapCanvas({
                 });
                 (map.getSource("weak-hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: weakAreaFeatures });
                 (map.getSource("weak-hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: weakLineFeatures });
+                if (!clickDebugLoadLoggedRef.current) {
+                    clickDebugLoadLoggedRef.current = true;
+                    console.log("[SHARED_FEATURE_CLICK_DEBUG] weak layer loaded", {
+                        weakLineHitLayerExists: Boolean(map.getLayer("weak-hole-feature-line-hit-layer")),
+                        weakLineSourceExists: Boolean(map.getSource("weak-hole-feature-line-source")),
+                        weakLineFeatureCount: weakLineFeatures.length,
+                        weakLineFeatureIds: weakLineFeatures.map((feature) => feature.properties?.featureId),
+                    });
+                }
                 (map.getSource("hole-feature-area-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: areaFeatures });
                 (map.getSource("hole-feature-line-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: lineFeatures });
                 (map.getSource("hole-feature-stake-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: stakeFeatures });
@@ -613,6 +623,47 @@ export function MapCanvas({
             map.on("click", (e) => {
                 const holeId = selectedHoleRef.current;
                 const currentMode = modeRef.current;
+                const hitBox: [[number, number], [number, number]] = [
+                    [e.point.x - 8, e.point.y - 8],
+                    [e.point.x + 8, e.point.y + 8],
+                ];
+                const renderedHits = map.queryRenderedFeatures(hitBox);
+                const weakHitLayerIds = new Set([
+                    "weak-hole-feature-line-hit-layer",
+                    "weak-hole-feature-line-layer",
+                    "weak-hole-feature-area-layer",
+                    "weak-hole-feature-area-outline-layer",
+                ]);
+                const weakHits = renderedHits.filter((feature) =>
+                    weakHitLayerIds.has(String(feature.layer?.id ?? "")));
+                const canonicalIds = new Set(
+                    ((courseRef.current?.canonical_hole_features ?? []) as HoleFeature[])
+                        .map((feature) => feature.id),
+                );
+                const selectedHole = courseRef.current?.holes?.find((hole: any) => hole.id === holeId);
+                console.log("[SHARED_FEATURE_CLICK_DEBUG] map click", {
+                    mapClickFired: true,
+                    selectedHoleId: holeId,
+                    selectedHoleNumber: selectedHole?.number ?? null,
+                    lng: e.lngLat.lng,
+                    lat: e.lngLat.lat,
+                    mode: currentMode,
+                    featureTool: featureToolRef.current,
+                    drawingPointCount: drawingCoordinatesRef.current.length,
+                    selectedFeatureId: selectedFeatureRef.current,
+                    hits: renderedHits.map((feature) => ({
+                        layerId: feature.layer?.id ?? null,
+                        featureId: feature.properties?.featureId ?? null,
+                        featureType: feature.properties?.featureType ?? null,
+                    })),
+                    weakHitLayerFound: weakHits.some((feature) =>
+                        feature.layer?.id === "weak-hole-feature-line-hit-layer"),
+                    weakHits: weakHits.map((feature) => ({
+                        layerId: feature.layer?.id ?? null,
+                        featureId: feature.properties?.featureId ?? null,
+                        canonicalResolved: canonicalIds.has(String(feature.properties?.featureId ?? "")),
+                    })),
+                });
                 if (!holeId) return;
 
                 const lng = e.lngLat.lng;
@@ -646,15 +697,28 @@ export function MapCanvas({
 
             for (const layer of ["weak-hole-feature-area-layer", "weak-hole-feature-area-outline-layer", "weak-hole-feature-line-layer", "weak-hole-feature-line-hit-layer"]) {
                 map.on("click", layer, (event) => {
-                    if (modeRef.current !== "none" || featureToolRef.current
-                        || drawingCoordinatesRef.current.length > 0 || selectedFeatureRef.current) return;
+                    const id = event.features?.[0]?.properties?.featureId;
+                    const blocked = modeRef.current !== "none" || Boolean(featureToolRef.current)
+                        || drawingCoordinatesRef.current.length > 0 || Boolean(selectedFeatureRef.current);
+                    console.log("[SHARED_FEATURE_CLICK_DEBUG] delegated weak click", {
+                        handlerFired: true,
+                        clickedLayerId: layer,
+                        featureId: id ?? null,
+                        featureType: event.features?.[0]?.properties?.featureType ?? null,
+                        mode: modeRef.current,
+                        blocked,
+                    });
+                    if (blocked) return;
                     const strongHit = map.queryRenderedFeatures(event.point, {
                         layers: ["hole-feature-area-layer", "hole-feature-area-outline-layer", "hole-feature-line-layer"],
                     });
-                    if (strongHit.length > 0) return;
-                    const id = event.features?.[0]?.properties?.featureId;
+                    if (strongHit.length > 0) {
+                        console.log("[SHARED_FEATURE_CLICK_DEBUG] weak callback blocked by strong hit");
+                        return;
+                    }
                     if (typeof id !== "string") return;
                     event.originalEvent.stopPropagation();
+                    console.log("[SHARED_FEATURE_CLICK_DEBUG] firing weak callback", { featureId: id });
                     onSelectWeakFeature(id);
                 });
             }
