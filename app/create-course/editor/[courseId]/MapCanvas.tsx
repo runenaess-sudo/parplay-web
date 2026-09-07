@@ -938,22 +938,6 @@ export function MapCanvas({
             coords.push([hole.basket_longitude, hole.basket_latitude]);
         }
 
-        ((courseRef.current.canonical_hole_features ?? []) as HoleFeature[]).forEach((feature) => {
-            if (!feature.geometry || !isSharedHoleFeatureType(feature.feature_type)) return;
-            if ((feature.applicable_hole_ids ?? [feature.hole_id]).includes(holeId)) return;
-            const weakCoordinates = feature.geometry.type === "LineString"
-                ? feature.geometry.coordinates
-                : feature.geometry.type === "Polygon" ? feature.geometry.coordinates[0] : [];
-            weakCoordinates.forEach((coordinate) => {
-                const lng = Number(coordinate[0]);
-                const lat = Number(coordinate[1]);
-                if (Number.isFinite(lng) && Number.isFinite(lat)
-                    && lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) {
-                    coords.push([lng, lat]);
-                }
-            });
-        });
-
         if (coords.length === 0) return;
 
         const bounds = coords.reduce(
