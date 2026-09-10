@@ -88,7 +88,7 @@ function FeatureDetails({ feature, mandoPartners, originHoleNumber, currentHoleN
             {feature.feature_type === "OB_LINE" && (
                 <div className="space-y-2 rounded bg-slate-900/70 p-2">
                     <p className="text-xs font-semibold">OB side</p>
-                    <p className="text-[10px] text-neutral-400">Left/right is viewed along the drawn line from its first point toward its last point.</p>
+                    <p className="text-[10px] text-neutral-400">Left/right is viewed from the tee toward the basket.</p>
                     <div className="flex gap-2">
                         <button onClick={() => onObLineSide("LEFT")} className={choiceClass(obLineSide === "LEFT")}>Left</button>
                         <button onClick={() => onObLineSide("RIGHT")} className={choiceClass(obLineSide === "RIGHT")}>Right</button>

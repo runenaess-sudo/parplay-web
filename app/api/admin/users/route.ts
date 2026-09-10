@@ -1,15 +1,9 @@
-import { getUserAccess } from "@/lib/access";
-import { supabaseServer } from "@/lib/supabase-server";
+import { AdminAuthError, requireServerAdmin } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 
 export async function GET() {
     try {
-        const access = await getUserAccess();
-        if (access.membership !== "admin") {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
-
-        const supabase = await supabaseServer();
+        const { supabase } = await requireServerAdmin();
         const { data, error } = await supabase
             .from("profiles")
             .select("id, full_name, username, membership")
@@ -21,7 +15,11 @@ export async function GET() {
         }
 
         return NextResponse.json({ users: data ?? [] });
-    } catch (error: any) {
-        return NextResponse.json({ error: error?.message || "Failed to load users" }, { status: 500 });
+    } catch (error: unknown) {
+        if (error instanceof AdminAuthError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+        const message = error instanceof Error ? error.message : "Failed to load users";
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

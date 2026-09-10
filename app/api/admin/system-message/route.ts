@@ -1,13 +1,9 @@
-import { getUserAccess } from "@/lib/access";
-import { supabaseServer } from "@/lib/supabase-server";
+import { AdminAuthError, requireServerAdmin } from "@/lib/admin-auth";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
     try {
-        const access = await getUserAccess();
-        if (access.membership !== "admin") {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
+        const { supabase } = await requireServerAdmin();
 
         const { message, recipientMode, recipientIds } = await request.json();
         const text = String(message || "").trim();
@@ -16,14 +12,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Message is required" }, { status: 400 });
         }
 
-        const supabase = await supabaseServer();
-
         let targetUserIds: string[] = [];
 
         if (recipientMode === "custom") {
+            const requestedRecipientIds: unknown[] = Array.isArray(recipientIds) ? recipientIds : [];
             targetUserIds = Array.from(
                 new Set(
-                    (recipientIds || [])
+                    requestedRecipientIds
                         .map((id: unknown) => String(id || "").trim())
                         .filter(Boolean)
                 )
@@ -38,7 +33,7 @@ export async function POST(request: Request) {
                 throw profileError;
             }
 
-            targetUserIds = (profiles ?? []).map((row: any) => String(row.id));
+            targetUserIds = (profiles ?? []).map((row) => String(row.id));
         }
 
         if (!targetUserIds.length) {
@@ -58,7 +53,11 @@ export async function POST(request: Request) {
         }
 
         return NextResponse.json({ sent: rows.length });
-    } catch (error: any) {
-        return NextResponse.json({ error: error?.message || "Failed to send system message" }, { status: 500 });
+    } catch (error: unknown) {
+        if (error instanceof AdminAuthError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+        const message = error instanceof Error ? error.message : "Failed to send system message";
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
