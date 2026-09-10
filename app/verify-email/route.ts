@@ -37,11 +37,18 @@ export async function GET(request: Request) {
             redirect: "manual",
         });
         const contentType = upstream.headers.get("content-type") ?? "";
-        if (!contentType.toLowerCase().startsWith("text/html")) {
+        const body = await upstream.text();
+        const isHtmlResponse = contentType.toLowerCase().startsWith("text/html")
+            || body.trimStart().toLowerCase().startsWith("<!doctype html>");
+        if (!isHtmlResponse || body.length > 32_768) {
+            console.error("verify-email upstream response rejected", {
+                status: upstream.status,
+                contentType,
+            });
             return resultPage(502, "Verification unavailable", "Please return to ParPlay and try again later.");
         }
 
-        return new Response(await upstream.text(), {
+        return new Response(body, {
             status: upstream.status,
             headers: {
                 "Content-Type": "text/html; charset=utf-8",
@@ -51,7 +58,10 @@ export async function GET(request: Request) {
                 "X-Content-Type-Options": "nosniff",
             },
         });
-    } catch {
+    } catch (error) {
+        console.error("verify-email upstream request failed", {
+            error: error instanceof Error ? error.name : "unknown",
+        });
         return resultPage(502, "Verification unavailable", "Please return to ParPlay and try again later.");
     }
 }
