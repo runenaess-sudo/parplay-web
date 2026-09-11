@@ -85,6 +85,7 @@ export default function CourseClaimsPage() {
     const [contactFilter, setContactFilter] = useState<ContactState>("all");
     const [claims, setClaims] = useState<CourseClaim[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
     const [actingOn, setActingOn] = useState<string | null>(null);
     const [preparingClaimId, setPreparingClaimId] = useState<string | null>(null);
     const [preparationForm, setPreparationForm] = useState<PreparationForm | null>(null);
@@ -105,8 +106,10 @@ export default function CourseClaimsPage() {
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.error || "Could not load claims.");
             setClaims(payload.claims ?? []);
+            setLoadFailed(false);
         } catch (loadError: unknown) {
             setClaims([]);
+            setLoadFailed(true);
             setError(loadError instanceof Error ? loadError.message : "Could not load claims.");
         } finally {
             setLoading(false);
@@ -124,10 +127,14 @@ export default function CourseClaimsPage() {
                 );
                 const payload = await response.json();
                 if (!response.ok) throw new Error(payload.error || "Could not load claims.");
-                if (active) setClaims(payload.claims ?? []);
+                if (active) {
+                    setClaims(payload.claims ?? []);
+                    setLoadFailed(false);
+                }
             } catch (loadError: unknown) {
                 if (active) {
                     setClaims([]);
+                    setLoadFailed(true);
                     setError(
                         loadError instanceof Error ? loadError.message : "Could not load claims."
                     );
@@ -362,7 +369,7 @@ export default function CourseClaimsPage() {
                 <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-gray-300">
                     Loading claims...
                 </p>
-            ) : claims.length === 0 ? (
+            ) : loadFailed ? null : claims.length === 0 ? (
                 <p className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-gray-300">
                     No {filter === "all" ? "course" : filter} claims found.
                 </p>

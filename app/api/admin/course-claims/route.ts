@@ -71,10 +71,9 @@ export async function GET(request: Request) {
                     .in("course_id", courseIds)
                 : Promise.resolve({ data: [], error: null }),
             claimIds.length
-                ? supabase.from("course_owner_invitations")
-                    .select("id,claim_id,recipient_email,delivery_status,sent_at,expires_at,consumed_at,revoked_at,created_at")
-                    .in("claim_id", claimIds)
-                    .order("created_at", { ascending: false })
+                ? supabase.rpc("get_admin_course_owner_invitations_v1", {
+                    p_claim_ids: claimIds,
+                })
                 : Promise.resolve({ data: [], error: null }),
         ]);
 
@@ -152,6 +151,11 @@ export async function GET(request: Request) {
             claims: filteredClaims,
         });
     } catch (error: unknown) {
+        const databaseError = error as { code?: unknown };
+        console.error("admin course claims load failed", {
+            code: typeof databaseError?.code === "string" ? databaseError.code : "unknown",
+            operation: "load_claims",
+        });
         return apiError(error, "Failed to load course claims");
     }
 }
