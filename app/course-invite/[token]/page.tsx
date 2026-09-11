@@ -48,7 +48,7 @@ export default function CourseInvitePage() {
                 <p className="mt-2 text-xl font-semibold text-white">{preview.courseName}</p>
                 <p className="mt-2 text-sm text-gray-400">Use the ParPlay account for {preview.maskedEmail}.</p>
                 <button onClick={activate} disabled={working} className="mt-6 w-full rounded-xl bg-blue-500 px-4 py-3 font-semibold text-white disabled:opacity-50">{working?"Checking...":"Continue with this account"}</button>
-                <div className="mt-4 flex justify-center gap-4 text-sm"><Link className="text-blue-300" href="/login">Log in</Link><span className="text-gray-500">Create an account in the ParPlay app</span></div>
+                <div className="mt-4 flex justify-center gap-4 text-sm"><Link className="text-blue-300" href={`/login?returnTo=${encodeURIComponent(`/course-invite/${token}`)}`}>Log in</Link><span className="text-gray-500">Create an account in the ParPlay app</span></div>
             </>}
             {error&&<p className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-200">{error}</p>}
         </section>

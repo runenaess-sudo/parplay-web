@@ -16,22 +16,30 @@ export default function LoginPageClient() {
         setLoading(true);
         setErrorMsg(null);
 
-        const { data, error } = await supabaseBrowser.auth.signInWithPassword({
-            email,
-            password,
-        });
+        try {
+            const { data, error } = await supabaseBrowser.auth.signInWithPassword({
+                email,
+                password,
+            });
 
-        setLoading(false);
+            if (error || !data.session) {
+                setErrorMsg(error?.message || "Login failed. Please try again.");
+                return;
+            }
 
-        if (error) {
-            setErrorMsg(error.message);
-            return;
+            const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo");
+            const safeReturnTo = requestedReturnTo
+                && /^\/course-invite\/[0-9a-f]{64}$/i.test(requestedReturnTo)
+                ? requestedReturnTo
+                : "/create-course";
+
+            router.replace(safeReturnTo);
+            router.refresh();
+        } catch {
+            setErrorMsg("Unable to log in right now. Please check your connection and try again.");
+        } finally {
+            setLoading(false);
         }
-
-        // Bekreft at session er satt og naviger videre
-        const { data: sessionData } = await supabaseBrowser.auth.getSession();
-        console.log("session after signIn:", sessionData);
-        router.push("/create-course");
     };
 
     return (
@@ -39,7 +47,7 @@ export default function LoginPageClient() {
             <h1>Logg inn</h1>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required style={{ padding: 12, width: 260 }} />
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required style={{ padding: 12, width: 260 }} />
-            {errorMsg && <div style={{ color: "red" }}>{errorMsg}</div>}
+            {errorMsg && <div role="alert" style={{ color: "#DC2626", maxWidth: 320, textAlign: "center" }}>{errorMsg}</div>}
             <button type="submit" disabled={loading} style={{ padding: 12, width: 260, background: "#2D6CDF", color: "white", borderRadius: 8 }}>
                 {loading ? "Logger inn…" : "Logg inn"}
             </button>

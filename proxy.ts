@@ -15,6 +15,7 @@ export function proxy(req: NextRequest) {
         pathname === "/" ||
         pathname.startsWith("/login") ||
         pathname.startsWith("/auth") ||
+        pathname.startsWith("/course-invite/") ||
         pathname === "/verify-email" ||
         isSharedLiveRoundPath
     ) {
