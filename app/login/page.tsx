@@ -1,15 +1,41 @@
 "use client";
 
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+const NORMAL_AUTHENTICATED_DESTINATION = "/create-course";
+
+function validatedDestination(search: string) {
+    const requestedReturnTo = new URLSearchParams(search).get("returnTo");
+    return requestedReturnTo && /^\/course-invite\/[0-9a-f]{64}$/i.test(requestedReturnTo)
+        ? requestedReturnTo
+        : NORMAL_AUTHENTICATED_DESTINATION;
+}
 
 export default function LoginPageClient() {
-    const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        // Invitation login may intentionally replace an already signed-in wrong account.
+        if (validatedDestination(window.location.search) !== NORMAL_AUTHENTICATED_DESTINATION) {
+            return;
+        }
+
+        let active = true;
+        void supabaseBrowser.auth.getSession()
+            .then(({ data }) => {
+                if (active && data.session) {
+                    window.location.replace(NORMAL_AUTHENTICATED_DESTINATION);
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            active = false;
+        };
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,14 +53,7 @@ export default function LoginPageClient() {
                 return;
             }
 
-            const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo");
-            const safeReturnTo = requestedReturnTo
-                && /^\/course-invite\/[0-9a-f]{64}$/i.test(requestedReturnTo)
-                ? requestedReturnTo
-                : "/create-course";
-
-            router.replace(safeReturnTo);
-            router.refresh();
+            window.location.assign(validatedDestination(window.location.search));
         } catch {
             setErrorMsg("Unable to log in right now. Please check your connection and try again.");
         } finally {
