@@ -11,8 +11,10 @@ import { MenuItem } from "../Header/MenuItem"; // juster path hvis MenuItem ligg
 
 type AccessInfo = {
     membership: string;
-    limits: Record<string, any> | null;
+    limits: Record<string, unknown> | null;
 };
+
+type ActiveCourseInvitation = { invitation_id: string; course_name: string };
 
 export default function Header() {
     const pathname = usePathname();
@@ -20,6 +22,8 @@ export default function Header() {
 
     const [session, setSession] = useState<Session | null>(null);
     const [access, setAccess] = useState<AccessInfo | null>(null);
+    const [invitations, setInvitations] = useState<ActiveCourseInvitation[]>([]);
+    const [showInvitations, setShowInvitations] = useState(false);
 
     useEffect(() => {
         async function loadSessionAndAccess() {
@@ -29,8 +33,12 @@ export default function Header() {
             if (session?.user) {
                 const nextAccess = await getUserAccess();
                 setAccess(nextAccess);
+                const response = await fetch("/api/course-invitations", { cache: "no-store" });
+                const body = response.ok ? await response.json() as { invitations?: ActiveCourseInvitation[] } : null;
+                setInvitations(body?.invitations ?? []);
             } else {
                 setAccess(null);
+                setInvitations([]);
             }
         }
 
@@ -42,8 +50,12 @@ export default function Header() {
             if (nextSession?.user) {
                 const nextAccess = await getUserAccess();
                 setAccess(nextAccess);
+                const response = await fetch("/api/course-invitations", { cache: "no-store" });
+                const body = response.ok ? await response.json() as { invitations?: ActiveCourseInvitation[] } : null;
+                setInvitations(body?.invitations ?? []);
             } else {
                 setAccess(null);
+                setInvitations([]);
             }
         });
 
@@ -68,6 +80,19 @@ export default function Header() {
 
             {isLoggedIn ? (
                 <nav className="menu">
+                    {invitations.length > 0 && <div className="relative">
+                        <button type="button" aria-label={`${invitations.length} course invitation${invitations.length === 1 ? "" : "s"}`} aria-expanded={showInvitations} onClick={() => setShowInvitations((visible) => !visible)} className="relative rounded-full p-2 text-white hover:bg-white/10">
+                            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17H9m9-6a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                            <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4">{invitations.length}</span>
+                        </button>
+                        {showInvitations && <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-white/10 bg-black/95 p-3 text-white shadow-xl backdrop-blur-md">
+                            <p className="text-sm font-semibold">Course invitations</p>
+                            {invitations.map((invitation) => <div key={invitation.invitation_id} className="mt-3 border-t border-white/10 pt-3">
+                                <p className="text-sm text-gray-300">You have a course ready to manage</p><p className="mt-1 font-semibold">{invitation.course_name}</p>
+                                <Link onClick={() => setShowInvitations(false)} className="mt-2 inline-block text-sm text-blue-300" href={`/course-invitations/${invitation.invitation_id}`}>Open invitation</Link>
+                            </div>)}
+                        </div>}
+                    </div>}
                     <MenuItem href="/community" active={pathname.startsWith("/community")}>Community</MenuItem>
 
                     {access?.membership === "admin" && (
