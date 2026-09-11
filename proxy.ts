@@ -25,8 +25,8 @@ export function proxy(req: NextRequest) {
     // Sjekk om vi har noen gyldige Supabase auth-cookies.
     const cookies = req.cookies.getAll();
     const hasSupabaseAuthCookie = cookies.some((cookie) =>
-        cookie.name === "sb-access-token" ||
-        cookie.name.startsWith("sb-") && /(auth|refresh|access)-token$/.test(cookie.name)
+        /^sb-access-token(?:\.\d+)?$/.test(cookie.name) ||
+        /^sb-.+-(?:auth|refresh|access)-token(?:\.\d+)?$/.test(cookie.name)
     );
 
     if (!hasSupabaseAuthCookie) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const NORMAL_AUTHENTICATED_DESTINATION = "/create-course";
 
@@ -17,6 +17,8 @@ export default function LoginPageClient() {
     const [password, setPassword] = useState("");
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const submittingRef = useRef(false);
+    const navigationTriggeredRef = useRef(false);
 
     useEffect(() => {
         // Invitation login may intentionally replace an already signed-in wrong account.
@@ -27,7 +29,8 @@ export default function LoginPageClient() {
         let active = true;
         void supabaseBrowser.auth.getSession()
             .then(({ data }) => {
-                if (active && data.session) {
+                if (active && data.session && !navigationTriggeredRef.current) {
+                    navigationTriggeredRef.current = true;
                     window.location.replace(NORMAL_AUTHENTICATED_DESTINATION);
                 }
             })
@@ -39,6 +42,9 @@ export default function LoginPageClient() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (submittingRef.current || navigationTriggeredRef.current) return;
+
+        submittingRef.current = true;
         setLoading(true);
         setErrorMsg(null);
 
@@ -53,10 +59,12 @@ export default function LoginPageClient() {
                 return;
             }
 
+            navigationTriggeredRef.current = true;
             window.location.assign(validatedDestination(window.location.search));
         } catch {
             setErrorMsg("Unable to log in right now. Please check your connection and try again.");
         } finally {
+            submittingRef.current = false;
             setLoading(false);
         }
     };
