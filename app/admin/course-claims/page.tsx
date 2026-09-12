@@ -16,6 +16,7 @@ type CourseClaim = {
     course_name: string | null;
     club_name: string | null;
     requester_name: string | null;
+    manager_name: string | null;
     course_created_by: string | null;
     creator_name: string | null;
     owner_contact_status: "known" | "unknown" | null;
@@ -393,9 +394,11 @@ export default function CourseClaimsPage() {
                                                     ? "bg-emerald-500/15 text-emerald-200"
                                                     : "bg-red-500/15 text-red-200"
                                         }`}>
-                                            {claim.status}
+                                            {claim.status === "accepted" ? "Accepted" : claim.status}
                                         </span>
                                     </div>
+
+                                    {claim.status === "accepted" && <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-200">Ownership activated</p><p className="mt-2 text-lg font-semibold text-white">{claim.course_name || "Unnamed course"}</p><p className="mt-1 text-sm text-gray-200">Club: {claim.club_name || "Unknown club"}</p><p className="text-sm text-gray-300">Manager: {claim.manager_name || claim.contact_name || claim.contact_email || "Not available"}</p><p className="text-sm text-gray-300">Activated: {formatDate(claim.invitation?.consumed_at || claim.decided_at)}</p></div>}
 
                                     <div className={`rounded-xl border p-4 ${
                                         claim.owner_contact_status === "unknown"
@@ -421,7 +424,9 @@ export default function CourseClaimsPage() {
                                             {claim.owner_contact_status === "unknown"
                                                 ? "The course creator did not know who manages this course."
                                                 : claim.owner_contact_status === "known"
-                                                    ? "Owner contact information has been supplied. No invitation has been sent."
+                                                    ? claim.status === "accepted"
+                                                        ? "This contact completed the ownership activation flow."
+                                                        : "Owner contact information has been supplied."
                                                     : "This course predates the current owner-contact status system."}
                                         </p>
                                     </div>
@@ -451,9 +456,9 @@ export default function CourseClaimsPage() {
                                         <div><dt className="text-gray-500">Requested by</dt><dd className="break-words text-gray-200">{claim.requester_name || claim.requested_by}</dd></div>
                                         <div><dt className="text-gray-500">Requested</dt><dd className="text-gray-200">{formatDate(claim.created_at)}</dd></div>
                                         <div><dt className="text-gray-500">Decided</dt><dd className="text-gray-200">{formatDate(claim.decided_at)}</dd></div>
-                                        <div><dt className="text-gray-500">Claim ID</dt><dd className="break-all font-mono text-xs text-gray-400">{claim.id}</dd></div>
-                                        <div><dt className="text-gray-500">Course ID</dt><dd className="break-all font-mono text-xs text-gray-400">{claim.course_id}</dd></div>
                                     </dl>
+
+                                    <details className="text-xs text-gray-500"><summary className="cursor-pointer">Technical details</summary><p className="mt-2 break-all font-mono">Claim: {claim.id}</p><p className="break-all font-mono">Course: {claim.course_id}</p></details>
 
                                     {claim.status === "pending" && (
                                         <div className={`rounded-xl border p-4 ${

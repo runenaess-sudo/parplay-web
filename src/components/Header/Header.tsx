@@ -64,6 +64,23 @@ export default function Header() {
         };
     }, []);
 
+    useEffect(() => {
+        async function refreshInvitations() {
+            const [nextAccess, response] = await Promise.all([
+                getUserAccess(),
+                fetch("/api/course-invitations", { cache: "no-store" }),
+            ]);
+            const body = response.ok
+                ? await response.json() as { invitations?: ActiveCourseInvitation[] }
+                : null;
+            setAccess(nextAccess);
+            setInvitations(body?.invitations ?? []);
+            setShowInvitations(false);
+        }
+        window.addEventListener("course-invitations-changed", refreshInvitations);
+        return () => window.removeEventListener("course-invitations-changed", refreshInvitations);
+    }, []);
+
     const isLoggedIn = !!session?.user;
     const canCreateCourse =
         access?.membership === "admin" || access?.limits?.can_create_course !== false;
@@ -97,6 +114,10 @@ export default function Header() {
 
                     {access?.membership === "admin" && (
                         <MenuItem href="/admin" active={pathname.startsWith("/admin")}>Admin</MenuItem>
+                    )}
+
+                    {(access?.membership === "club_manager" || access?.membership === "admin") && (
+                        <MenuItem href="/club-manager" active={pathname.startsWith("/club-manager")}>Club Manager</MenuItem>
                     )}
 
                     <div className="relative group">

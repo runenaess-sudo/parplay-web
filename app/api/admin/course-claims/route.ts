@@ -13,6 +13,7 @@ type InvitationRow = {
     sent_at: string | null;
     expires_at: string;
     consumed_at: string | null;
+    consumed_by: string | null;
     revoked_at: string | null;
     created_at: string;
 };
@@ -83,9 +84,11 @@ export async function GET(request: Request) {
         if (invitationsResult.error) throw invitationsResult.error;
 
         const courseRows = coursesResult.data ?? [];
+        const invitationRows = (invitationsResult.data ?? []) as InvitationRow[];
         const profileIds = [...new Set([
             ...rows.map((claim) => claim.requested_by),
             ...courseRows.map((course) => course.created_by),
+            ...invitationRows.map((invitation) => invitation.consumed_by),
         ].filter(Boolean))];
         const profilesResult = profileIds.length
             ? await supabase
@@ -107,7 +110,7 @@ export async function GET(request: Request) {
             (contactsResult.data ?? []).map((row) => [row.course_id, row])
         );
         const invitations = new Map<string, InvitationRow>();
-        for (const invitation of (invitationsResult.data ?? []) as InvitationRow[]) {
+        for (const invitation of invitationRows) {
             if (!invitations.has(invitation.claim_id)) invitations.set(invitation.claim_id, invitation);
         }
 
@@ -129,6 +132,9 @@ export async function GET(request: Request) {
                     : null,
                 club_name: claim.club_id ? clubNames.get(claim.club_id) ?? null : null,
                 requester_name: profileNames.get(claim.requested_by) ?? null,
+                manager_name: invitation?.consumed_by
+                    ? profileNames.get(invitation.consumed_by) ?? null
+                    : null,
                 owner_contact_status: ownerContactStatus,
                 contact_name: contact?.name ?? null,
                 contact_email: contact?.email ?? null,
@@ -139,13 +145,14 @@ export async function GET(request: Request) {
             };
         });
 
-        const filteredClaims = contactState === "all"
+        const filteredClaims = (contactState === "all"
             ? enrichedClaims
             : enrichedClaims.filter((claim) =>
                 contactState === "review"
                     ? claim.owner_contact_status === null
                     : claim.owner_contact_status === contactState
-            );
+            )).sort((left,right) => new Date(right.decided_at ?? right.created_at).getTime()
+                - new Date(left.decided_at ?? left.created_at).getTime());
 
         return NextResponse.json({
             claims: filteredClaims,

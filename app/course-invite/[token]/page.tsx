@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-type Preview = { state: string; courseName?: string; maskedEmail?: string };
+type Preview = { state: string; courseName?: string; maskedEmail?: string; courseId?: string };
 
 export default function CourseInvitePage() {
     const { token } = useParams<{ token: string }>();
@@ -25,7 +25,7 @@ export default function CourseInvitePage() {
             const response = await fetch("/api/course-invite", {
                 method: "POST",headers: { "Content-Type": "application/json" },body: JSON.stringify({ token }),
             });
-            const body = await response.json();
+            const body = await response.json() as { error?: string; result?: { course_id?: string } };
             if (!response.ok) {
                 if (response.status === 401) setError("Log in with the account that received this invitation.");
                 else if (body.error === "COURSE_INVITATION_WRONG_ACCOUNT") setError("This invitation was sent to a different email address. Sign out and use the correct account.");
@@ -33,7 +33,8 @@ export default function CourseInvitePage() {
                 else setError("This invitation cannot be activated. It may be expired, used or no longer valid.");
                 return;
             }
-            setPreview({ ...preview, state: "activated" });
+            setPreview({ ...preview, state: "activated", courseId: body.result?.course_id });
+            window.dispatchEvent(new Event("course-invitations-changed"));
         } catch { setError("Invitation service is temporarily unavailable."); }
         finally { setWorking(false); }
     }
@@ -43,7 +44,7 @@ export default function CourseInvitePage() {
         <section className="w-full rounded-2xl border border-white/10 bg-white/5 p-6 text-center shadow-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">ParPlay Course</p>
             <h1 className="mt-3 text-3xl font-semibold">Manage your course</h1>
-            {!preview ? <p className="mt-4 text-gray-300">Loading invitation...</p> : terminal[preview.state] ? <p className="mt-4 text-gray-300">{terminal[preview.state]}</p> : <>
+            {!preview ? <p className="mt-4 text-gray-300">Loading invitation...</p> : terminal[preview.state] ? <><p className="mt-4 text-gray-300">{terminal[preview.state]}</p>{preview.state === "activated" && preview.courseId && <><Link className="mt-6 block w-full rounded-xl bg-blue-500 px-4 py-3 font-semibold text-white" href={`/create-course/editor/${preview.courseId}`}>Manage course</Link><Link className="mt-3 inline-block text-sm text-blue-300" href="/club-manager">Club Manager home</Link></>}</> : <>
                 <p className="mt-4 text-gray-300">You&apos;ve been invited to manage:</p>
                 <p className="mt-2 text-xl font-semibold text-white">{preview.courseName}</p>
                 <p className="mt-2 text-sm text-gray-400">Use the ParPlay account for {preview.maskedEmail}.</p>
