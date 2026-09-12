@@ -12,9 +12,17 @@ export default async function ClubManagerPage({ searchParams }: { searchParams: 
     if (access.profile.membership === "admin" && !clubId && clubs?.length === 1) clubId = clubs[0].id;
     const club = clubId ? (clubs?.find((item) => item.id === clubId)
         ?? (await access.supabase.from("clubs").select("id,name").eq("id", clubId).maybeSingle()).data) : null;
-    const { data: courses } = clubId
-        ? await access.supabase.from("courses").select("id,name,is_published,status").eq("club_id", clubId).order("name")
-        : { data: [] };
+    const { data: acceptedClaims, error: acceptedClaimsError } = clubId
+        ? await access.supabase.from("course_claim_requests").select("course_id")
+            .eq("club_id", clubId).eq("status", "accepted")
+        : { data: [], error: null };
+    if (acceptedClaimsError) throw acceptedClaimsError;
+    const acceptedCourseIds = [...new Set((acceptedClaims ?? []).map((claim) => claim.course_id))];
+    const { data: courses, error: coursesError } = clubId && acceptedCourseIds.length > 0
+        ? await access.supabase.from("courses").select("id,name,is_published,status")
+            .eq("club_id", clubId).in("id", acceptedCourseIds).order("name")
+        : { data: [], error: null };
+    if (coursesError) throw coursesError;
 
     return <main className="mx-auto w-full max-w-4xl space-y-6 p-6 text-white">
         <section className="rounded-2xl border border-white/10 bg-white/5 p-6"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">ParPlay Club Manager</p><h1 className="mt-2 text-3xl font-semibold">{club?.name ?? "Select a club"}</h1></section>

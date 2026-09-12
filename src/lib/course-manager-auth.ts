@@ -23,9 +23,18 @@ export async function canOpenCourseEditor(courseId: string) {
     ]);
     if (!profile || !course) return false;
     if (profile.membership === "admin") return true;
-    if (profile.membership === "club_manager" && profile.club_id && profile.club_id === course.club_id) return true;
-    if (course.created_by !== userData.user.id) return false;
-    const { data: acceptedClaim } = await supabase.from("course_claim_requests")
-        .select("id").eq("course_id", courseId).eq("status", "accepted").limit(1).maybeSingle();
-    return !acceptedClaim;
+    const { data: acceptedClaims, error: acceptedClaimsError } = await supabase
+        .from("course_claim_requests")
+        .select("club_id")
+        .eq("course_id", courseId)
+        .eq("status", "accepted");
+    if (acceptedClaimsError) return false;
+    if (profile.membership === "club_manager") {
+        return Boolean(
+            profile.club_id
+            && profile.club_id === course.club_id
+            && acceptedClaims?.some((claim) => claim.club_id === profile.club_id),
+        );
+    }
+    return course.created_by === userData.user.id && acceptedClaims?.length === 0;
 }
