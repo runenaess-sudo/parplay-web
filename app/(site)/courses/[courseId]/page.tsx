@@ -2,9 +2,19 @@ import { supabaseServer } from "@/lib/supabase-server";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CourseLocationMap } from "./CourseLocationMap";
 
 type Layout = { id: string; name: string | null; description: string | null; hole_count: number | null; par_total: number | null; length_total: number | null; walk_length: number | null; difficulty: number | null; color: string | null; is_default: boolean | null; par_rating: number | null };
 type FacilityValue = string | boolean | number | null;
+type CourseMetrics = {
+    completed_rounds: number;
+    unique_players: number;
+    average_score: number | null;
+    matchplay_sessions: number;
+    battle_sessions: number;
+    live_players: number;
+    traffic: Array<{ hour: number; percent: number; is_live: boolean }>;
+};
 
 const facilityLabels: Record<string, string> = {
     toilets: "Restrooms", trashcans: "Trash cans", signage: "Course signage",
@@ -14,6 +24,10 @@ const facilityLabels: Record<string, string> = {
 
 function meaningfulNumber(value: number | null | undefined) {
     return value != null && Number.isFinite(Number(value)) && Number(value) > 0;
+}
+
+function difficultyLabel(value: number | null | undefined) {
+    return ({ 1: "Easy", 2: "Moderate", 3: "Challenging", 4: "Hard", 5: "Very challenging" } as Record<number, string>)[Number(value)] ?? null;
 }
 
 function average(values: Array<number | null>) {
@@ -32,7 +46,7 @@ function formatDate(value: string | null) {
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
     const { courseId } = await params;
     const supabase = await supabaseServer();
-    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult] = await Promise.all([
+    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult, metricsResult] = await Promise.all([
         supabase.from("courses")
             .select("id,name,location,description,country,country_code,latitude,longitude,is_published")
             .eq("id", courseId).eq("is_published", true).maybeSingle(),
@@ -50,6 +64,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         supabase.from("tournaments").select("id,name,start_date,end_date,type,game_mode")
             .eq("course_id", courseId).eq("status", "published")
             .order("start_date", { ascending: true }).limit(3),
+        supabase.rpc("get_public_course_profile_metrics_v1", { p_course_id: courseId }),
     ]);
 
     if (courseResult.error || !courseResult.data) notFound();
@@ -60,6 +75,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
     const facilities = facilitiesResult.data as Record<string, FacilityValue> | null;
     const ratings = ratingsResult.data ?? [];
     const rating = average(ratings.map((row) => row.average));
+    const metrics = (!metricsResult.error && metricsResult.data
+        ? metricsResult.data as CourseMetrics : null);
     const primaryLayout = layouts.find((layout) => layout.is_default) ?? layouts[0];
     const largestHoleCount = Math.max(0, ...layouts.map((layout) => Number(layout.hole_count) || 0));
     const locationLine = [course.location, course.country].filter(Boolean).join(", ");
@@ -81,10 +98,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         rating != null ? { label: "Course rating", value: rating.toFixed(1), note: `${ratings.length} ${ratings.length === 1 ? "rating" : "ratings"}` } : null,
         meaningfulNumber(primaryLayout?.par_total) ? { label: "Par", value: String(primaryLayout.par_total) } : null,
         meaningfulNumber(primaryLayout?.length_total) ? { label: "Course length", value: `${primaryLayout.length_total} m` } : null,
-        meaningfulNumber(primaryLayout?.difficulty) ? { label: "Difficulty", value: String(primaryLayout.difficulty) } : null,
+        difficultyLabel(primaryLayout?.difficulty) ? { label: "Difficulty", value: difficultyLabel(primaryLayout?.difficulty)! } : null,
     ].filter((fact): fact is { label: string; value: string; note?: string } => fact !== null);
 
-    return <main className="mx-auto max-w-6xl px-4 pb-20 pt-2 sm:px-6 lg:px-8">
+    return <main className="mx-auto max-w-[90rem] px-4 pb-20 pt-2 sm:px-6 lg:px-10">
         <Link href="/courses" className="mb-5 inline-flex text-sm font-semibold text-blue-300 transition hover:text-blue-200">← All courses</Link>
 
         <section className="relative min-h-[25rem] overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-800 via-slate-950 to-black shadow-2xl shadow-black/30 sm:min-h-[32rem]">
@@ -99,13 +116,33 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             </div>
         </section>
 
-        {quickFacts.length > 0 && <section aria-label="Course facts" className="grid grid-cols-2 gap-x-6 gap-y-7 border-b border-white/10 py-9 sm:grid-cols-3 lg:grid-cols-6">
-            {quickFacts.map((fact) => <div key={fact.label}>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">{fact.label}</p>
+        {quickFacts.length > 0 && <section aria-label="Course facts" className="grid grid-cols-2 gap-3 py-6 sm:grid-cols-3 lg:grid-cols-6">
+            {quickFacts.map((fact) => <div key={fact.label} className="rounded-2xl border border-white/20 bg-white/20 p-4 shadow-sm backdrop-blur-md">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/65">{fact.label}</p>
                 <p className="mt-2 text-2xl font-bold text-white">{fact.value}</p>
-                {fact.note && <p className="mt-1 text-xs text-gray-500">{fact.note}</p>}
+                {fact.note && <p className="mt-1 text-xs text-white/60">{fact.note}</p>}
             </div>)}
         </section>}
+
+        <section className="grid gap-4 py-8 md:grid-cols-2 xl:grid-cols-3">
+            <DashboardCard eyebrow="Community" title="Course rating">
+                {rating != null ? <><div className="flex items-end gap-3"><strong className="text-5xl font-black">{rating.toFixed(1)}</strong><span className="pb-1 text-sm text-white/55">{ratings.length} {ratings.length === 1 ? "rating" : "ratings"}</span></div>
+                    <div className="mt-6 space-y-3">{[["Course", average(ratings.map((row) => row.course_experience))], ["Variety", average(ratings.map((row) => row.variety))], ["Maintenance", average(ratings.map((row) => row.maintenance))], ["Location", average(ratings.map((row) => row.location))], ["Accessibility", average(ratings.map((row) => row.accessibility))]].filter((entry) => entry[1] != null).map(([label, value]) => <div key={String(label)}><div className="mb-1 flex justify-between text-xs text-white/65"><span>{label}</span><span>{Number(value).toFixed(1)}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-blue-400" style={{ width: `${Math.min(100, Number(value) * 20)}%` }} /></div></div>)}</div></>
+                    : <p className="text-sm text-white/55">Ratings will appear as players review this course.</p>}
+            </DashboardCard>
+
+            <DashboardCard eyebrow="Right now" title="Live traffic">
+                {metrics ? <><div className="flex items-baseline gap-2"><strong className="text-4xl font-black">{metrics.live_players}</strong><span className="text-sm text-white/55">live players</span></div>
+                    {metrics.traffic.length > 0 && <div className="mt-7 flex h-16 items-end gap-1" aria-label="Hourly course activity">{metrics.traffic.filter((point) => point.hour >= 6 && point.hour <= 22).map((point) => <div key={point.hour} title={`${point.hour}:00 · ${point.percent}%`} className={`min-w-0 flex-1 rounded-t ${point.is_live ? "bg-emerald-400" : "bg-blue-400/70"}`} style={{ height: `${Math.max(8, point.percent)}%` }} />)}</div>}
+                    <p className="mt-4 text-xs text-white/45">Typical hourly activity from 06:00 to 22:00</p></>
+                    : <p className="text-sm text-white/55">Trip activity is not available for this course yet.</p>}
+            </DashboardCard>
+
+            <DashboardCard eyebrow="Find your way" title="Location" flush>
+                {course.latitude != null && course.longitude != null && <CourseLocationMap latitude={course.latitude} longitude={course.longitude} name={course.name} />}
+                <div className="p-5">{locationLine && <p className="text-sm text-white/65">{locationLine}</p>}{directionsUrl && <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-bold hover:bg-blue-500">Open in maps ↗</a>}</div>
+            </DashboardCard>
+        </section>
 
         <div className="mt-14 grid gap-16 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <div className="min-w-0 space-y-16">
@@ -137,29 +174,19 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
                     </div>
                 </section>}
 
-                {rating != null && <section>
-                    <SectionHeading eyebrow="Community" title="Course rating" />
-                    <div className="flex flex-col gap-8 border-y border-white/10 py-7 sm:flex-row sm:items-center">
-                        <div className="shrink-0"><p className="text-5xl font-black text-white">{rating.toFixed(1)}</p>
-                            <p className="mt-1 text-sm text-gray-400">Based on {ratings.length} {ratings.length === 1 ? "rating" : "ratings"}</p></div>
-                        <div className="grid flex-1 grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
-                            {[["Course", average(ratings.map((row) => row.course_experience))], ["Variety", average(ratings.map((row) => row.variety))], ["Maintenance", average(ratings.map((row) => row.maintenance))], ["Location", average(ratings.map((row) => row.location))], ["Accessibility", average(ratings.map((row) => row.accessibility))]]
-                                .filter((entry) => entry[1] != null).map(([label, value]) => <div key={String(label)}>
-                                    <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
-                                    <p className="mt-1 text-lg font-bold text-white">{Number(value).toFixed(1)}</p>
-                                </div>)}
-                        </div>
-                    </div>
-                </section>}
-
-                {(eventsResult.data?.length ?? 0) > 0 && <section>
-                    <SectionHeading eyebrow="At the course" title="Published events" />
-                    <div className="divide-y divide-white/10 border-y border-white/10">
-                        {eventsResult.data?.map((event) => <article key={event.id} className="flex flex-col justify-between gap-2 py-5 sm:flex-row sm:items-center">
-                            <div><h3 className="font-semibold text-white">{event.name}</h3>
-                                {[event.type, event.game_mode].filter(Boolean).length > 0 && <p className="mt-1 text-sm capitalize text-gray-400">{[event.type, event.game_mode].filter(Boolean).join(" · ")}</p>}</div>
-                            {formatDate(event.start_date) && <p className="text-sm font-semibold text-blue-300">{formatDate(event.start_date)}</p>}
-                        </article>)}
+                {metrics && <section>
+                    <SectionHeading eyebrow="Activity" title="Course stats" />
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-7 border-y border-white/10 py-7 sm:grid-cols-3">
+                        {[
+                            ["Completed rounds", metrics.completed_rounds],
+                            ["Unique players", metrics.unique_players],
+                            ["Average score", metrics.average_score],
+                            ["MatchPlay", metrics.matchplay_sessions],
+                            ["Battles", metrics.battle_sessions],
+                        ].filter(([, value]) => value != null && Number(value) > 0).map(([label, value]) => <div key={String(label)}>
+                            <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
+                            <p className="mt-1 text-2xl font-bold text-white">{value}</p>
+                        </div>)}
                     </div>
                 </section>}
             </div>
@@ -184,10 +211,33 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
                 <Image src={image.image_url} alt={`${course.name} course view ${index + 2}`} fill sizes="(max-width: 640px) 100vw, 50vw" className="object-cover transition duration-500 hover:scale-[1.03]" />
             </div>)}</div>
         </section>}
+
+        <section className="mt-16">
+            <SectionHeading eyebrow="At the course" title="Upcoming events" />
+            {(eventsResult.data?.length ?? 0) > 0 ? <div className="divide-y divide-white/10 border-y border-white/10">
+                {eventsResult.data?.map((event) => <article key={event.id} className="flex flex-col justify-between gap-2 py-5 sm:flex-row sm:items-center">
+                    <div><h3 className="font-semibold text-white">{event.name}</h3>
+                        {[event.type, event.game_mode].filter(Boolean).length > 0 && <p className="mt-1 text-sm capitalize text-gray-400">{[event.type, event.game_mode].filter(Boolean).join(" · ")}</p>}</div>
+                    {formatDate(event.start_date) && <p className="text-sm font-semibold text-blue-300">{formatDate(event.start_date)}</p>}
+                </article>)}
+            </div> : <div className="rounded-2xl bg-white/[0.04] p-6"><p className="font-semibold text-white">No upcoming events yet</p><p className="mt-1 text-sm text-gray-500">Tournaments and events at this course will appear here.</p></div>}
+        </section>
     </main>;
 }
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
     return <div className="mb-6"><p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-300">{eyebrow}</p>
         <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{title}</h2></div>;
+}
+
+function DashboardCard({ eyebrow, title, children, flush = false }: {
+    eyebrow: string; title: string; children: React.ReactNode; flush?: boolean;
+}) {
+    return <article className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055]">
+        <div className={flush ? "p-5 pb-4" : "p-5 pb-0"}>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-blue-300">{eyebrow}</p>
+            <h2 className="mt-1 text-xl font-bold text-white">{title}</h2>
+        </div>
+        <div className={flush ? "" : "p-5 pt-6"}>{children}</div>
+    </article>;
 }
