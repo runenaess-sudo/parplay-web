@@ -220,7 +220,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             drawingCoordinates: [],
             selectedFeatureId: id,
         });
-        get().setToast("Feature saved");
+        get().setToast("HOLE SAVED");
     },
 
     updateFeatureComment: async (id, description) => {
