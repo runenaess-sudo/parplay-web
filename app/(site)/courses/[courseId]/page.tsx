@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CourseLocationMap } from "./CourseLocationMap";
+import { CourseLeaderboard, type LeaderboardRow } from "./CourseLeaderboard";
 
 type Layout = { id: string; name: string | null; description: string | null; hole_count: number | null; par_total: number | null; length_total: number | null; walk_length: number | null; difficulty: number | null; color: string | null; is_default: boolean | null; par_rating: number | null };
 type FacilityValue = string | boolean | number | null;
@@ -35,6 +36,12 @@ function average(values: Array<number | null>) {
     return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
 }
 
+function ratingPercentage(value: unknown) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.min(10, Math.max(0, numeric)) * 10;
+}
+
 function formatDate(value: string | null) {
     if (!value) return null;
     const date = new Date(value);
@@ -46,7 +53,7 @@ function formatDate(value: string | null) {
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
     const { courseId } = await params;
     const supabase = await supabaseServer();
-    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult, metricsResult] = await Promise.all([
+    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult, metricsResult, leaderboardResult] = await Promise.all([
         supabase.from("courses")
             .select("id,name,location,description,country,country_code,latitude,longitude,is_published")
             .eq("id", courseId).eq("is_published", true).maybeSingle(),
@@ -65,6 +72,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             .eq("course_id", courseId).eq("status", "published")
             .order("start_date", { ascending: true }).limit(3),
         supabase.rpc("get_public_course_profile_metrics_v1", { p_course_id: courseId }),
+        supabase.rpc("get_public_course_leaderboard_v1", {
+            p_course_id: courseId, p_period: "total", p_timezone: "UTC", p_limit: 5,
+        }),
     ]);
 
     if (courseResult.error || !courseResult.data) notFound();
@@ -77,6 +87,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
     const rating = average(ratings.map((row) => row.average));
     const metrics = (!metricsResult.error && metricsResult.data
         ? metricsResult.data as CourseMetrics : null);
+    const leaderboard = (!leaderboardResult.error && leaderboardResult.data
+        ? leaderboardResult.data as LeaderboardRow[] : []);
     const primaryLayout = layouts.find((layout) => layout.is_default) ?? layouts[0];
     const largestHoleCount = Math.max(0, ...layouts.map((layout) => Number(layout.hole_count) || 0));
     const locationLine = [course.location, course.country].filter(Boolean).join(", ");
@@ -117,7 +129,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         </section>
 
         {quickFacts.length > 0 && <section aria-label="Course facts" className="grid grid-cols-2 gap-3 py-6 sm:grid-cols-3 lg:grid-cols-6">
-            {quickFacts.map((fact) => <div key={fact.label} className="rounded-2xl border border-white/20 bg-white/20 p-4 shadow-sm backdrop-blur-md">
+            {quickFacts.map((fact) => <div key={fact.label} className="flex min-h-28 flex-col items-center justify-center rounded-2xl border border-white/20 bg-white/20 p-4 text-center shadow-sm backdrop-blur-md">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/65">{fact.label}</p>
                 <p className="mt-2 text-2xl font-bold text-white">{fact.value}</p>
                 {fact.note && <p className="mt-1 text-xs text-white/60">{fact.note}</p>}
@@ -127,7 +139,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         <section className="grid gap-4 py-8 md:grid-cols-2 xl:grid-cols-3">
             <DashboardCard eyebrow="Community" title="Course rating">
                 {rating != null ? <><div className="flex items-end gap-3"><strong className="text-5xl font-black">{rating.toFixed(1)}</strong><span className="pb-1 text-sm text-white/55">{ratings.length} {ratings.length === 1 ? "rating" : "ratings"}</span></div>
-                    <div className="mt-6 space-y-3">{[["Course", average(ratings.map((row) => row.course_experience))], ["Variety", average(ratings.map((row) => row.variety))], ["Maintenance", average(ratings.map((row) => row.maintenance))], ["Location", average(ratings.map((row) => row.location))], ["Accessibility", average(ratings.map((row) => row.accessibility))]].filter((entry) => entry[1] != null).map(([label, value]) => <div key={String(label)}><div className="mb-1 flex justify-between text-xs text-white/65"><span>{label}</span><span>{Number(value).toFixed(1)}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-blue-400" style={{ width: `${Math.min(100, Number(value) * 20)}%` }} /></div></div>)}</div></>
+                    <div className="mt-6 space-y-3">{[["Course", average(ratings.map((row) => row.course_experience))], ["Variety", average(ratings.map((row) => row.variety))], ["Maintenance", average(ratings.map((row) => row.maintenance))], ["Location", average(ratings.map((row) => row.location))], ["Accessibility", average(ratings.map((row) => row.accessibility))]].filter((entry) => entry[1] != null).map(([label, value]) => <div key={String(label)}><div className="mb-1 flex justify-between text-xs text-white/65"><span>{label}</span><span>{Number(value).toFixed(1)}</span></div><div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-blue-400 transition-[width] duration-300 ease-out" style={{ width: `${ratingPercentage(value)}%` }} /></div></div>)}</div></>
                     : <p className="text-sm text-white/55">Ratings will appear as players review this course.</p>}
             </DashboardCard>
 
@@ -146,14 +158,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
 
         <div className="mt-14 grid gap-16 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <div className="min-w-0 space-y-16">
-                {(course.description || facilities?.description) && <section>
-                    <SectionHeading eyebrow="Overview" title="About the course" />
-                    <div className="max-w-3xl space-y-4 whitespace-pre-line text-base leading-8 text-gray-300">
-                        {course.description && <p>{course.description}</p>}
-                        {facilities?.description && facilities.description !== course.description && <p>{String(facilities.description)}</p>}
-                    </div>
-                </section>}
-
                 {layouts.length > 0 && <section>
                     <SectionHeading eyebrow="Play" title="Course layouts" />
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -187,6 +191,19 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
                             <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
                             <p className="mt-1 text-2xl font-bold text-white">{value}</p>
                         </div>)}
+                    </div>
+                </section>}
+
+                <section>
+                    <SectionHeading eyebrow="Players" title="Leaderboard" />
+                    <CourseLeaderboard courseId={courseId} initialRows={leaderboard} />
+                </section>
+
+                {(course.description || facilities?.description) && <section>
+                    <SectionHeading eyebrow="Overview" title="About the course" />
+                    <div className="max-w-3xl space-y-4 whitespace-pre-line text-base leading-8 text-gray-300">
+                        {course.description && <p>{course.description}</p>}
+                        {facilities?.description && facilities.description !== course.description && <p>{String(facilities.description)}</p>}
                     </div>
                 </section>}
             </div>
