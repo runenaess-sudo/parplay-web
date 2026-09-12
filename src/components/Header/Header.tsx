@@ -12,6 +12,7 @@ import { MenuItem } from "../Header/MenuItem"; // juster path hvis MenuItem ligg
 type AccessInfo = {
     membership: string;
     limits: Record<string, unknown> | null;
+    hasCourseManagerAssignments: boolean;
 };
 
 type ActiveCourseInvitation = { invitation_id: string; course_name: string };
@@ -116,7 +117,7 @@ export default function Header() {
                         <MenuItem href="/admin" active={pathname.startsWith("/admin")}>Admin</MenuItem>
                     )}
 
-                    {(access?.membership === "club_manager" || access?.membership === "admin") && (
+                    {(access?.hasCourseManagerAssignments || access?.membership === "admin") && (
                         <MenuItem href="/club-manager" active={pathname.startsWith("/club-manager")}>Club Manager</MenuItem>
                     )}
 

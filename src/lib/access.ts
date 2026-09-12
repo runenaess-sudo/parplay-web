@@ -5,7 +5,7 @@ export async function getUserAccess() {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) return { membership: "basic", limits: null };
+    if (!user) return { membership: "basic", limits: null, hasCourseManagerAssignments: false };
 
     const { data: profile } = await supabase
         .from("profiles")
@@ -21,5 +21,17 @@ export async function getUserAccess() {
         .eq("membership", membership)
         .single();
 
-    return { membership, limits };
+    const { data: managerAssignment } = await supabase
+        .from("course_manager_assignments")
+        .select("id")
+        .eq("status", "active")
+        .eq("is_primary", true)
+        .limit(1)
+        .maybeSingle();
+
+    return {
+        membership,
+        limits,
+        hasCourseManagerAssignments: Boolean(managerAssignment),
+    };
 }
