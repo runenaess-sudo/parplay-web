@@ -245,7 +245,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
                 feature.id === id ? { ...feature, description: normalized } : feature),
             holes,
         } });
-        get().setToast("Comment saved");
+        get().setToast("HOLE SAVED");
     },
 
     setMandoPassSide: async (id, passSide) => {
@@ -683,6 +683,10 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             return;
         }
 
+        // The database write is authoritative. A follow-up reload failure
+        // must not suppress confirmation that the requested save succeeded.
+        get().setToast("HOLE SAVED");
+
         console.log("✅ HOLE SAVED — RELOADING FROM SUPABASE");
 
         const { data: freshHole, error: reloadError } = await supabaseBrowser
@@ -709,7 +713,6 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             },
         });
 
-        get().setToast("Hole saved");
     },
 
     // ⭐ NEW — ADD NEW HOLE
