@@ -16,6 +16,7 @@ export function proxy(req: NextRequest) {
         pathname.startsWith("/login") ||
         pathname.startsWith("/auth") ||
         pathname.startsWith("/course-invite/") ||
+        pathname.startsWith("/course-manager-transfer/") ||
         pathname === "/courses" ||
         pathname.startsWith("/courses/") ||
         pathname === "/verify-email" ||

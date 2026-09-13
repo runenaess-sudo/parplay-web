@@ -1,13 +1,15 @@
 "use client";
 
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { isSafeTransferReturnTo } from "@/lib/course-manager-transfer";
 import { useEffect, useRef, useState } from "react";
 
 const NORMAL_AUTHENTICATED_DESTINATION = "/create-course";
 
 function validatedDestination(search: string) {
     const requestedReturnTo = new URLSearchParams(search).get("returnTo");
-    return requestedReturnTo && /^\/course-invite\/[0-9a-f]{64}$/i.test(requestedReturnTo)
+    return requestedReturnTo && (/^\/course-invite\/[0-9a-f]{64}$/i.test(requestedReturnTo)
+        || isSafeTransferReturnTo(requestedReturnTo))
         ? requestedReturnTo
         : NORMAL_AUTHENTICATED_DESTINATION;
 }
