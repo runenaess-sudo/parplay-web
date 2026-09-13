@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CourseLocationMap } from "./CourseLocationMap";
-import { CourseLeaderboard, type LeaderboardRow } from "./CourseLeaderboard";
+import { CourseLeaderboard, type LeaderboardData } from "./CourseLeaderboard";
 
 type Layout = { id: string; name: string | null; description: string | null; hole_count: number | null; par_total: number | null; length_total: number | null; walk_length: number | null; difficulty: number | null; color: string | null; is_default: boolean | null; par_rating: number | null };
 type FacilityValue = string | boolean | number | null;
@@ -73,7 +73,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             .order("start_date", { ascending: true }).limit(3),
         supabase.rpc("get_public_course_profile_metrics_v1", { p_course_id: courseId }),
         supabase.rpc("get_public_course_leaderboard_v1", {
-            p_course_id: courseId, p_period: "total", p_timezone: "UTC", p_limit: 5,
+            p_course_id: courseId, p_period: "total", p_timezone: "UTC", p_offset: 0, p_limit: 20,
         }),
     ]);
 
@@ -88,7 +88,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
     const metrics = (!metricsResult.error && metricsResult.data
         ? metricsResult.data as CourseMetrics : null);
     const leaderboard = (!leaderboardResult.error && leaderboardResult.data
-        ? leaderboardResult.data as LeaderboardRow[] : []);
+        ? leaderboardResult.data as LeaderboardData
+        : { rows: [], has_more: false, my_position: null });
     const primaryLayout = layouts.find((layout) => layout.is_default) ?? layouts[0];
     const largestHoleCount = Math.max(0, ...layouts.map((layout) => Number(layout.hole_count) || 0));
     const locationLine = [course.location, course.country].filter(Boolean).join(", ");
@@ -196,7 +197,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
 
                 <section>
                     <SectionHeading eyebrow="Players" title="Leaderboard" />
-                    <CourseLeaderboard courseId={courseId} initialRows={leaderboard} />
+                    <CourseLeaderboard courseId={courseId} initialData={leaderboard}
+                        initialError={leaderboardResult.error != null} />
                 </section>
 
                 {(course.description || facilities?.description) && <section>
