@@ -13,8 +13,12 @@ type CourseMetrics = {
     average_score: number | null;
     matchplay_sessions: number;
     battle_sessions: number;
-    live_players: number;
     traffic: Array<{ hour: number; percent: number; is_live: boolean }>;
+};
+type CourseActivity = {
+    players_now: number;
+    active_sessions: number;
+    traffic_label: "light" | "moderate" | "busy";
 };
 
 const facilityLabels: Record<string, string> = {
@@ -53,7 +57,7 @@ function formatDate(value: string | null) {
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
     const { courseId } = await params;
     const supabase = await supabaseServer();
-    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult, metricsResult, leaderboardResult] = await Promise.all([
+    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult, metricsResult, activityResult, leaderboardResult] = await Promise.all([
         supabase.from("courses")
             .select("id,name,location,description,country,country_code,latitude,longitude,is_published")
             .eq("id", courseId).eq("is_published", true).maybeSingle(),
@@ -63,7 +67,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             .select("id,name,description,hole_count,par_total,length_total,walk_length,difficulty,color,is_default,par_rating")
             .eq("course_id", courseId).order("created_at", { ascending: true }),
         supabase.from("course_facilities")
-            .select("toilets,trashcans,signage,water,parking,benches,kiosk,terrain,surface,opening_hours,teetype,basket_type,dog_friendly,lighting,wheelchair_friendly,description")
+            .select("toilets,trashcans,signage,water,parking,benches,kiosk,terrain,surface,opening_hours,tee_type,basket_type,dog_friendly,lighting,wheelchair_friendly,description")
             .eq("course_id", courseId).maybeSingle(),
         supabase.from("course_rating")
             .select("average,course_experience,variety,maintenance,location,accessibility")
@@ -72,6 +76,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             .eq("course_id", courseId).eq("status", "published")
             .order("start_date", { ascending: true }).limit(3),
         supabase.rpc("get_public_course_profile_metrics_v1", { p_course_id: courseId }),
+        supabase.rpc("get_course_activity_v1", { p_course_id: courseId }),
         supabase.rpc("get_public_course_leaderboard_v1", {
             p_course_id: courseId, p_period: "total", p_timezone: "UTC", p_offset: 0, p_limit: 20,
         }),
@@ -87,6 +92,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
     const rating = average(ratings.map((row) => row.average));
     const metrics = (!metricsResult.error && metricsResult.data
         ? metricsResult.data as CourseMetrics : null);
+    const activity = (!activityResult.error && activityResult.data
+        ? activityResult.data as CourseActivity : null);
     const leaderboard = (!leaderboardResult.error && leaderboardResult.data
         ? leaderboardResult.data as LeaderboardData
         : { rows: [], has_more: false, my_position: null });
@@ -100,7 +107,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         ? Object.entries(facilities).filter(([key, value]) => facilityLabels[key] && value === true) : [];
     const detailFacts = facilities ? [
         ["Terrain", facilities.terrain], ["Surface", facilities.surface],
-        ["Tee type", facilities.teetype], ["Basket type", facilities.basket_type],
+        ["Tee type", facilities.tee_type], ["Basket type", facilities.basket_type],
         ["Opening hours", facilities.opening_hours],
     ].filter((entry): entry is [string, string | number] =>
         typeof entry[1] === "string" ? entry[1].trim().length > 0 : typeof entry[1] === "number") : [];
@@ -145,7 +152,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             </DashboardCard>
 
             <DashboardCard eyebrow="Right now" title="Live traffic">
-                {metrics ? <><div className="flex items-baseline gap-2"><strong className="text-4xl font-black">{metrics.live_players}</strong><span className="text-sm text-white/55">live players</span></div>
+                {activity && metrics ? <><div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><strong className="text-4xl font-black">{activity.players_now}</strong><span className="text-sm text-white/55">live players</span><span className="rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-bold capitalize text-emerald-300">{activity.traffic_label}</span></div>
+                    <p className="mt-2 text-xs text-white/45">{activity.active_sessions} active {activity.active_sessions === 1 ? "session" : "sessions"} across all game modes</p>
                     {metrics.traffic.length > 0 && <div className="mt-7 flex h-16 items-end gap-1" aria-label="Hourly course activity">{metrics.traffic.filter((point) => point.hour >= 6 && point.hour <= 22).map((point) => <div key={point.hour} title={`${point.hour}:00 · ${point.percent}%`} className={`min-w-0 flex-1 rounded-t ${point.is_live ? "bg-emerald-400" : "bg-blue-400/70"}`} style={{ height: `${Math.max(8, point.percent)}%` }} />)}</div>}
                     <p className="mt-4 text-xs text-white/45">Typical hourly activity from 06:00 to 22:00</p></>
                     : <p className="text-sm text-white/55">Trip activity is not available for this course yet.</p>}
