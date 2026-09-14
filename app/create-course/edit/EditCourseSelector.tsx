@@ -17,7 +17,7 @@ export function EditCourseSelector({ courses }: { courses: ManageableCourse[] })
             onChange={(event) => setSearch(event.target.value)}
             className="mb-6 w-full rounded-md border border-gray-700 bg-gray-900 px-4 py-2 text-white" />
 
-        {filtered.length === 0 && <div className="text-gray-500">No courses found.</div>}
+        {filtered.length === 0 && <div className="text-gray-500">No matching course builds.</div>}
 
         <div className="flex flex-col gap-3">
             {filtered.map((course) => {

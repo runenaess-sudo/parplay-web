@@ -117,10 +117,6 @@ export default function Header() {
                         <MenuItem href="/admin" active={pathname.startsWith("/admin")}>Admin</MenuItem>
                     )}
 
-                    {(access?.hasCourseManagerAssignments || access?.membership === "admin") && (
-                        <MenuItem href="/club-manager" active={pathname.startsWith("/club-manager")}>Club Manager</MenuItem>
-                    )}
-
                     <div className="relative group">
                         <div className="menu-item cursor-default select-none">Courses</div>
 
@@ -130,6 +126,7 @@ export default function Header() {
                             {canCreateCourse && (
                                 <Link href="/create-course" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Create Course</Link>
                             )}
+                            <Link href="/create-course/edit" className="dropdown-item block whitespace-nowrap hover:bg-white/10">My Course Builds</Link>
                         </div>
                     </div>
 
@@ -146,6 +143,10 @@ export default function Header() {
 
                         <div className="absolute left-0 top-full hidden group-hover:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
                             <Link href="/profile" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Profile</Link>
+
+                            {(access?.hasCourseManagerAssignments || access?.membership === "admin") && (
+                                <Link href="/club-manager" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Club Manager</Link>
+                            )}
 
                             <button
                                 className="dropdown-item text-left block whitespace-nowrap hover:bg-white/10"

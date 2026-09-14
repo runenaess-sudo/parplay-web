@@ -31,7 +31,7 @@ export default function CreateCoursePage() {
                     className="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl p-6 flex flex-col items-center text-center transition"
                 >
                     <div className="text-4xl mb-3">🛠️</div>
-                    <div className="text-lg font-semibold">Edit Existing Course</div>
+                    <div className="text-lg font-semibold">My Course Builds</div>
                     <div className="text-sm text-gray-400 mt-1">
                         Continue editing or update a published course.
                     </div>
