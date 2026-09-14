@@ -11,6 +11,9 @@ import { MenuItem } from "../Header/MenuItem"; // juster path hvis MenuItem ligg
 
 type AccessInfo = {
     membership: string;
+    avatarUrl: string | null;
+    fullName: string | null;
+    username: string | null;
     limits: Record<string, unknown> | null;
     hasCourseManagerAssignments: boolean;
 };
@@ -85,6 +88,13 @@ export default function Header() {
     const isLoggedIn = !!session?.user;
     const canCreateCourse =
         access?.membership === "admin" || access?.limits?.can_create_course !== false;
+    const profileLabel = access?.fullName || access?.username || session?.user.email || "Profile";
+    const profileInitials = profileLabel
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("") || "P";
 
     async function handleLogout() {
         await supabaseBrowser.auth.signOut();
@@ -139,9 +149,17 @@ export default function Header() {
             <nav>
                 {isLoggedIn ? (
                     <div className="relative group">
-                        <MenuItem href="/profile" active={pathname.startsWith("/profile")}>My Profile</MenuItem>
+                        <Link
+                            href="/profile"
+                            aria-label={`Open profile for ${profileLabel}`}
+                            className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border bg-white/10 text-sm font-bold text-white transition hover:border-white/40 ${pathname.startsWith("/profile") ? "border-blue-400" : "border-white/20"}`}
+                        >
+                            {access?.avatarUrl
+                                ? <span aria-hidden="true" className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${access.avatarUrl})` }} />
+                                : <span aria-hidden="true">{profileInitials}</span>}
+                        </Link>
 
-                        <div className="absolute left-0 top-full hidden group-hover:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
+                        <div className="absolute right-0 top-full z-50 hidden min-w-44 max-w-[calc(100vw-1rem)] rounded-md bg-black/80 text-white shadow-xl backdrop-blur-md group-hover:block group-focus-within:block">
                             <Link href="/profile" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Profile</Link>
 
                             {(access?.hasCourseManagerAssignments || access?.membership === "admin") && (
