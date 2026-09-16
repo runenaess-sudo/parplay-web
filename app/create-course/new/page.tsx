@@ -2,15 +2,23 @@
 
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function NewCoursePage() {
     const router = useRouter();
 
     const [name, setName] = useState("");
     const [location, setLocation] = useState("");
+    const [timezone, setTimezone] = useState("");
+    const [timezoneOptions, setTimezoneOptions] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    useEffect(() => {
+        void supabaseBrowser.rpc("get_iana_timezones_v1").then(({ data, error: timezoneError }) => {
+            if (!timezoneError) setTimezoneOptions((data ?? []).map((row: { timezone: string }) => row.timezone));
+        });
+    }, []);
 
     async function createCourse(e: React.FormEvent) {
         e.preventDefault();
@@ -33,6 +41,7 @@ export default function NewCoursePage() {
                 location,
                 created_by: session.user.id,
                 is_published: false,
+                timezone: timezone || null,
             })
             .select()
             .single();
@@ -68,6 +77,16 @@ export default function NewCoursePage() {
                         className="w-full px-4 py-2 rounded-md bg-gray-900 border border-gray-700 text-white"
                         placeholder="Example: Blue Mountain DGC"
                     />
+                </div>
+
+                <div>
+                    <label className="block text-sm mb-1">Local timezone</label>
+                    <select value={timezone} onChange={(event) => setTimezone(event.target.value)}
+                        className="w-full px-4 py-2 rounded-md bg-gray-900 border border-gray-700 text-white">
+                        <option value="">Not set</option>
+                        {timezoneOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">Select the course timezone, not your current timezone.</p>
                 </div>
 
                 {/* LOCATION */}

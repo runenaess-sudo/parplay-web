@@ -21,6 +21,7 @@ export async function PATCH(
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const location = typeof body.location === "string" ? body.location.trim() : "";
     const description = typeof body.description === "string" ? body.description.trim() : "";
+    const timezone = typeof body.timezone === "string" ? body.timezone.trim() || null : null;
     if (!name || !location) {
         return NextResponse.json({ error: "Course name and location are required." }, { status: 400 });
     }
@@ -32,10 +33,11 @@ export async function PATCH(
             name,
             location,
             description: description || null,
+            timezone,
             updated_at: new Date().toISOString(),
         })
         .eq("id", courseId)
-        .select("name,location,description,updated_at")
+        .select("name,location,description,timezone,updated_at")
         .maybeSingle();
 
     if (error || !data) {

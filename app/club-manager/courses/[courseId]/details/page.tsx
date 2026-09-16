@@ -23,11 +23,14 @@ export default async function CourseDetailsPage({ params, searchParams }: {
     }
 
     const supabase = await supabaseServer();
-    const { data: course, error } = await supabase
+    const [{ data: course, error }, { data: timezoneRows }] = await Promise.all([
+      supabase
         .from("courses")
-        .select("id,name,location,description,is_published,club_id")
+        .select("id,name,location,description,timezone,is_published,club_id")
         .eq("id", courseId)
-        .maybeSingle();
+        .maybeSingle(),
+      supabase.rpc("get_iana_timezones_v1"),
+    ]);
     if (error || !course) {
         return <main className="mx-auto min-h-[70vh] w-full max-w-2xl px-5 py-12 text-white">
             <p className="text-gray-300">Course details could not be loaded.</p>
@@ -58,6 +61,7 @@ export default async function CourseDetailsPage({ params, searchParams }: {
             name: course.name ?? "",
             location: course.location ?? "",
             description: course.description ?? "",
-        }} />
+            timezone: course.timezone ?? "",
+        }} timezoneOptions={(timezoneRows ?? []).map((row: { timezone: string }) => row.timezone)} />
     </main>;
 }

@@ -12,6 +12,7 @@ export function MenuItem({ href, active, children }: MenuItemProps) {
     return (
         <Link
             href={href}
+            aria-current={active ? "page" : undefined}
             className={clsx(
                 "transition-colors duration-150",
                 "text-white hover:text-gray-300",

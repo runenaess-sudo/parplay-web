@@ -6,11 +6,13 @@ type CourseDetails = {
     name: string;
     location: string;
     description: string;
+    timezone: string;
 };
 
-export default function CourseDetailsForm({ courseId, initialDetails }: {
+export default function CourseDetailsForm({ courseId, initialDetails, timezoneOptions }: {
     courseId: string;
     initialDetails: CourseDetails;
+    timezoneOptions: string[];
 }) {
     const [details, setDetails] = useState(initialDetails);
     const [saving, setSaving] = useState(false);
@@ -38,6 +40,7 @@ export default function CourseDetailsForm({ courseId, initialDetails }: {
                 name: body.course.name,
                 location: body.course.location,
                 description: body.course.description ?? "",
+                timezone: body.course.timezone ?? "",
             });
             setSaved(true);
         } catch {
@@ -68,6 +71,16 @@ export default function CourseDetailsForm({ courseId, initialDetails }: {
                 <textarea rows={5} value={details.description}
                     onChange={(event) => setDetails((current) => ({ ...current, description: event.target.value }))}
                     placeholder="Describe the course" className={`${inputClass} resize-y leading-6`} />
+            </label>
+            <label className="text-sm font-medium text-gray-200">
+                Local timezone
+                <select value={details.timezone}
+                    onChange={(event) => setDetails((current) => ({ ...current, timezone: event.target.value }))}
+                    className={inputClass}>
+                    <option value="">Not set</option>
+                    {timezoneOptions.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+                </select>
+                <span className="mt-2 block text-xs font-normal text-gray-500">Used for course-local activity by weekday and hour.</span>
             </label>
         </div>
 

@@ -12,6 +12,10 @@ export type ManageableCourse = {
     created_at: string;
 };
 
+export type CourseBuild = ManageableCourse & {
+    canManage: boolean;
+};
+
 export async function getServerCourseManager() {
     const supabase = await supabaseServer();
     const { data: userData } = await supabase.auth.getUser();
@@ -112,8 +116,8 @@ export async function getServerManageableCourses(): Promise<ManageableCourse[] |
     });
 }
 
-/** Courses this user created and may still manage before an accepted takeover. */
-export async function getServerCourseBuilds(): Promise<ManageableCourse[] | null> {
+/** Historical course contributions, with current management authority kept separate. */
+export async function getServerCourseBuilds(): Promise<CourseBuild[] | null> {
     const supabase = await supabaseServer();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return null;
@@ -125,18 +129,8 @@ export async function getServerCourseBuilds(): Promise<ManageableCourse[] | null
         .order("created_at", { ascending: false });
     if (coursesError) throw coursesError;
 
-    const courseIds = (creatorCourses ?? []).map((course) => course.id);
-    if (courseIds.length === 0) return [];
-
-    const { data: acceptedClaims, error: claimsError } = await supabase
-        .from("course_claim_requests")
-        .select("course_id")
-        .in("course_id", courseIds)
-        .eq("status", "accepted");
-    if (claimsError) throw claimsError;
-
-    const acceptedCourseIds = new Set((acceptedClaims ?? []).map((claim) => claim.course_id));
-    return (creatorCourses as ManageableCourse[]).filter(
-        (course) => !acceptedCourseIds.has(course.id),
-    );
+    return Promise.all((creatorCourses as ManageableCourse[]).map(async (course) => ({
+        ...course,
+        canManage: await canOpenCourseEditor(course.id),
+    })));
 }

@@ -69,7 +69,7 @@ export default async function ClubManagerPage({ searchParams }: { searchParams: 
                         {selectedCourse.club_id && <p className="mt-1 text-sm text-gray-300">{clubNames.get(selectedCourse.club_id) ?? "Club"}</p>}
                         <p className="mt-1 text-sm text-gray-400">{selectedCourse.is_published ? "Published" : "Draft"}</p>
                     </div>
-                    <Link className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold" href={`/create-course/editor/${selectedCourse.id}`}>Manage course</Link>
+                    <Link className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold transition hover:bg-blue-400" href={`/club-manager/courses/${selectedCourse.id}${clubId ? `?clubId=${encodeURIComponent(clubId)}` : ""}`}>Manage course</Link>
                 </div>
                 <section className="mt-5 border-t border-white/10 pt-5">
                     <div>

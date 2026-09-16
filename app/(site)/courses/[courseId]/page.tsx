@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CourseLocationMap } from "./CourseLocationMap";
 import { CourseLeaderboard, type LeaderboardData } from "./CourseLeaderboard";
+import { CourseTrafficPanel, type CourseTrafficData } from "./CourseTrafficPanel";
 
 type Layout = { id: string; name: string | null; description: string | null; hole_count: number | null; par_total: number | null; length_total: number | null; walk_length: number | null; difficulty: number | null; color: string | null; is_default: boolean | null; par_rating: number | null };
 type FacilityValue = string | boolean | number | null;
@@ -13,7 +14,6 @@ type CourseMetrics = {
     average_score: number | null;
     matchplay_sessions: number;
     battle_sessions: number;
-    traffic: Array<{ hour: number; percent: number; is_live: boolean }>;
 };
 type CourseActivity = {
     players_now: number;
@@ -57,7 +57,7 @@ function formatDate(value: string | null) {
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
     const { courseId } = await params;
     const supabase = await supabaseServer();
-    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult, metricsResult, activityResult, leaderboardResult] = await Promise.all([
+    const [courseResult, imagesResult, layoutsResult, facilitiesResult, ratingsResult, eventsResult, metricsResult, activityResult, trafficResult, leaderboardResult] = await Promise.all([
         supabase.from("courses")
             .select("id,name,location,description,country,country_code,latitude,longitude,is_published")
             .eq("id", courseId).eq("is_published", true).maybeSingle(),
@@ -77,6 +77,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             .order("start_date", { ascending: true }).limit(3),
         supabase.rpc("get_public_course_profile_metrics_v1", { p_course_id: courseId }),
         supabase.rpc("get_course_activity_v1", { p_course_id: courseId }),
+        supabase.rpc("get_course_traffic_v2", { p_course_id: courseId, p_day_of_week: null }),
         supabase.rpc("get_public_course_leaderboard_v1", {
             p_course_id: courseId, p_period: "total", p_timezone: "UTC", p_offset: 0, p_limit: 20,
         }),
@@ -94,6 +95,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         ? metricsResult.data as CourseMetrics : null);
     const activity = (!activityResult.error && activityResult.data
         ? activityResult.data as CourseActivity : null);
+    const traffic = (!trafficResult.error && trafficResult.data
+        ? trafficResult.data as CourseTrafficData : null);
     const leaderboard = (!leaderboardResult.error && leaderboardResult.data
         ? leaderboardResult.data as LeaderboardData
         : { rows: [], has_more: false, my_position: null });
@@ -151,12 +154,11 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
                     : <p className="text-sm text-white/55">Ratings will appear as players review this course.</p>}
             </DashboardCard>
 
-            <DashboardCard eyebrow="Right now" title="Live traffic">
-                {activity && metrics ? <><div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><strong className="text-4xl font-black">{activity.players_now}</strong><span className="text-sm text-white/55">live players</span><span className="rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-bold capitalize text-emerald-300">{activity.traffic_label}</span></div>
-                    <p className="mt-2 text-xs text-white/45">{activity.active_sessions} active {activity.active_sessions === 1 ? "session" : "sessions"} across all game modes</p>
-                    {metrics.traffic.length > 0 && <div className="mt-7 flex h-16 items-end gap-1" aria-label="Hourly course activity">{metrics.traffic.filter((point) => point.hour >= 6 && point.hour <= 22).map((point) => <div key={point.hour} title={`${point.hour}:00 · ${point.percent}%`} className={`min-w-0 flex-1 rounded-t ${point.is_live ? "bg-emerald-400" : "bg-blue-400/70"}`} style={{ height: `${Math.max(8, point.percent)}%` }} />)}</div>}
-                    <p className="mt-4 text-xs text-white/45">Typical hourly activity from 06:00 to 22:00</p></>
+            <DashboardCard eyebrow="Right now + typical" title="Course activity">
+                {activity ? <><div className="flex flex-wrap items-baseline gap-x-2 gap-y-1"><strong className="text-4xl font-black">{activity.players_now}</strong><span className="text-sm text-white/55">live players</span><span className="rounded-full bg-emerald-400/10 px-2 py-1 text-xs font-bold capitalize text-emerald-300">{activity.traffic_label}</span></div>
+                    <p className="mt-2 text-xs text-white/45">{activity.active_sessions} active {activity.active_sessions === 1 ? "session" : "sessions"} across all game modes</p></>
                     : <p className="text-sm text-white/55">Trip activity is not available for this course yet.</p>}
+                <CourseTrafficPanel courseId={courseId} initialData={traffic} />
             </DashboardCard>
 
             <DashboardCard eyebrow="Find your way" title="Location" flush>

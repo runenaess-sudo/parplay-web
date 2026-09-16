@@ -121,7 +121,7 @@ export default function Header() {
                             </div>)}
                         </div>}
                     </div>}
-                    <MenuItem href="/community" active={pathname.startsWith("/community")}>Community</MenuItem>
+                    <MenuItem href="/community" active={pathname.startsWith("/community")}>COMMUNITY</MenuItem>
 
                     {access?.membership === "admin" && (
                         <MenuItem href="/admin" active={pathname.startsWith("/admin")}>Admin</MenuItem>
@@ -143,7 +143,7 @@ export default function Header() {
                     <MenuItem href="/tournaments" active={pathname.startsWith("/tournaments")}>Tournaments</MenuItem>
                 </nav>
             ) : (
-                <div aria-hidden="true" />
+                <nav className="menu"><MenuItem href="/community" active={pathname.startsWith("/community")}>COMMUNITY</MenuItem></nav>
             )}
 
             <nav>

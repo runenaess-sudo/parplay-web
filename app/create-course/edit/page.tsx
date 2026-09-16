@@ -7,7 +7,9 @@ export default async function EditCoursePage() {
 
     return <div className="mx-auto max-w-2xl p-6 text-white">
         <h1 className="text-3xl font-bold">My Course Builds</h1>
-        <p className="mt-2 mb-6 text-gray-400">Courses you have built and can still manage.</p>
+        <p className="mt-2 mb-6 text-gray-400">
+            Courses you have created or contributed to in ParPlay. Management access is shown separately.
+        </p>
         {courses === null
             ? <div className="text-gray-500">Log in to view your course builds.</div>
             : courses.length > 0

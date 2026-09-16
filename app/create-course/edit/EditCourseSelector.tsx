@@ -1,10 +1,10 @@
 "use client";
 
-import type { ManageableCourse } from "@/lib/course-manager-auth";
+import type { CourseBuild } from "@/lib/course-manager-auth";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-export function EditCourseSelector({ courses }: { courses: ManageableCourse[] }) {
+export function EditCourseSelector({ courses }: { courses: CourseBuild[] }) {
     const [search, setSearch] = useState("");
     const filtered = useMemo(() => {
         const query = search.trim().toLocaleLowerCase();
@@ -20,18 +20,33 @@ export function EditCourseSelector({ courses }: { courses: ManageableCourse[] })
         {filtered.length === 0 && <div className="text-gray-500">No matching course builds.</div>}
 
         <div className="flex flex-col gap-3">
-            {filtered.map((course) => {
-                const isDraft = !course.is_published;
-                return <Link key={course.id} href={`/create-course/editor/${course.id}`}
-                    className={`rounded-lg border p-4 transition ${isDraft
-                        ? "border-red-700/40 bg-red-900/20 hover:bg-red-900/30"
-                        : "border-yellow-700/40 bg-yellow-900/20 hover:bg-yellow-900/30"
-                    }`}>
-                    <div className="font-semibold">{course.name}</div>
-                    {course.location && <div className="text-sm text-gray-400">{course.location}</div>}
-                    <div className="mt-1 text-xs opacity-70">{isDraft ? "Draft" : "Published"}</div>
-                </Link>;
-            })}
+            {filtered.map((course) => <article key={course.id}
+                className={`rounded-lg border p-4 ${course.is_published
+                    ? "border-yellow-700/40 bg-yellow-900/20"
+                    : "border-red-700/40 bg-red-900/20"
+                }`}>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div className="font-semibold">{course.name}</div>
+                        {course.location && <div className="text-sm text-gray-400">{course.location}</div>}
+                        <div className="mt-1 text-xs text-gray-400">
+                            {course.is_published ? "Published" : "Draft"}
+                            {!course.canManage && " · Historical contribution"}
+                        </div>
+                    </div>
+                    {course.canManage
+                        ? <Link href={`/create-course/editor/${course.id}`}
+                            className="shrink-0 rounded-lg bg-blue-500 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+                            Manage course
+                        </Link>
+                        : course.is_published
+                            ? <Link href={`/courses/${course.id}`}
+                                className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-center text-sm font-semibold text-white transition hover:border-white/25 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40">
+                                View course
+                            </Link>
+                            : <span className="shrink-0 text-sm text-gray-400">Read only</span>}
+                </div>
+            </article>)}
         </div>
     </>;
 }
