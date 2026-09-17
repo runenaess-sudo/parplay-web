@@ -43,7 +43,7 @@ export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initi
             const result = await supabaseBrowser.rpc('get_course_variant_editor_v5', { p_course_id: courseId });
             const membership = layoutId ? await supabaseBrowser.from('layout_holes').select('hole_id,play_config_id').eq('layout_id',layoutId) : { data: [], error: null };
             if (!active) return;
-            if (result.error || membership.error) { setError('Could not load layout play options. Reload before saving.'); return; }
+            if (result.error || membership.error) { setError('Could not load layout hole variations. Reload before saving.'); return; }
             setOptions(result.data.configs);
             setLabels(Object.fromEntries([...result.data.tees,...result.data.baskets].map((o: { id: string; label: string | null }) => [o.id,!o.label || o.label === 'Primary' ? 'Main' : o.label])));
             setChoices(Object.fromEntries((membership.data ?? []).map(m => [m.hole_id,result.data.configs.some((c: { id: string; is_default: boolean }) => c.id === m.play_config_id && c.is_default) ? null : m.play_config_id])));
@@ -180,7 +180,7 @@ export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initi
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/15 text-xs font-bold text-blue-200">{index + 1}</span>
                             <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold text-white">Hole {hole.number}</p>
-                                <select aria-label={`Play option for hole ${hole.number}`} value={choices[hole.id] ?? ''}
+                                <select aria-label={`Variation for hole ${hole.number}`} value={choices[hole.id] ?? ''}
                                     onChange={e => setChoices(current => ({ ...current, [hole.id]: e.target.value || null }))}
                                     className="mt-2 min-h-11 w-full rounded bg-slate-800 p-2 text-sm text-white">
                                     {options.filter(o => o.hole_id === hole.id).map(o => <option key={o.id} value={o.is_default ? '' : o.id}>{labels[o.tee_id]} → {labels[o.basket_id]} · {o.distance} m · Par {o.par}</option>)}

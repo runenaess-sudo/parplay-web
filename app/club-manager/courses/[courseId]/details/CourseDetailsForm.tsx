@@ -9,10 +9,9 @@ type CourseDetails = {
     timezone: string;
 };
 
-export default function CourseDetailsForm({ courseId, initialDetails, timezoneOptions }: {
+export default function CourseDetailsForm({ courseId, initialDetails }: {
     courseId: string;
     initialDetails: CourseDetails;
-    timezoneOptions: string[];
 }) {
     const [details, setDetails] = useState(initialDetails);
     const [saving, setSaving] = useState(false);
@@ -29,7 +28,7 @@ export default function CourseDetailsForm({ courseId, initialDetails, timezoneOp
             const response = await fetch(`/api/course-details/${encodeURIComponent(courseId)}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(details),
+                body: JSON.stringify({ name: details.name, location: details.location, description: details.description }),
             });
             const body = await response.json() as { error?: string; course?: CourseDetails };
             if (!response.ok || !body.course) {
@@ -72,16 +71,7 @@ export default function CourseDetailsForm({ courseId, initialDetails, timezoneOp
                     onChange={(event) => setDetails((current) => ({ ...current, description: event.target.value }))}
                     placeholder="Describe the course" className={`${inputClass} resize-y leading-6`} />
             </label>
-            <label className="text-sm font-medium text-gray-200">
-                Local timezone
-                <select value={details.timezone}
-                    onChange={(event) => setDetails((current) => ({ ...current, timezone: event.target.value }))}
-                    className={inputClass}>
-                    <option value="">Not set</option>
-                    {timezoneOptions.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
-                </select>
-                <span className="mt-2 block text-xs font-normal text-gray-500">Used for course-local activity by weekday and hour.</span>
-            </label>
+
         </div>
 
         {saved && <p role="status" className="mt-5 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">Course details saved.</p>}

@@ -936,7 +936,7 @@ export function MapCanvas({
             padding: {
                 top: 120,     // hull-list overlay
                 bottom: 80,
-                right: window.innerWidth >= 1024 && toolsOpen ? 280 : 20,
+                right: window.innerWidth >= 1024 ? 280 : 20,
                 left: window.innerWidth >= 1024 ? 276 : 20,
             },
             duration: 600,

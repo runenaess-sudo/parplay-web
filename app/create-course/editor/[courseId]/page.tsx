@@ -32,7 +32,7 @@ function HoleListOverlay({
     onSelect,
 }: HoleListOverlayProps) {
     return (
-        <div className="absolute top-0 left-0 right-0 z-30 p-2">
+        <div className="absolute top-0 left-0 right-0 lg:left-64 lg:right-[260px] z-30 p-2">
             <div className="flex gap-2 overflow-x-auto bg-black/60 backdrop-blur-sm rounded-xl p-2">
                 {holes.map((h) => (
                     <button
@@ -122,9 +122,6 @@ export default function Page() {
                     </span>
                 </div>
 
-                <div className="text-xs text-slate-400">
-                    Course ID: <span className="font-mono">{courseId}</span>
-                </div>
             </div>
 
             {/* LOADING */}
@@ -140,15 +137,15 @@ export default function Page() {
 
                     {/* FLYTENDE VERKTØYPANEL */}
                     <button onClick={() => setBuilderOpen(open => !open)} aria-expanded={builderOpen} className="absolute left-2 top-14 z-50 min-h-11 rounded bg-slate-800 px-3 text-white lg:hidden">Build hole</button>
-                    <div className={`${builderOpen ? 'block' : 'hidden lg:block'} absolute top-28 lg:top-14 left-0 bottom-0 z-40 w-64 max-w-[85vw] bg-black/90 backdrop-blur-md border-r border-white/10`}>
+                    <div className={`${builderOpen ? 'block' : 'hidden lg:block'} absolute top-28 lg:top-0 left-0 bottom-0 z-40 w-64 max-w-[85vw] bg-slate-950/95 backdrop-blur-md border-r border-white/10`}>
                         <EditorPanel />
                     </div>
                     <button onClick={() => setToolsOpen(open => !open)} aria-expanded={toolsOpen}
-                        className="absolute right-2 top-14 z-50 min-h-11 rounded bg-slate-800 px-3 text-white">{toolsOpen ? 'Hide tools' : 'Tools'}</button>
-                    {toolsOpen && <aside className="absolute right-0 top-28 bottom-0 z-40 w-[260px] max-w-[85vw] overflow-y-auto border-l border-white/10 bg-slate-950/95 backdrop-blur-md">
+                        className="absolute right-2 top-14 z-50 min-h-11 rounded bg-slate-800 px-3 text-white lg:hidden">{toolsOpen ? 'Close tools' : 'Tools'}</button>
+                    <aside className={`${toolsOpen ? 'block' : 'hidden lg:block'} absolute right-0 top-28 lg:top-0 bottom-0 z-40 w-[260px] max-w-[85vw] overflow-y-auto border-l border-white/10 bg-slate-950/95 backdrop-blur-md`}>
                         <PlayOptionsPanel key={`${courseId}:${selectedHoleId}`} />
                         <EditorPanel toolsOnly />
-                    </aside>}
+                    </aside>
 
                     {/* HULL-LISTE OVERLAY */}
                     <HoleListOverlay

@@ -33,7 +33,7 @@ export async function PATCH(
             name,
             location,
             description: description || null,
-            timezone,
+            ...(Object.hasOwn(body, 'timezone') ? { timezone } : {}),
             updated_at: new Date().toISOString(),
         })
         .eq("id", courseId)

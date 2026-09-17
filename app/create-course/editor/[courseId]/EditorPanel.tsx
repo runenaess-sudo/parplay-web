@@ -184,7 +184,6 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                 {/* Course info */}
                 <div>
                     <h2 className="text-xl font-bold">{course.name}</h2>
-                    <p className="text-sm text-neutral-300">{course.id}</p>
                 </div>
 
                 {/* Mode buttons */}
@@ -252,7 +251,7 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
 
                             <div className="space-y-1">
                                 <p className="text-xs text-neutral-400">Current features</p>
-                                {features.length === 0 && <p className="text-xs text-neutral-400">No features on this play option.</p>}
+                                {features.length === 0 && <p className="text-xs text-neutral-400">No features on this variation.</p>}
                                 {features.map((feature) => (
                                     <button
                                         key={feature.id}
