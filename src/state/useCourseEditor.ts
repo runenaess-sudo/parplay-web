@@ -19,32 +19,6 @@ import { create } from "zustand";
 
 type EditorMode = "none" | "tee" | "basket" | "points";
 
-function applyFeatureApplicability(course: any, rows: Array<{ id: string; hole_id: string }>) {
-    const canonical = new Map<string, HoleFeature>(
-        ((course.canonical_hole_features ?? []) as HoleFeature[]).map((feature) => [feature.id, feature]),
-    );
-    const applicable = new Map<string, Set<string>>();
-    rows.forEach((row) => {
-        const holeIds = applicable.get(row.id) ?? new Set<string>();
-        holeIds.add(row.hole_id);
-        applicable.set(row.id, holeIds);
-    });
-    const normalized = new Map([...canonical].map(([id, feature]) => [id, {
-        ...feature,
-        origin_hole_id: feature.origin_hole_id ?? feature.hole_id,
-        applicable_hole_ids: [...(applicable.get(id) ?? new Set([feature.hole_id]))],
-    }]));
-    return {
-        ...course,
-        canonical_hole_features: [...normalized.values()],
-        holes: course.holes.map((hole: any) => ({
-            ...hole,
-            hole_features: [...normalized.values()].filter((feature) =>
-                feature.applicable_hole_ids.includes(hole.id)),
-        })),
-    };
-}
-
 type CourseEditorState = {
     course: any | null;
     selectedHoleId: string | null;
@@ -193,14 +167,11 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             properties: {},
             sort_order: features.length,
         };
-        const { error } = await supabaseBrowser.from("hole_features").insert({
-            id: feature.id,
-            hole_id: feature.hole_id,
-            feature_type: feature.feature_type,
-            geometry: feature.geometry,
-            description: feature.description,
-            properties: feature.properties,
-            sort_order: feature.sort_order,
+        if (!hole.play_config_id) { get().setToast('Save Main before adding features.'); return; }
+        const { error } = await supabaseBrowser.rpc('create_play_config_feature_v5', {
+            p_feature_id: id, p_hole_id: selectedHoleId, p_config_ids: [hole.play_config_id],
+            p_feature: { feature_type: feature.feature_type, geometry: feature.geometry,
+                description: feature.description, properties: feature.properties, sort_order: feature.sort_order },
         });
         if (error) {
             console.error("Failed to create hole feature", error);
@@ -432,66 +403,42 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         if (get().featureLinkPending) return false;
         set({ featureLinkPending: true });
         try {
-            const { error } = await supabaseBrowser.rpc("attach_hole_feature_to_hole", {
-                p_feature_id: featureId,
-                p_hole_id: holeId,
-            });
-            if (error) {
-                console.error("Failed to attach shared hole feature", error);
-                get().setToast("Error sharing feature with this hole");
-                return false;
-            }
             const course = get().course;
-            if (!course) return false;
-            const holeIds = course.holes.map((hole: any) => hole.id);
-            const { data, error: refreshError } = await supabaseBrowser
-                .from("effective_hole_features")
-                .select("id,hole_id")
-                .in("hole_id", holeIds);
-            if (refreshError) {
-                console.error("Failed to refresh shared feature applicability", refreshError);
-                get().setToast("Feature linked, but editor refresh failed");
-                return false;
-            }
-            set({ course: applyFeatureApplicability(course, data ?? []), selectedFeatureId: featureId });
-            get().setToast("Feature added to this hole");
+            const hole = course?.holes.find((h: any) => h.id === holeId);
+            if (!hole?.play_config_id) return false;
+            const { error } = await supabaseBrowser.rpc('set_play_config_feature_link_v5', {
+                p_feature_id: featureId, p_config_id: hole.play_config_id, p_linked: true,
+            });
+            if (error) { get().setToast(error.message); return false; }
+            const { data, error: refreshError } = await supabaseBrowser.rpc('resolve_hole_play_config_v1', {
+                p_hole_id: holeId, p_preview_config_id: hole.play_config_id,
+            });
+            if (refreshError) { get().setToast('Saved; reload the editor to refresh features.'); return false; }
+            set({ course: { ...get().course, holes: get().course.holes.map((h: any) => h.id === holeId
+                ? { ...h, hole_features: data.features } : h) }, selectedFeatureId: null });
             return true;
-        } finally {
-            set({ featureLinkPending: false });
-        }
+        } finally { set({ featureLinkPending: false }); }
     },
 
     detachFeatureFromHole: async (featureId, holeId) => {
         if (get().featureLinkPending) return false;
         set({ featureLinkPending: true });
         try {
-            const { error } = await supabaseBrowser.rpc("detach_hole_feature_from_hole", {
-                p_feature_id: featureId,
-                p_hole_id: holeId,
-            });
-            if (error) {
-                console.error("Failed to detach shared hole feature", error);
-                get().setToast("Error removing feature from this hole");
-                return false;
-            }
             const course = get().course;
-            if (!course) return false;
-            const holeIds = course.holes.map((hole: any) => hole.id);
-            const { data, error: refreshError } = await supabaseBrowser
-                .from("effective_hole_features")
-                .select("id,hole_id")
-                .in("hole_id", holeIds);
-            if (refreshError) {
-                console.error("Failed to refresh shared feature applicability", refreshError);
-                get().setToast("Feature removed, but editor refresh failed");
-                return false;
-            }
-            set({ course: applyFeatureApplicability(course, data ?? []), selectedFeatureId: null });
-            get().setToast("Feature removed from this hole");
+            const hole = course?.holes.find((h: any) => h.id === holeId);
+            if (!hole?.play_config_id) return false;
+            const { error } = await supabaseBrowser.rpc('set_play_config_feature_link_v5', {
+                p_feature_id: featureId, p_config_id: hole.play_config_id, p_linked: false,
+            });
+            if (error) { get().setToast(error.message); return false; }
+            const { data, error: refreshError } = await supabaseBrowser.rpc('resolve_hole_play_config_v1', {
+                p_hole_id: holeId, p_preview_config_id: hole.play_config_id,
+            });
+            if (refreshError) { get().setToast('Saved; reload the editor to refresh features.'); return false; }
+            set({ course: { ...get().course, holes: get().course.holes.map((h: any) => h.id === holeId
+                ? { ...h, hole_features: data.features } : h) }, selectedFeatureId: null });
             return true;
-        } finally {
-            set({ featureLinkPending: false });
-        }
+        } finally { set({ featureLinkPending: false }); }
     },
 
     setTee: (holeId, lng, lat) => {
@@ -672,6 +619,32 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         console.log("SUPABASE UPDATE PAYLOAD:", payload);
 
+        if (hole.play_config_id) {
+            const { data: editor, error: readError } = await supabaseBrowser.rpc('get_course_variant_editor_v5', { p_course_id: course.id });
+            if (readError) { get().setToast('Could not verify play option.'); return; }
+            const option = editor.configs.find((c: any) => c.id === hole.play_config_id);
+            const tee = editor.tees.find((t: any) => t.id === option.tee_id);
+            const basket = editor.baskets.find((b: any) => b.id === option.basket_id);
+            const sharedMove = (object: any, lat: number, lon: number, elevation: number | null) => object.usage.length > 1
+                && (object.latitude !== lat || object.longitude !== lon || object.elevation !== elevation);
+            const confirmation = sharedMove(tee, payload.tee_latitude, payload.tee_longitude, teeElevation)
+                || sharedMove(basket, payload.basket_latitude, payload.basket_longitude, basketElevation);
+            if (confirmation && !window.confirm('Move shared physical object? This changes every current play option using it. Played rounds retain their original geometry.')) return;
+            const { error } = await supabaseBrowser.rpc('save_hole_variant_draft_v5', {
+                p_hole_id: holeId, p_config: { ...option, label: option.label || 'Main', par: hole.par,
+                    distance: payload.distance, fairway: payload.fairway, tee_angle: payload.tee_angle, elevation_diff: payload.elevation_diff },
+                p_tee: { label: tee.label || 'Main', latitude: payload.tee_latitude, longitude: payload.tee_longitude, elevation: teeElevation },
+                p_basket: { label: basket.label || 'Main', latitude: payload.basket_latitude, longitude: payload.basket_longitude, elevation: basketElevation },
+                p_confirm_shared: confirmation,
+            });
+            if (error) { get().setToast(error.message); return; }
+            const { data: resolved, error: resolveError } = await supabaseBrowser.rpc('resolve_hole_play_config_v1', { p_hole_id: holeId, p_preview_config_id: option.id });
+            if (!resolveError) set({ course: { ...get().course, holes: get().course.holes.map((h: any) => h.id === holeId
+                ? { ...h, ...resolved, hole_features: resolved.features } : h) } });
+            get().setToast('PLAY OPTION SAVED');
+            return;
+        }
+
         const { error } = await supabaseBrowser
             .from("holes")
             .update(payload)
@@ -766,11 +739,11 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             get().setToast("Error creating hole");
             return;
         }
-
+        const { data: resolved } = await supabase.rpc('resolve_hole_play_config_v1', { p_hole_id: data.id });
         set((s) => ({
             course: {
                 ...s.course,
-                holes: [...s.course.holes, { ...data, hole_features: [] }],
+                holes: [...s.course.holes, { ...data, ...(resolved ?? {}), hole_features: [] }],
             },
             selectedHoleId: data.id,
         }));

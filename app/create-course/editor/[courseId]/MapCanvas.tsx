@@ -17,6 +17,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 type EditorMode = "none" | "tee" | "basket" | "points";
 
 type MapCanvasProps = {
+    toolsOpen?: boolean;
     course: any;
     selectedHoleId: string | null;
     mode: EditorMode;
@@ -37,6 +38,7 @@ type MapCanvasProps = {
 };
 
 export function MapCanvas({
+    toolsOpen = false,
     course,
     selectedHoleId,
     mode,
@@ -934,12 +936,12 @@ export function MapCanvas({
             padding: {
                 top: 120,     // hull-list overlay
                 bottom: 80,
-                right: 20,
-                left: 140,   // flytende panel safe area
+                right: window.innerWidth >= 1024 && toolsOpen ? 280 : 20,
+                left: window.innerWidth >= 1024 ? 276 : 20,
             },
             duration: 600,
         });
-    }, [selectedHoleId]);
+    }, [selectedHoleId, course?.holes.find((h: any) => h.id === selectedHoleId)?.play_config_id, toolsOpen]);
 
 
     return (

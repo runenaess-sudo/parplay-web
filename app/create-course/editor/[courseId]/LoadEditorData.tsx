@@ -23,7 +23,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 return;
             }
 
-            const { data: holes, error: holesError } = await supabaseBrowser
+            const { data: legacyHoles, error: holesError } = await supabaseBrowser
                 .from("holes")
                 .select("*")
                 .eq("course_id", courseId)
@@ -33,6 +33,18 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 console.error("Could not load holes", holesError);
                 return;
             }
+
+            // Keep editor-only metadata, but obtain all playable data from the
+            // same default resolver used by runtime. Writes still target holes.
+            const { data: resolved, error: resolvedError } = await supabaseBrowser.rpc(
+                "get_resolved_course_holes_v1", { p_course_id: courseId },
+            );
+            if (resolvedError || !Array.isArray(resolved)) {
+                console.error("Could not resolve course holes", resolvedError);
+                return;
+            }
+            const legacyById = new Map((legacyHoles ?? []).map((hole) => [hole.id, hole]));
+            const holes = resolved.map((hole: any) => ({ ...legacyById.get(hole.id), ...hole }));
 
             const holeIds = (holes ?? []).map((hole) => hole.id);
             const [featureResult, applicabilityResult] = holeIds.length > 0
@@ -74,8 +86,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
             const parsedHoles = holes.map((h: any) => ({
                 ...h,
                 fairway: Array.isArray(h.fairway) ? h.fairway : [],
-                hole_features: canonicalFeatures.filter((feature) =>
-                    feature.applicable_hole_ids.includes(h.id)),
+                hole_features: h.features ?? [],
             }));
 
             loadAll({

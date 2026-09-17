@@ -112,7 +112,7 @@ function FeatureDetails({ feature, mandoPartners, originHoleNumber, currentHoleN
     );
 }
 
-export default function EditorPanel() {
+export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean }) {
     const course = useCourseEditor((s) => s.course);
     const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
     const mode = useCourseEditor((s) => s.mode);
@@ -137,7 +137,7 @@ export default function EditorPanel() {
 
     const toast = useCourseEditor((s) => s.toast);
     const clearToast = useCourseEditor((s) => s.clearToast);
-    const [toolsOpen, setToolsOpen] = useState(false);
+    const [toolsOpen, setToolsOpen] = useState(true);
 
     const hole = course?.holes.find((h: any) => h.id === selectedHoleId);
     const features = (hole?.hole_features ?? []) as HoleFeature[];
@@ -175,11 +175,12 @@ export default function EditorPanel() {
 
     return (
         <>
-            {toast && <Toast message={toast} onClose={clearToast} />}
+            {!toolsOnly && toast && <Toast message={toast} onClose={clearToast} />}
 
             {/* Flytende panel-innhold */}
             <div className="relative w-full h-full overflow-y-auto text-white p-4 space-y-6">
 
+                {!toolsOnly && <>
                 {/* Course info */}
                 <div>
                     <h2 className="text-xl font-bold">{course.name}</h2>
@@ -204,12 +205,13 @@ export default function EditorPanel() {
                     ))}
                 </div>
 
-                <div className="space-y-3 pt-4 border-t border-white/10">
+                </>}
+                {toolsOnly && <div className="space-y-3 pt-4 border-t border-white/10">
                     <button
                         onClick={() => setToolsOpen((open) => !open)}
                         className="w-full px-3 py-2 rounded bg-slate-700 hover:bg-slate-600 font-bold tracking-wide"
                     >
-                        TOOLS {toolsOpen ? "▲" : "▼"}
+                        FEATURES {toolsOpen ? "▲" : "▼"}
                     </button>
 
                     {toolsOpen && hole && (
@@ -294,8 +296,9 @@ export default function EditorPanel() {
                     )}
                 </div>
 
+                }
                 {/* Hole info + Save */}
-                {hole && (
+                {!toolsOnly && hole && (
                     <div className="pt-4 border-t border-white/10 space-y-3">
                         <h3 className="text-lg font-semibold">Hole Info</h3>
 

@@ -5,6 +5,7 @@ import { type HoleFeature } from "@/types/holeFeatures";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import EditorPanel from "./EditorPanel";
+import PlayOptionsPanel from './PlayOptionsPanel';
 import LoadEditorData from "./LoadEditorData";
 import { MapCanvas } from "./MapCanvas";
 
@@ -78,6 +79,8 @@ export default function Page() {
     const attachFeatureToHole = useCourseEditor((s) => s.attachFeatureToHole);
     const featureLinkPending = useCourseEditor((s) => s.featureLinkPending);
     const [weakSelection, setWeakSelection] = useState<{ featureId: string; holeId: string } | null>(null);
+    const [toolsOpen, setToolsOpen] = useState(true);
+    const [builderOpen, setBuilderOpen] = useState(false);
 
     const selectWeakFeature = (featureId: string) => {
         if (selectedHoleId) setWeakSelection({ featureId, holeId: selectedHoleId });
@@ -98,7 +101,7 @@ export default function Page() {
         : selectedWeakFeature?.feature_type === "OB_AREA" ? "OB area" : "hazard area";
 
     return (
-        <div className="flex flex-col min-h-screen bg-slate-900">
+        <div className="flex h-dvh flex-col overflow-hidden bg-slate-900">
 
             {/* HEADER */}
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
@@ -136,9 +139,16 @@ export default function Page() {
                 <div className="relative flex-1 min-h-0">
 
                     {/* FLYTENDE VERKTØYPANEL */}
-                    <div className="absolute top-14 left-0 bottom-0 z-40 w-80 bg-black/60 backdrop-blur-md border-r border-white/10">
+                    <button onClick={() => setBuilderOpen(open => !open)} aria-expanded={builderOpen} className="absolute left-2 top-14 z-50 min-h-11 rounded bg-slate-800 px-3 text-white lg:hidden">Build hole</button>
+                    <div className={`${builderOpen ? 'block' : 'hidden lg:block'} absolute top-28 lg:top-14 left-0 bottom-0 z-40 w-64 max-w-[85vw] bg-black/90 backdrop-blur-md border-r border-white/10`}>
                         <EditorPanel />
                     </div>
+                    <button onClick={() => setToolsOpen(open => !open)} aria-expanded={toolsOpen}
+                        className="absolute right-2 top-14 z-50 min-h-11 rounded bg-slate-800 px-3 text-white">{toolsOpen ? 'Hide tools' : 'Tools'}</button>
+                    {toolsOpen && <aside className="absolute right-0 top-28 bottom-0 z-40 w-[260px] max-w-[85vw] overflow-y-auto border-l border-white/10 bg-slate-950/95 backdrop-blur-md">
+                        <PlayOptionsPanel key={courseId} />
+                        <EditorPanel toolsOnly />
+                    </aside>}
 
                     {/* HULL-LISTE OVERLAY */}
                     <HoleListOverlay
@@ -149,6 +159,7 @@ export default function Page() {
 
                     {/* KARTET (FULLSCREEN UNDER ALT) */}
                     <MapCanvas
+                        toolsOpen={toolsOpen}
                         course={course}
                         selectedHoleId={selectedHoleId}
                         mode={mode}
