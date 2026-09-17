@@ -1,3 +1,4 @@
+import CourseFeed from '@/components/community/CourseFeed';
 import { supabaseServer } from "@/lib/supabase-server";
 import Image from "next/image";
 import Link from "next/link";
@@ -251,6 +252,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
                 </article>)}
             </div> : <div className="rounded-2xl bg-white/[0.04] p-6"><p className="font-semibold text-white">No upcoming events yet</p><p className="mt-1 text-sm text-gray-500">Tournaments and events at this course will appear here.</p></div>}
         </section>
+        <div className="mt-16"><CourseFeed courseId={courseId} courseName={course.name} preview /></div>
     </main>;
 }
 

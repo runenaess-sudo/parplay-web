@@ -9,7 +9,7 @@ const NORMAL_AUTHENTICATED_DESTINATION = "/create-course";
 function validatedDestination(search: string) {
     const requestedReturnTo = new URLSearchParams(search).get("returnTo");
     return requestedReturnTo && (/^\/course-invite\/[0-9a-f]{64}$/i.test(requestedReturnTo)
-        || isSafeTransferReturnTo(requestedReturnTo) || requestedReturnTo === "/community")
+        || isSafeTransferReturnTo(requestedReturnTo) || (requestedReturnTo === "/community" || /^\/community\?course=[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedReturnTo)))
         ? requestedReturnTo
         : NORMAL_AUTHENTICATED_DESTINATION;
 }

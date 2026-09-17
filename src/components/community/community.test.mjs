@@ -40,4 +40,18 @@ test('shared submission modal renders required bounded fields and context withou
     assert.ok(html.includes('Send for review'));
     assert.ok(html.includes('reviewed before publication'));
     assert.ok(!html.includes('APPROVED'));
+    assert.ok(html.includes('<select disabled=""'));
+});
+
+test('specific Course view suppresses geography and general Courses defaults to nearby', () => {
+    const { default: CourseFeed } = load('src/components/community/CourseFeed.tsx');
+    const specific = renderToStaticMarkup(React.createElement(CourseFeed, { courseId: '12345678-1234-1234-1234-123456789abc', courseName: 'Eggedal', preview: true }));
+    assert.ok(specific.includes('Player experiences'));
+    assert.ok(specific.includes('Eggedal'));
+    assert.ok(!specific.includes('Nearby'));
+    assert.ok(specific.includes('Share your experience'));
+    const general = renderToStaticMarkup(React.createElement(CourseFeed));
+    assert.match(general, /aria-pressed="true"[^>]*>Nearby/);
+    assert.ok(general.includes('Country'));
+    assert.ok(general.includes('Most helpful'));
 });
