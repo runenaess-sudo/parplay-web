@@ -14,7 +14,9 @@ export default function PlayOptionsPanel() {
  const [error, setError] = useState('');
  const [name, setName] = useState('');
  const [existingBasket, setExistingBasket] = useState('');
+ const [adding, setAdding] = useState<'choose' | 'tee' | 'basket' | 'shared' | null>(null);
  const requestIds = useRef<{ physical: string; config: string } | null>(null);
+ function closeAdd() { setAdding(null); setName(''); setExistingBasket(''); requestIds.current = null; }
  const hole = course?.holes.find((h: any) => h.id === holeId);
  const current = data?.configs.find((c: any) => c.id === hole?.play_config_id);
  async function refresh() {
@@ -38,6 +40,7 @@ export default function PlayOptionsPanel() {
  async function select(id: string) {
   const result = await supabaseBrowser.rpc('resolve_hole_play_config_v1', { p_hole_id: holeId, p_preview_config_id: id });
   if (result.error) throw result.error;
+  if (useCourseEditor.getState().selectedHoleId !== holeId) return;
   useCourseEditor.setState(s => ({ course: { ...s.course, holes: s.course.holes.map((h: any) => h.id === holeId
    ? { ...h, ...result.data, hole_features: result.data.features } : h) }, mode: 'none', featureTool: null, selectedFeatureId: null, drawingCoordinates: [] }));
  }
@@ -60,7 +63,7 @@ export default function PlayOptionsPanel() {
    p_tee: kind === 'tee' ? physical : null, p_basket: kind === 'basket' ? physical : null,
   });
   if (result.error) throw result.error;
-  await refresh(); await select(id); setName(''); requestIds.current = null;
+  await refresh(); await select(id); closeAdd();
  }
  const button = 'min-h-11 w-full rounded bg-slate-700 px-3 py-2 text-left text-sm disabled:opacity-40';
  if (!hole) return null;
@@ -72,19 +75,36 @@ export default function PlayOptionsPanel() {
     <select aria-label="Play option" disabled={busy} value={hole.play_config_id || ''} className="min-h-11 w-full rounded bg-slate-800 p-2 text-sm"
      onChange={e => { const id = e.target.value; if (window.confirm('Switch play option? Save current map changes first; unsaved changes will be discarded.')) void run(() => select(id)); }}>
      {data.configs.filter((c: any) => c.hole_id === holeId).map((c: any) => <option key={c.id} value={c.id}>
-      {label(data.tees.find((t: any) => t.id === c.tee_id)?.label)} → {label(data.baskets.find((b: any) => b.id === c.basket_id)?.label)} · {c.distance} m · Par {c.par}
+      {label(data.tees.find((t: any) => t.id === c.tee_id)?.label)} → {label(data.baskets.find((b: any) => b.id === c.basket_id)?.label)}
+      {c.id !== current?.id ? ` · ${c.distance} m · Par ${c.par}` : ''}
      </option>)}
     </select>
-    <label className="block text-sm">Par<input type="number" min={1} max={10} value={hole.par ?? 3} className="ml-2 w-16 rounded bg-slate-800 p-2"
-     onChange={e => { const par = Number(e.target.value); useCourseEditor.setState(s => ({ course: { ...s.course, holes: s.course.holes.map((h: any) => h.id === holeId ? { ...h, par } : h) } })); }} /></label>
+    <p className="px-2 text-sm text-slate-300">{hole.distance ?? current?.distance ?? 0} m · Par {hole.par ?? 3}</p>
+    <details className="rounded border border-white/10 p-2 text-sm"><summary className="min-h-8 cursor-pointer">Edit par</summary>
+    <label className="flex items-center justify-between gap-3 py-2">Par<input disabled={busy} type="number" min={1} max={10} value={hole.par ?? 3} className="ml-2 w-16 rounded bg-slate-800 p-2"
+     onChange={e => { const par = Number(e.target.value); useCourseEditor.setState(s => ({ course: { ...s.course, holes: s.course.holes.map((h: any) => h.id === holeId ? { ...h, par } : h) } })); }} /></label></details>
    </section>
-   <input aria-label="New tee or basket name" placeholder="New object name" maxLength={40} value={name} onChange={e => setName(e.target.value)} className="min-h-11 w-full rounded bg-slate-800 p-2 text-sm" />
+   <button disabled={busy || !current} className={button} onClick={() => { closeAdd(); setAdding('choose'); }}>+ Add play option</button>
+   {adding && <section aria-label="Add play option" className="space-y-2 rounded-xl border border-white/20 bg-slate-900/80 p-3">
+    {adding === 'choose' ? <>
+     <button className={button} onClick={() => setAdding('tee')}>New tee</button>
+     <button className={button} onClick={() => setAdding('basket')}>New basket</button>
+     <button className={button} onClick={() => setAdding('shared')}>Use existing basket</button>
+    </> : adding === 'shared' ? <>
+     <label className="block text-sm">Course baskets<select aria-label="Existing basket" disabled={busy} value={existingBasket} onChange={e => setExistingBasket(e.target.value)} className="mt-2 min-h-11 w-full rounded bg-slate-800 p-2 text-sm">
+      <option value="">Select basket</option>{data.baskets.map((b: any) => <option key={b.id} value={b.id}>{label(b.label)} · Holes {[...new Set(b.usage.map((u: any) => u.number))].join(', ') || 'none'} · {b.usage.length} play options</option>)}
+     </select></label>
+     <button disabled={busy || !existingBasket} className={button} onClick={() => void run(() => add('shared'))}>USE BASKET</button>
+    </> : <>
+     <p className="text-xs text-slate-300">Set the {adding} position on the map, then create this option. The current {adding === 'tee' ? 'basket' : 'tee'} is reused.</p>
+     <input aria-label={`New ${adding} name`} disabled={busy} placeholder="Name" maxLength={40} value={name} onChange={e => setName(e.target.value)} className="min-h-11 w-full rounded bg-slate-800 p-2 text-sm" />
+     <button disabled={busy || !name.trim()} className={button} onClick={() => void run(() => add(adding))}>Create play option</button>
+    </>}
+    <button disabled={busy} className={button} onClick={closeAdd}>Cancel</button>
+   </section>}
    {(['tee','basket'] as const).map(kind => <section key={kind} className="space-y-2"><h3 className="font-bold">{kind === 'tee' ? 'TEES' : 'BASKETS'}</h3>
-    <p className="text-xs text-slate-400">To add, set the {kind} position on the map, enter a name, then add. This creates one new play option.</p>
-    <button disabled={busy || !current} className={button} onClick={() => void run(() => add(kind))}>+ Add {kind}</button>
-    {data[kind === 'tee' ? 'tees' : 'baskets'].map((object: any) => <details key={object.id} className="rounded border border-white/10 p-2 text-sm"><summary className="cursor-pointer break-words">{label(object.label)}</summary>
+    {data[kind === 'tee' ? 'tees' : 'baskets'].filter((object: any) => object.id === current?.[kind === 'tee' ? 'tee_id' : 'basket_id']).map((object: any) => <details key={object.id} className="rounded border border-white/10 p-2 text-sm"><summary className="min-h-11 cursor-pointer break-words py-2">{label(object.label)} <span className="text-xs text-slate-400">· Current option · Manage</span></summary>
      <p className="text-xs text-slate-400">Used by holes {[...new Set(object.usage.map((u: any) => u.number))].join(', ') || 'none'}</p>
-     <p className="text-xs">{object.latitude}, {object.longitude}</p>
      <button disabled={busy} className={button} onClick={() => {
       const next = window.prompt('Name (maximum 40 characters)', label(object.label));
       if (next == null) return;
@@ -99,11 +119,10 @@ export default function PlayOptionsPanel() {
       }); if (result.error) throw result.error; await refresh(); if (current) await select(current.id); });
      }}>Move to map position</button>
     </details>)}
+    <button disabled={busy || !current} className={button} onClick={() => { closeAdd(); setAdding(kind); }}>+ Add {kind}</button>
+    {kind === 'basket' && <button disabled={busy || !current} className={button} onClick={() => { closeAdd(); setAdding('shared'); }}>Use existing basket</button>}
    </section>)}
-   <section className="space-y-2"><select aria-label="Existing basket" value={existingBasket} onChange={e => setExistingBasket(e.target.value)} className="min-h-11 w-full rounded bg-slate-800 p-2 text-sm">
-    <option value="">Select basket</option>{data.baskets.map((b: any) => <option key={b.id} value={b.id}>{label(b.label)} · {b.usage.length} play options</option>)}
-   </select><button disabled={busy || !existingBasket || !current} className={button} onClick={() => void run(() => add('shared'))}>Use existing basket</button></section>
-   <section className="space-y-2"><h3 className="font-bold">REUSE FEATURES</h3>
+   <details className="space-y-2 rounded border border-white/10 p-2"><summary className="min-h-11 cursor-pointer py-2 text-sm">Manage feature sharing</summary><p className="text-xs text-slate-400">Link existing course features to this play option. Shared geometry stays linked.</p>
     {data.features.filter((f: any) => f.explicit && hole.hole_features?.some((x: any) => x.id === f.id)).map((f: any) => <button key={f.id} disabled={busy || !current} className={button} onClick={() => void run(async () => {
      const result = await supabaseBrowser.rpc('set_play_config_feature_link_v5', { p_feature_id: f.id, p_config_id: current.id, p_linked: false });
      if (result.error) throw result.error; await refresh(); await select(current.id);
@@ -112,7 +131,7 @@ export default function PlayOptionsPanel() {
      const result = await supabaseBrowser.rpc('set_play_config_feature_link_v5', { p_feature_id: f.id, p_config_id: current.id, p_linked: true });
      if (result.error) throw result.error; await refresh(); await select(current.id);
     })}>+ {f.feature_type} {f.description || ''}</button>)}
-   </section>
+   </details>
   </>}
  </div>;
 }

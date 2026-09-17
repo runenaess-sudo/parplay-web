@@ -251,7 +251,8 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                             )}
 
                             <div className="space-y-1">
-                                {features.length === 0 && <p className="text-xs text-neutral-400">No features on this hole.</p>}
+                                <p className="text-xs text-neutral-400">Current features</p>
+                                {features.length === 0 && <p className="text-xs text-neutral-400">No features on this play option.</p>}
                                 {features.map((feature) => (
                                     <button
                                         key={feature.id}
@@ -261,7 +262,7 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                                             : "bg-neutral-900/70 hover:bg-neutral-800"}`}
                                     >
                                         <span className="font-bold">{featureTypeLabel(feature.feature_type)}</span>
-                                        {feature.description && <span className="block truncate text-neutral-300">{feature.description}</span>}
+                                        {feature.description && <span className="text-neutral-300"> · {feature.description}</span>}
                                     </button>
                                 ))}
                             </div>
