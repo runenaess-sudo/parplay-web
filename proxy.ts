@@ -5,6 +5,8 @@ export function proxy(req: NextRequest) {
     const pathname = req.nextUrl.pathname;
     const isSharedLiveRoundPath = pathname.startsWith("/future/round/");
 
+    const isTournamentLivePath = /^\/future\/tournaments\/[^/]+\/round\/[^/]+\/?$/.test(pathname);
+
     // Ikke sjekk RSC-requests
     if (req.headers.get("rsc") === "1") {
         return NextResponse.next();
@@ -20,7 +22,8 @@ export function proxy(req: NextRequest) {
         pathname === "/courses" ||
         pathname.startsWith("/courses/") ||
         pathname === "/verify-email" ||
-        isSharedLiveRoundPath
+        isSharedLiveRoundPath ||
+        isTournamentLivePath
     ) {
         return NextResponse.next();
     }
