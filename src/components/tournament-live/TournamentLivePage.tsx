@@ -7,11 +7,12 @@ import { isUuid, orderedClasses, selectedClass, rankedPlayers, total, relative, 
   readContract, publicFailure, pollTournament, type TournamentLive, type Failure } from '@/lib/tournament-live';
 import styles from './TournamentLivePage.module.css';
 
-export default function TournamentLivePage({ tournamentId, roundId }: { tournamentId: string; roundId: string }) {
+export default function TournamentLivePage({ tournamentId, roundId, eventType = 'tournament' }: { tournamentId: string; roundId: string; eventType?: 'tournament' | 'league' }) {
   const [data, setData] = useState<TournamentLive | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [classId, setClassId] = useState<string | null>(null);
   const [updated, setUpdated] = useState<Date | null>(null);
+  const label = eventType === 'league' ? 'League' : 'Tournament';
   const valid = isUuid(tournamentId) && isUuid(roundId);
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export default function TournamentLivePage({ tournamentId, roundId }: { tourname
       signal.addEventListener('abort', abort, { once: true });
       const timeout = setTimeout(abort, 20000);
       try {
-        const result = await supabaseBrowser.rpc('get_public_tournament_live_scorecard_v1', {
+        const result = await supabaseBrowser.rpc(eventType === 'league' ? 'get_public_league_live_scorecard_v1' : 'get_public_tournament_live_scorecard_v1', {
           p_tournament_id: tournamentId, p_round_id: roundId,
         }).abortSignal(request.signal);
         if (result.error) throw result.error;
@@ -33,28 +34,28 @@ export default function TournamentLivePage({ tournamentId, roundId }: { tourname
       setFailure(null); setUpdated(new Date());
     }, error => {
       const next = publicFailure(error);
-      setFailure(next);
+      setFailure(eventType === 'league' ? { ...next, message: next.message.replace('Tournament', 'League') } : next);
       // Revocation/invalid setup must not keep a previously public scoreboard visible.
       if (next.permanent) setData(null);
     });
-  }, [tournamentId, roundId, valid]);
+  }, [tournamentId, roundId, valid, eventType]);
 
   const classes = orderedClasses(data?.classes ?? []);
   const current = selectedClass(classes, classId);
   const status = data?.round.status === 'finished' ? 'Finished' : data?.round.status === 'ongoing' ? 'Live' : 'Before play';
   return <main className={styles.page}>
     <header className={styles.header}>
-      <p className={styles.eyebrow}>PARPLAY · TOURNAMENT</p>
-      <h1>{data?.tournament.name ?? 'Tournament live scorecard'}</h1>
+      <p className={styles.eyebrow}>PARPLAY · {label.toUpperCase()}</p>
+      <h1>{data?.tournament.name ?? `${label} live scorecard`}</h1>
       {data && <div className={styles.statusRow}><strong>Round {data.round.round_number}</strong>
         <span className={styles.badge}>{status}</span></div>}
-      <p role="status" className={styles.update}>{!valid ? 'Invalid Tournament round link.' : failure
+      <p role="status" className={styles.update}>{!valid ? `Invalid ${label} round link.` : failure
         ? `${failure.message}${data ? ' Showing last received scores.' : ''}`
         : !data ? 'Loading scorecard…' : updated ? `Updated ${updated.toLocaleTimeString()} · Refreshes automatically` : ''}</p>
     </header>
     {data && classes.length === 0 && <section className={styles.empty}>Round setup is not ready yet. No represented classes or assigned players are available.</section>}
     {current && <>
-      <nav className={styles.chips} aria-label="Tournament classes">
+      <nav className={styles.chips} aria-label={`${label} classes`}>
         {classes.map(c => <button key={c.id} type="button" aria-pressed={c.id === current.id}
           onClick={() => setClassId(c.id)} className={styles.chip}>{c.code}</button>)}
       </nav>
@@ -93,14 +94,14 @@ export default function TournamentLivePage({ tournamentId, roundId }: { tourname
                   </span>
                 </td>;
               })}
-              <td title={p.has_conflict ? 'Unresolved score discrepancy' : !p.is_display_complete ? 'Round in progress' : 'Tournament Results total'}>{total(p) ?? '—'}{p.has_conflict && ' !'}</td>
+              <td title={p.has_conflict ? 'Unresolved score discrepancy' : !p.is_display_complete ? 'Round in progress' : `${label} Results total`}>{total(p) ?? '—'}{p.has_conflict && ' !'}</td>
               <td title={p.rating_state === 'evolving' ? 'Current stored rating · still evolving' : p.rating_state === 'final' ? 'Final rating' : 'Rating unavailable'}>
                 <span className={styles.rating}>{rating(p)}{p.round_rating !== null && p.rating_state === 'evolving' && <sup aria-label="evolving">*</sup>}</span>
               </td>
             </tr>)}</tbody>
           </table>
         </div>
-        <p className={styles.legend}>* Provisional score / evolving rating · ! Score discrepancy · F Finished</p>
+        <p className={styles.legend}>{eventType === 'league' ? 'F Finished' : "* Provisional score / evolving rating · ! Score discrepancy · F Finished"}</p>
       </section>
     </>}
   </main>;

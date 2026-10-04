@@ -23,7 +23,7 @@ export function proxy(req: NextRequest) {
         pathname.startsWith("/courses/") ||
         pathname === "/verify-email" ||
         isSharedLiveRoundPath ||
-        isTournamentLivePath
+        isTournamentLivePath || /^\/future\/leagues\/[^/]+\/round\/[^/]+\/?$/.test(pathname)
     ) {
         return NextResponse.next();
     }
