@@ -60,7 +60,7 @@ for (const [pathname, expected] of [[`/future/tournaments/${id}/round/${round}`,
 // Render the actual table, with hooks supplying a selected class and last-good data.
 const React = require('react'), {renderToStaticMarkup} = require('react-dom/server');
 function render(selected, failure = null) {
-  const states = [data, failure, selected, new Date('2026-10-11T12:00:00Z'), true, 'live'];
+  const states = [null, 'total', false, data, failure, selected, new Date('2026-10-11T12:00:00Z'), true, 'live'];
   const Component = load('src/components/tournament-live/TournamentLivePage.tsx', {
     react:{...React,useState:()=>[states.shift(),()=>{}],useEffect:()=>{}}, '@/lib/supabase-browser':{supabaseBrowser:{}},
   }).default;
