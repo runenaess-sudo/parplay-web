@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { getInitials, getScoreDisplayStyle } from '@/lib/live-score-presentation';
 import { isUuid, orderedClasses, selectedClass, rankedPlayers, total, relative, thru, rating, scoreState,
-  readContract, publicFailure, type TournamentLive, type Failure } from '@/lib/tournament-live';
+  publicFailure, type TournamentLive, type Failure } from '@/lib/tournament-live';
 import { eventRoundUpdates, scorecardTopic, type LiveStatus } from '@/lib/event-round-updates';
+import { readPublicEventRound } from '@/lib/public-event-round';
 import styles from './TournamentLivePage.module.css';
 
 export default function TournamentLivePage({ tournamentId, roundId, eventType = 'tournament' }: { tournamentId: string; roundId: string; eventType?: 'tournament' | 'league' }) {
@@ -36,11 +37,7 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
       signal.addEventListener('abort', abort, { once: true });
       const timeout = setTimeout(abort, 20000);
       try {
-        const result = await supabaseBrowser.rpc(eventType === 'league' ? 'get_public_league_live_scorecard_v1' : 'get_public_tournament_live_scorecard_v1', {
-          p_tournament_id: tournamentId, p_round_id: roundId,
-        }).abortSignal(request.signal);
-        if (result.error) throw result.error;
-        return readContract(result.data, tournamentId, roundId);
+        return await readPublicEventRound(eventType, tournamentId, roundId, request.signal);
       } finally { clearTimeout(timeout); signal.removeEventListener('abort', abort); }
     }, receive: value => {
       setData(value); setClassId(id => selectedClass(value.classes, id)?.id ?? null);
