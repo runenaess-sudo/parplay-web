@@ -60,7 +60,7 @@ for (const [pathname, expected] of [[`/future/tournaments/${id}/round/${round}`,
 // Render the actual table, with hooks supplying a selected class and last-good data.
 const React = require('react'), {renderToStaticMarkup} = require('react-dom/server');
 function render(selected, failure = null) {
-  const states = [data, failure, selected, new Date('2026-10-11T12:00:00Z')];
+  const states = [data, failure, selected, new Date('2026-10-11T12:00:00Z'), true, 'live'];
   const Component = load('src/components/tournament-live/TournamentLivePage.tsx', {
     react:{...React,useState:()=>[states.shift(),()=>{}],useEffect:()=>{}}, '@/lib/supabase-browser':{supabaseBrowser:{}},
   }).default;
@@ -76,7 +76,7 @@ assert.ok(render('FPO',{permanent:false,message:'Retrying'}).includes('Showing l
 const css=fs.readFileSync(path.join(root,'src/components/tournament-live/TournamentLivePage.module.css'),'utf8');
 assert.match(css,/overflow-x: auto/); assert.match(css,/flex-wrap: nowrap/); assert.match(css,/position: sticky/);
 const page=fs.readFileSync(path.join(root,'src/components/tournament-live/TournamentLivePage.tsx'),'utf8');
-assert.match(page,/get_public_tournament_live_scorecard_v1/); assert.doesNotMatch(page,/\.from\(|\.channel\(|\.functions\./);
+assert.match(page,/get_public_tournament_live_scorecard_v1/); assert.doesNotMatch(page,/\.from\(|\.functions\./);
 assert.match(page,/setClassId\(id => selectedClass\(value.classes, id\)/);
 const canonical=path.resolve(root,'../parplay/src/tournaments/classOrder.ts');
 if(fs.existsSync(canonical)) assert.equal(fs.readFileSync(path.join(root,'src/lib/event-class-order.ts'),'utf8').split('\n').slice(1).join('\n'),fs.readFileSync(canonical,'utf8'));

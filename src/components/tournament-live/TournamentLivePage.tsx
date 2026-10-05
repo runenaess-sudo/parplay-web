@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { getInitials, getScoreDisplayStyle } from '@/lib/live-score-presentation';
 import { isUuid, orderedClasses, selectedClass, rankedPlayers, total, relative, thru, rating, scoreState,
-  readContract, publicFailure, pollTournament, type TournamentLive, type Failure } from '@/lib/tournament-live';
+  readContract, publicFailure, type TournamentLive, type Failure } from '@/lib/tournament-live';
+import { eventRoundUpdates, scorecardTopic, type LiveStatus } from '@/lib/event-round-updates';
 import styles from './TournamentLivePage.module.css';
 
 export default function TournamentLivePage({ tournamentId, roundId, eventType = 'tournament' }: { tournamentId: string; roundId: string; eventType?: 'tournament' | 'league' }) {
@@ -12,12 +13,24 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
   const [failure, setFailure] = useState<Failure | null>(null);
   const [classId, setClassId] = useState<string | null>(null);
   const [updated, setUpdated] = useState<Date | null>(null);
+  const [liveUpdate, setLiveUpdate] = useState(true);
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>('connecting');
+  const updates = useRef<ReturnType<typeof eventRoundUpdates<TournamentLive>> | null>(null);
   const label = eventType === 'league' ? 'League' : 'Tournament';
   const valid = isUuid(tournamentId) && isUuid(roundId);
 
   useEffect(() => {
     if (!valid) return;
-    return pollTournament(async signal => {
+    const identity = { eventType, eventId: tournamentId, roundId };
+    const updater = eventRoundUpdates({
+      identity, browser: window, document, status: setLiveStatus,
+      subscribe: (signal, status) => {
+        const channel = supabaseBrowser.channel(scorecardTopic(identity), { config: { private: false } })
+          .on('broadcast', { event: 'changed' }, ({ payload }) => signal(payload))
+          .subscribe(status);
+        return () => { void supabaseBrowser.removeChannel(channel); };
+      },
+      load: async signal => {
       const request = new AbortController();
       const abort = () => request.abort();
       signal.addEventListener('abort', abort, { once: true });
@@ -29,16 +42,21 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
         if (result.error) throw result.error;
         return readContract(result.data, tournamentId, roundId);
       } finally { clearTimeout(timeout); signal.removeEventListener('abort', abort); }
-    }, value => {
+    }, receive: value => {
       setData(value); setClassId(id => selectedClass(value.classes, id)?.id ?? null);
       setFailure(null); setUpdated(new Date());
-    }, error => {
+    }, failed: error => {
       const next = publicFailure(error);
+      if (!next.permanent) next.message = 'Unable to refresh right now. Use Refresh to try again.';
       setFailure(eventType === 'league' ? { ...next, message: next.message.replace('Tournament', 'League') } : next);
       // Revocation/invalid setup must not keep a previously public scoreboard visible.
       if (next.permanent) setData(null);
-    });
+    }});
+    updates.current = updater;
+    return () => { updater.stop(); updates.current = null; };
   }, [tournamentId, roundId, valid, eventType]);
+
+  useEffect(() => { updates.current?.setEnabled(liveUpdate); }, [liveUpdate]);
 
   const classes = orderedClasses(data?.classes ?? []);
   const current = selectedClass(classes, classId);
@@ -51,7 +69,13 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
         <span className={styles.badge}>{status}</span></div>}
       <p role="status" className={styles.update}>{!valid ? `Invalid ${label} round link.` : failure
         ? `${failure.message}${data ? ' Showing last received scores.' : ''}`
-        : !data ? 'Loading scorecard…' : updated ? `Updated ${updated.toLocaleTimeString()} · Refreshes automatically` : ''}</p>
+        : !data ? 'Loading scorecard…' : updated ? `Updated ${updated.toLocaleTimeString()}` : ''}</p>
+      {valid && <div className={styles.statusRow}>
+        <button type="button" className={styles.chip} aria-pressed={liveUpdate}
+          onClick={() => setLiveUpdate(value => !value)}>Live Update: {liveUpdate ? 'ON' : 'OFF'}</button>
+        <button type="button" className={styles.chip} onClick={() => updates.current?.refresh()}>Refresh</button>
+        {liveUpdate && liveStatus === 'fallback' && <small role="status">Live connection unavailable - refreshing every 4 seconds</small>}
+      </div>}
     </header>
     {data && classes.length === 0 && <section className={styles.empty}>Round setup is not ready yet. No represented classes or assigned players are available.</section>}
     {current && <>
