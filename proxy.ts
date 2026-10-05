@@ -7,6 +7,9 @@ export function proxy(req: NextRequest) {
 
     const isTournamentLivePath = /^\/future\/tournaments\/[^/]+\/round\/[^/]+\/?$/.test(pathname);
 
+    // Permanent public event resource. Only one UUID segment, never admin/player routes.
+    const isPublicEventPath = /^\/future\/tournaments\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/?$/i.test(pathname);
+
     // Ikke sjekk RSC-requests
     if (req.headers.get("rsc") === "1") {
         return NextResponse.next();
@@ -22,6 +25,7 @@ export function proxy(req: NextRequest) {
         pathname === "/courses" ||
         pathname.startsWith("/courses/") ||
         pathname === "/verify-email" ||
+        isPublicEventPath ||
         isSharedLiveRoundPath ||
         isTournamentLivePath || /^\/future\/leagues\/[^/]+\/round\/[^/]+\/?$/.test(pathname)
     ) {
