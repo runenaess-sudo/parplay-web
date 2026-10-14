@@ -38,23 +38,8 @@ export async function canOpenCourseEditor(courseId: string) {
     const supabase = await supabaseServer();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return false;
-    const [{ data: profile }, { data: course }] = await Promise.all([
-        supabase.from("profiles").select("membership").eq("id", userData.user.id).maybeSingle(),
-        supabase.from("courses").select("id,created_by,club_id").eq("id", courseId).maybeSingle(),
-    ]);
-    if (!profile || !course) return false;
-    if (profile.membership === "admin") return true;
-    const { data: assigned, error: assignmentError } = await supabase
-        .rpc("is_course_manager_v1", { p_course_id: courseId, p_user_id: userData.user.id });
-    if (assignmentError) return false;
-    if (assigned === true) return true;
-    const { data: acceptedClaims, error: acceptedClaimsError } = await supabase
-        .from("course_claim_requests")
-        .select("club_id")
-        .eq("course_id", courseId)
-        .eq("status", "accepted");
-    if (acceptedClaimsError) return false;
-    return course.created_by === userData.user.id && acceptedClaims?.length === 0;
+    const { data, error } = await supabase.rpc('can_manage_course_private_data_v1', { p_course_id: courseId });
+    return !error && data === true;
 }
 
 export async function getServerManageableCourses(): Promise<ManageableCourse[] | null> {
@@ -122,15 +107,30 @@ export async function getServerCourseBuilds(): Promise<CourseBuild[] | null> {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return null;
 
-    const { data: creatorCourses, error: coursesError } = await supabase
-        .from("courses")
-        .select("id,name,location,is_published,status,club_id,created_at")
-        .eq("created_by", userData.user.id)
-        .order("created_at", { ascending: false });
-    if (coursesError) throw coursesError;
-
-    return Promise.all((creatorCourses as ManageableCourse[]).map(async (course) => ({
-        ...course,
-        canManage: await canOpenCourseEditor(course.id),
-    })));
+    const { data: profile, error: profileError } = await supabase.from('profiles')
+        .select('membership').eq('id', userData.user.id).maybeSingle();
+    if (profileError) throw profileError;
+    const courseSelect = 'id,name,location,is_published,status,club_id,created_at,created_by';
+    const isAdmin = profile?.membership === 'admin';
+    let query = supabase.from('courses').select(courseSelect).order('created_at', { ascending: false });
+    if (!isAdmin) {
+        const [{ data: created, error: createdError }, { data: assignments, error: assignmentError }] = await Promise.all([
+            supabase.from('courses').select('id').eq('created_by', userData.user.id),
+            supabase.from('course_manager_assignments').select('course_id')
+                .eq('manager_user_id', userData.user.id).eq('status', 'active').eq('is_primary', true),
+        ]);
+        if (createdError) throw createdError;
+        if (assignmentError) throw assignmentError;
+        const ids = [...new Set([...(created ?? []).map(c => c.id), ...(assignments ?? []).map(a => a.course_id)])];
+        if (!ids.length) return [];
+        query = query.in('id', ids);
+    }
+    const { data: courses, error } = await query;
+    if (error) throw error;
+    const checked = await Promise.all((courses ?? []).map(async course => {
+        const { data: allowed, error: permissionError } = await supabase.rpc('can_manage_course_private_data_v1', { p_course_id: course.id });
+        if (permissionError) throw permissionError;
+        return { ...course, canManage: allowed === true };
+    }));
+    return checked.filter(course => course.canManage || course.created_by === userData.user.id);
 }

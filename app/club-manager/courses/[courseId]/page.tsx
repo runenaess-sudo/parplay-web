@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { canOpenCourseEditor, getServerCourseManager } from "@/lib/course-manager-auth";
+import { canOpenCourseEditor } from "@/lib/course-manager-auth";
+
+import { supabaseServer } from '@/lib/supabase-server';
 
 type FacilityRow = Record<string, boolean | string | number | null>;
 type DirectionRow = Record<string, string | number | null>;
@@ -34,41 +36,30 @@ export default async function ManageCourseOverview({ params, searchParams }: {
     params: Promise<{ courseId: string }>;
     searchParams: Promise<{ clubId?: string }>;
 }) {
-    const [{ courseId }, { clubId }, access, editorAllowed] = await Promise.all([
-        params, searchParams, getServerCourseManager(),
+    const [{ courseId }, { clubId }, supabase, editorAllowed] = await Promise.all([
+        params, searchParams, supabaseServer(),
         params.then(({ courseId: requestedCourseId }) => canOpenCourseEditor(requestedCourseId)),
     ]);
 
-    if (!access || !editorAllowed) {
-        return <main className="mx-auto min-h-[70vh] w-full max-w-3xl px-5 py-12 text-white"><section className="rounded-2xl border border-red-400/20 bg-red-500/10 p-6"><h1 className="text-2xl font-semibold">Manage Course</h1><p className="mt-3 text-gray-300">You do not have access to manage this course.</p><Link href="/club-manager" className="mt-5 inline-block text-sm font-semibold text-blue-300">Back to Club Manager</Link></section></main>;
+    if (!editorAllowed) {
+        return <main className="mx-auto min-h-[70vh] w-full max-w-3xl px-5 py-12 text-white"><section className="rounded-2xl border border-red-400/20 bg-red-500/10 p-6"><h1 className="text-2xl font-semibold">Manage Course</h1><p className="mt-3 text-gray-300">You do not have access to manage this course.</p><Link href="/create-course/edit" className="mt-5 inline-block text-sm font-semibold text-blue-300">Back to My Course Builds</Link></section></main>;
     }
 
-    const { data: course, error: courseError } = await access.supabase.from("courses")
+    const { data: course, error: courseError } = await supabase.from("courses")
         .select("id,name,location,timezone,is_published,status,club_id,has_facilities,has_images,has_directions")
         .eq("id", courseId).maybeSingle();
     if (courseError || !course) {
         return <main className="mx-auto max-w-3xl px-5 py-12 text-white"><p className="text-gray-300">Course overview could not be loaded.</p></main>;
     }
 
-    if (access.profile.membership !== "admin") {
-        const assigned = access.assignments.some((assignment) =>
-            assignment.course_id === course.id && assignment.club_id === course.club_id);
-        const { data: acceptedClaim } = assigned ? await access.supabase.from("course_claim_requests")
-            .select("course_id").eq("course_id", course.id).eq("club_id", course.club_id)
-            .eq("status", "accepted").limit(1).maybeSingle() : { data: null };
-        if (!assigned || !acceptedClaim) {
-            return <main className="mx-auto min-h-[70vh] w-full max-w-3xl px-5 py-12 text-white"><section className="rounded-2xl border border-red-400/20 bg-red-500/10 p-6"><h1 className="text-2xl font-semibold">Manage Course</h1><p className="mt-3 text-gray-300">You do not have authoritative Course Manager access to this course.</p><Link href="/club-manager" className="mt-5 inline-block text-sm font-semibold text-blue-300">Back to Club Manager</Link></section></main>;
-        }
-    }
-
     const [holesResult, layoutsResult, imagesResult, facilitiesResult, directionsResult, trafficResult, clubResult] = await Promise.all([
-        access.supabase.from("holes").select("id", { count: "exact", head: true }).eq("course_id", course.id),
-        access.supabase.from("course_layouts").select("id,difficulty,published").eq("course_id", course.id),
-        access.supabase.from("course_images").select("image_url,sort_order", { count: "exact" }).eq("course_id", course.id).order("sort_order").limit(1),
-        access.supabase.from("course_facilities").select(facilityFields.join(",")).eq("course_id", course.id).maybeSingle(),
-        access.supabase.from("course_directions").select("parking_latitude,parking_longitude,parking_description,general_directions,public_transport,walking_path,entrance_description").eq("course_id", course.id).maybeSingle(),
-        course.is_published ? access.supabase.rpc("get_course_traffic_v2", { p_course_id: course.id, p_day_of_week: null }) : Promise.resolve({ data: null, error: null }),
-        course.club_id ? access.supabase.from("clubs").select("name").eq("id", course.club_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+        supabase.from("holes").select("id", { count: "exact", head: true }).eq("course_id", course.id),
+        supabase.from("course_layouts").select("id,difficulty,published").eq("course_id", course.id),
+        supabase.from("course_images").select("image_url,sort_order", { count: "exact" }).eq("course_id", course.id).order("sort_order").limit(1),
+        supabase.from("course_facilities").select(facilityFields.join(",")).eq("course_id", course.id).maybeSingle(),
+        supabase.from("course_directions").select("parking_latitude,parking_longitude,parking_description,general_directions,public_transport,walking_path,entrance_description").eq("course_id", course.id).maybeSingle(),
+        course.is_published ? supabase.rpc("get_course_traffic_v2", { p_course_id: course.id, p_day_of_week: null }) : Promise.resolve({ data: null, error: null }),
+        course.club_id ? supabase.from("clubs").select("name").eq("id", course.club_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     ]);
     const queryError = holesResult.error || layoutsResult.error || imagesResult.error
         || facilitiesResult.error || directionsResult.error || trafficResult.error || clubResult.error;
@@ -95,11 +86,9 @@ export default async function ManageCourseOverview({ params, searchParams }: {
         !facilities ? "Add facilities and practical course information." : null,
         !hasDirections ? "Add parking and arrival directions." : null,
     ].filter((item): item is string => Boolean(item));
-    const managerQuery = new URLSearchParams({ courseId: course.id });
-    if (clubId) managerQuery.set("clubId", clubId);
 
     return <main className="mx-auto min-h-[70vh] w-full max-w-6xl px-5 py-10 text-white">
-        <Link href={`/club-manager?${managerQuery.toString()}`} className="text-sm font-semibold text-blue-300 transition hover:text-blue-200">← Back to Club Manager</Link>
+        <Link href="/create-course/edit" className="text-sm font-semibold text-blue-300 transition hover:text-blue-200">← Back to My Course Builds</Link>
 
         <section className="relative mt-5 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.025] shadow-2xl shadow-black/25">
             {coverUrl && <div className="absolute inset-y-0 right-0 hidden w-2/5 sm:block"><Image src={coverUrl} alt="" fill sizes="40vw" className="object-cover opacity-45" /><div className="absolute inset-0 bg-gradient-to-r from-[#101725] via-[#101725]/70 to-transparent" /></div>}

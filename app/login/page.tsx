@@ -4,7 +4,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { isSafeTransferReturnTo } from "@/lib/course-manager-transfer";
 import { useEffect, useRef, useState } from "react";
 
-const NORMAL_AUTHENTICATED_DESTINATION = "/create-course";
+const NORMAL_AUTHENTICATED_DESTINATION = "/create-course/edit";
 
 function validatedDestination(search: string) {
     const requestedReturnTo = new URLSearchParams(search).get("returnTo");

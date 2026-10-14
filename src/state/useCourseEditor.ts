@@ -698,13 +698,9 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
                 ? Math.max(...state.course.holes.map((h: any) => h.number)) + 1
                 : 1;
 
-        // DEBUG og guard før insert
-        const { data: sessionData } = await supabase.auth.getSession();
+        // Preserve the session lookup and authentication guard before insert.
+        await supabase.auth.getSession();
         const { data: userData } = await supabase.auth.getUser();
-
-        console.log("DEBUG sessionData:", sessionData);
-        console.log("DEBUG userData:", userData);
-        console.log("DEBUG access_token:", sessionData?.session?.access_token ?? null);
 
         if (!userData?.user) {
             console.error("Not authenticated — cannot create hole");

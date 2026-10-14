@@ -1,14 +1,16 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Existing public avatar URLs. */
-import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { supabaseBrowser as db } from '@/lib/supabase-browser';
 import { courseCommunityHref, courseFeedArgs } from '@/lib/community-course';
-import ShareExperience from './ShareExperience';
+import { supabaseBrowser as db } from '@/lib/supabase-browser';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import CommunityModal from './CommunityModal';
+import ShareExperience from './ShareExperience';
 
 type Post = { id: string; title: string; body: string; author_name: string; author_avatar: string | null; published_at: string; context_id: string; context_name: string; up_count: number; down_count: number; own_reaction: 'UP' | 'DOWN' | null };
 const button = 'rounded-lg border border-white/20 px-3 py-3 text-sm hover:bg-white/10 disabled:opacity-50';
+const voteButton = 'relative inline-flex min-h-8 min-w-[4.5rem] items-center justify-center gap-2 rounded-lg border px-4 py-1 text-sm font-semibold before:absolute before:inset-x-0 before:-inset-y-1.5 before:content-[""] disabled:opacity-50';
+const voteTone = { UP: 'border-emerald-400/60 bg-emerald-500/20 text-emerald-300', DOWN: 'border-red-400/60 bg-red-500/20 text-red-300' } as const;
 let locationAttempt: Promise<{ lat: number; lon: number } | null> | undefined;
 function locate() {
     locationAttempt ??= new Promise(resolve => {
@@ -57,9 +59,9 @@ export default function CourseFeed({ courseId, courseName, preview = false }: { 
     function reset() { setResult(null); setError(''); setOffset(0); }
     function auth() { if (user) return true; window.location.assign(`/login?returnTo=${encodeURIComponent(courseId ? courseCommunityHref(courseId) : '/community')}`); return false; }
     async function react(post: Post, reaction: 'UP' | 'DOWN') {
-        if (!auth() || lock.current) return;
+        if (!auth() || lock.current || post.own_reaction === reaction) return;
         lock.current = true; setBusy(true); setNotice('');
-        try { const { error } = await db.rpc('react_community_post_v1', { p_post_id: post.id, p_reaction: post.own_reaction === reaction ? null : reaction }); if (error) throw error; setResult(null); setRevision(n => n + 1); }
+        try { const { error } = await db.rpc('react_community_post_v1', { p_post_id: post.id, p_reaction: reaction }); if (error) throw error; setResult(null); setRevision(n => n + 1); }
         catch { setNotice('Reaction could not be saved. Try again.'); }
         finally { lock.current = false; setBusy(false); }
     }
@@ -79,7 +81,7 @@ export default function CourseFeed({ courseId, courseName, preview = false }: { 
         {notice && !report && <p role="status">{notice}</p>}
         {error ? <p role="alert">{error} <button className={button} onClick={() => { reset(); setRevision(n => n + 1); }}>Retry</button></p> : !courseId && scope === 'country' && !country ? <p>Select a country to see experiences.</p> : !result ? <p role="status">Loading course experiences…</p> : <>
             {!posts?.length && <p className="text-slate-400">No approved experiences for this course or scope yet.</p>}
-            {posts?.map(p => <article key={p.id} className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4"><div className="flex items-center gap-2">{p.author_avatar && <img src={p.author_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />}<div className="min-w-0"><p className="font-semibold">{p.author_name}</p><time className="text-xs text-slate-400" dateTime={p.published_at}>{new Date(p.published_at).toLocaleDateString()}</time></div></div>{!courseId && <Link className="text-sm text-cyan-200" href={`/courses/${p.context_id}`}>{p.context_name}</Link>}<h3 className="font-semibold">{p.title}</h3><p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{p.body}</p><div className="flex flex-wrap gap-2">{(['UP', 'DOWN'] as const).map(r => <button key={r} className={button} disabled={busy} aria-pressed={p.own_reaction === r} onClick={() => void react(p, r)}>{r === 'UP' ? '👍 Helpful' : '👎 Not helpful'} {r === 'UP' ? p.up_count : p.down_count}</button>)}{!preview && <button className={button} onClick={() => { if (auth()) { setReason(''); setNotice(''); setReport(p); } }}>Report</button>}</div></article>)}
+            {posts?.map(p => <article key={p.id} className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4"><div className="flex items-center gap-2">{p.author_avatar && <img src={p.author_avatar} alt="" className="h-8 w-8 rounded-full object-cover" />}<div className="min-w-0"><p className="font-semibold">{p.author_name}</p><time className="text-xs text-slate-400" dateTime={p.published_at}>{new Date(p.published_at).toLocaleDateString()}</time></div></div>{!courseId && <Link className="text-sm text-cyan-200" href={`/courses/${p.context_id}`}>{p.context_name}</Link>}<h3 className="font-semibold">{p.title}</h3><p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{p.body}</p><div className="flex flex-wrap gap-6">{(['UP', 'DOWN'] as const).map(r => <button key={r} aria-label={r === 'UP' ? `Thumbs up, ${p.up_count} votes` : `Thumbs down, ${p.down_count} votes`} className={`${voteButton} ${p.own_reaction === r ? voteTone[r] : 'border-white/20 text-slate-200 hover:bg-white/10'}`} disabled={busy} aria-pressed={p.own_reaction === r} onClick={() => void react(p, r)}><span aria-hidden="true">{r === 'UP' ? '👍' : '👎'}</span><span>{r === 'UP' ? p.up_count : p.down_count}</span></button>)}{!preview && <button className={button} onClick={() => { if (auth()) { setReason(''); setNotice(''); setReport(p); } }}>Report</button>}</div></article>)}
             {preview ? courseId && (result.items.length > 3 || result.has_more) && <Link className="inline-block text-emerald-200" href={courseCommunityHref(courseId)}>View more →</Link> : <div className="flex gap-3"><button className={button} disabled={!offset} onClick={() => { setResult(null); setOffset(n => n - 20); }}>Previous</button><button className={button} disabled={!result.has_more || offset >= 10000} onClick={() => { setResult(null); setOffset(n => n + 20); }}>Next</button></div>}
         </>}
         {courseId && name && <button className={`${button} bg-emerald-500/10`} onClick={() => { if (auth()) setShare(true); }}>Share your experience</button>}
