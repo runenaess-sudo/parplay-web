@@ -4,6 +4,14 @@ export const communityCategories = {
 } as const;
 export const communityTabs = ['PENDING', 'APPROVED', 'DECLINED', 'REPORTS'] as const;
 export type CommunityTab = typeof communityTabs[number];
+export const communityPostsTabs = [
+    { value: 'PENDING', label: 'Unread', count: 'pending_count' },
+    { value: 'APPROVED', label: 'Accepted', count: 'approved_count' },
+    { value: 'DECLINED', label: 'Declined', count: 'declined_count' },
+    { value: 'ALL', label: 'All', count: 'all_count' },
+] as const;
+export type CommunityCounts = Record<typeof communityPostsTabs[number]['count'], number>;
+export const communityModeratedEvent = 'parplay:community-moderated';
 export type CommunityCategory = keyof typeof communityCategories;
 export type ModerationItem = {
     id: string; category: CommunityCategory; title: string; body: string;
@@ -17,7 +25,7 @@ export function parseCommunityQuery(params: URLSearchParams) {
     const tab = params.get('tab') ?? 'PENDING';
     const category = params.get('category') || null;
     const offset = Number(params.get('offset') ?? 0);
-    if (!communityTabs.includes(tab as CommunityTab) ||
+    if ((!communityTabs.includes(tab as CommunityTab) && tab !== 'ALL') ||
         (category !== null && !Object.hasOwn(communityCategories, category)) ||
         !Number.isInteger(offset) || offset < 0 || offset > 10000) throw new Error('Invalid filter or page.');
     return { p_tab: tab, p_category: category, p_limit: 20, p_offset: offset };

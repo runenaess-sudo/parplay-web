@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { communityModeratedEvent } from "@/lib/community-admin";
 
 const items = [
     { href: "/admin", label: "Overview", exact: true },
@@ -13,6 +14,32 @@ const items = [
 
 export default function AdminShell({ children }: { children: ReactNode }) {
     const pathname = usePathname();
+    const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+    useEffect(() => {
+        let controller: AbortController | undefined;
+        async function refresh() {
+            controller?.abort();
+            const request = new AbortController();
+            controller = request;
+            try {
+                const response = await fetch('/api/admin/user-messages?tab=PENDING', { cache: 'no-store', signal: request.signal });
+                if (!response.ok) throw new Error('Count unavailable');
+                const data = await response.json();
+                if (!request.signal.aborted) setPendingCount(Number.isInteger(data.pending_count) && data.pending_count >= 0 ? data.pending_count : null);
+            } catch {
+                if (!request.signal.aborted) setPendingCount(null);
+            }
+        }
+        void refresh();
+        window.addEventListener(communityModeratedEvent, refresh);
+        window.addEventListener('focus', refresh);
+        return () => {
+            controller?.abort();
+            window.removeEventListener(communityModeratedEvent, refresh);
+            window.removeEventListener('focus', refresh);
+        };
+    }, [pathname]);
 
     return (
         <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 text-white md:grid-cols-[220px_minmax(0,1fr)] md:px-6">
@@ -27,6 +54,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                             : pathname.startsWith(item.href);
 
                         return (
+                            <Fragment key={item.href}>
                             <Link
                                 key={item.href}
                                 href={item.href}
@@ -38,6 +66,14 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                             >
                                 {item.label}
                             </Link>
+                            {item.href === '/admin/user-messages' && pendingCount !== null && pendingCount > 0 && (
+                                <Link href="/admin/user-messages/community-posts"
+                                    aria-current={pathname === '/admin/user-messages/community-posts' ? 'page' : undefined}
+                                    className={`ml-4 shrink-0 rounded-xl px-3 py-2 text-sm transition ${pathname === '/admin/user-messages/community-posts' ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/10'}`}>
+                                    Community Posts <span className="rounded-full bg-orange-500/20 px-2 py-0.5 font-semibold text-orange-300">({pendingCount})</span>
+                                </Link>
+                            )}
+                            </Fragment>
                         );
                     })}
                 </nav>

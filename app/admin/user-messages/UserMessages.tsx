@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { communityCategories, communityTabs, type CommunityTab, type ModerationItem } from '@/lib/community-admin';
+import { communityCategories, communityTabs, communityPostsTabs, communityModeratedEvent, type CommunityCounts, type CommunityTab, type ModerationItem } from '@/lib/community-admin';
 
 const button = 'rounded-xl border border-white/15 px-4 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed';
 function date(value: string | null) { return value ? new Date(value).toLocaleString() : ''; }
@@ -15,8 +15,9 @@ function Avatar({ uri, name }: { uri: string | null; name: string }) {
         : <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">{name.slice(0, 1).toUpperCase()}</span>;
 }
 
-export default function UserMessages() {
-    const [tab, setTab] = useState<CommunityTab>('PENDING');
+export default function UserMessages({ postsOnly = false }: { postsOnly?: boolean }) {
+    const [tab, setTab] = useState<CommunityTab | 'ALL'>('PENDING');
+    const [counts, setCounts] = useState<CommunityCounts | null>(null);
     const [category, setCategory] = useState('');
     const [offset, setOffset] = useState(0);
     const [revision, setRevision] = useState(0);
@@ -37,7 +38,7 @@ export default function UserMessages() {
                 const response = await fetch(`/api/admin/user-messages?${query}`, { cache: 'no-store', signal: controller.signal });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Could not load messages.');
-                if (!controller.signal.aborted) { setItems(data.items); setMore(data.has_more); }
+                if (!controller.signal.aborted) { setItems(data.items); setMore(data.has_more); setCounts(data); }
             } catch (reason) {
                 if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Could not load messages.');
             } finally { if (!controller.signal.aborted) setLoading(false); }
@@ -57,6 +58,7 @@ export default function UserMessages() {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Moderation failed.');
             setNotice(decision === 'APPROVED' ? 'Post approved.' : 'Post declined.');
+            window.dispatchEvent(new Event(communityModeratedEvent));
             setItems(previous => previous.filter(item => item.id !== id));
             setOffset(0); setRevision(value => value + 1);
         } catch (reason) { setError(reason instanceof Error ? reason.message : 'Moderation failed.'); }
@@ -66,17 +68,21 @@ export default function UserMessages() {
     return <main className="min-w-0 space-y-5">
         <header className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <p className="text-xs uppercase tracking-widest text-blue-300">Community moderation</p>
-            <h1 className="mt-2 text-2xl font-semibold">User Messages</h1>
+            <h1 className="mt-2 text-2xl font-semibold">{postsOnly ? 'Community Posts' : 'User Messages'}</h1>
             <p className="mt-2 text-sm text-gray-300">Review submissions before publication.</p>
         </header>
         <div className="flex flex-wrap gap-2" aria-label="Message queues">
-            {communityTabs.map(value => <button key={value} disabled={busy} aria-pressed={tab === value}
+            {postsOnly ? communityPostsTabs.map(({ value, label, count }) => <button key={value} disabled={busy} aria-pressed={tab === value}
+                className={`${button} ${tab === value ? 'bg-blue-600' : 'bg-white/5'}`}
+                onClick={() => { setTab(value); setOffset(0); setNotice(null); }}>
+                {label}{counts && ` (${counts[count]})`}
+            </button>) : communityTabs.map(value => <button key={value} disabled={busy} aria-pressed={tab === value}
                 className={`${button} ${tab === value ? 'bg-blue-600' : 'bg-white/5'}`}
                 onClick={() => { setTab(value); setOffset(0); setNotice(null); }}>
                 {value[0] + value.slice(1).toLowerCase()}
             </button>)}
         </div>
-        {tab !== 'REPORTS' && <label className="flex flex-wrap items-center gap-3 text-sm">Category
+        {!postsOnly && tab !== 'REPORTS' && <label className="flex flex-wrap items-center gap-3 text-sm">Category
             <select value={category} disabled={busy} onChange={event => { setCategory(event.target.value); setOffset(0); }} className="max-w-full rounded-xl border border-white/20 bg-gray-900 p-2">
                 <option value="">All</option>
                 {Object.entries(communityCategories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -88,8 +94,8 @@ export default function UserMessages() {
         {loading ? <p role="status">Loading messages...</p> : !error && !items.length ? <p className="text-gray-300">{tab === 'PENDING' ? 'No posts waiting for review.' : tab === 'REPORTS' ? 'No Community reports.' : 'No posts in this queue.'}</p> : null}
         {!loading && items.map(item => <article key={item.report_id ?? item.id} className="min-w-0 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-5 [overflow-wrap:anywhere]">
             <div className="flex items-center gap-3">
-                <Avatar key={item.author_avatar} uri={item.author_avatar} name={item.author_name} />
-                <div className="min-w-0"><h2 className="font-semibold">{item.author_name}</h2><p className="text-xs text-gray-400">Submitted {date(item.submitted_at)}</p></div>
+                <Avatar key={item.author_avatar} uri={item.author_avatar} name={item.author_name || 'Player'} />
+                <div className="min-w-0"><h2 className="font-semibold">{item.author_name || 'Player'}</h2><p className="text-xs text-gray-400">Submitted {date(item.submitted_at)}</p></div>
             </div>
             <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-full bg-blue-400/10 px-3 py-1 text-blue-200">{communityCategories[item.category]}</span><span className="rounded-full bg-white/10 px-3 py-1">{item.status}</span></div>
             {item.context_id && <p className="text-sm text-gray-300">Context: {item.context_name || item.context_type}
@@ -99,9 +105,9 @@ export default function UserMessages() {
             <p className="whitespace-pre-wrap text-sm leading-6 text-gray-200">{item.body}</p>
             {item.moderated_at && <p className="text-xs text-gray-400">Moderated {date(item.moderated_at)}{item.published_at && ` · Published ${date(item.published_at)}`}</p>}
             {item.report_id && <div className="rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-sm"><p className="text-amber-200">Reported by {item.reporter_name} · {date(item.reported_at)}</p><p className="mt-2 whitespace-pre-wrap">{item.report_reason}</p></div>}
-            {tab === 'PENDING' && <div className="flex flex-wrap gap-3">
-                <button disabled={busy} onClick={() => void moderate(item.id, 'APPROVED')} className={`${button} bg-emerald-700`}>Approve</button>
-                <button disabled={busy} onClick={() => void moderate(item.id, 'DECLINED')} className={`${button} border-red-300/30 text-red-200`}>Decline</button>
+            {(postsOnly ? item.status === 'PENDING' : tab === 'PENDING') && <div className="flex flex-wrap gap-3">
+                <button disabled={busy} onClick={() => void moderate(item.id, 'APPROVED')} className={`${button} bg-emerald-700`}>{busy ? 'Saving...' : postsOnly ? 'ACCEPT' : 'Approve'}</button>
+                <button disabled={busy} onClick={() => void moderate(item.id, 'DECLINED')} className={`${button} border-red-300/30 text-red-200`}>{postsOnly ? 'DECLINE' : 'Decline'}</button>
             </div>}
         </article>)}
         <div className="flex flex-wrap items-center gap-3">
