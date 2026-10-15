@@ -60,7 +60,7 @@ type CourseEditorState = {
 
     setTeeAngle: (holeId: string, angle: number) => void;
 
-    saveHole: (holeId: string) => Promise<void>;
+    saveHole: (holeId: string) => Promise<boolean>;
 
     // ⭐ NEW
     createNewHole: (courseId: string) => Promise<void>;
@@ -556,10 +556,10 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         console.log("SAVE HOLE TRIGGERED:", holeId);
 
         const { course } = get();
-        if (!course) return;
+        if (!course) return false;
 
         const hole = course.holes.find((h: any) => h.id === holeId);
-        if (!hole) return;
+        if (!hole) return false;
 
         console.log("HOLE BEFORE SAVE:", hole);
 
@@ -621,7 +621,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         if (hole.play_config_id) {
             const { data: editor, error: readError } = await supabaseBrowser.rpc('get_course_variant_editor_v5', { p_course_id: course.id });
-            if (readError) { get().setToast('Could not verify variation.'); return; }
+            if (readError) { get().setToast('Could not verify variation.'); return false; }
             const option = editor.configs.find((c: any) => c.id === hole.play_config_id);
             const tee = editor.tees.find((t: any) => t.id === option.tee_id);
             const basket = editor.baskets.find((b: any) => b.id === option.basket_id);
@@ -629,7 +629,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
                 && (object.latitude !== lat || object.longitude !== lon || object.elevation !== elevation);
             const confirmation = sharedMove(tee, payload.tee_latitude, payload.tee_longitude, teeElevation)
                 || sharedMove(basket, payload.basket_latitude, payload.basket_longitude, basketElevation);
-            if (confirmation && !window.confirm('Move shared physical object? This changes every current variation using it. Played rounds retain their original geometry.')) return;
+            if (confirmation && !window.confirm('Move shared physical object? This changes every current variation using it. Played rounds retain their original geometry.')) return false;
             const { error } = await supabaseBrowser.rpc('save_hole_variant_draft_v5', {
                 p_hole_id: holeId, p_config: { ...option, label: option.label || 'Main', par: hole.par,
                     distance: payload.distance, fairway: payload.fairway, tee_angle: payload.tee_angle, elevation_diff: payload.elevation_diff },
@@ -637,12 +637,12 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
                 p_basket: { label: basket.label || 'Main', latitude: payload.basket_latitude, longitude: payload.basket_longitude, elevation: basketElevation },
                 p_confirm_shared: confirmation,
             });
-            if (error) { get().setToast(error.message); return; }
+            if (error) { get().setToast(error.message); return false; }
             const { data: resolved, error: resolveError } = await supabaseBrowser.rpc('resolve_hole_play_config_v1', { p_hole_id: holeId, p_preview_config_id: option.id });
             if (!resolveError) set({ course: { ...get().course, holes: get().course.holes.map((h: any) => h.id === holeId
                 ? { ...h, ...resolved, hole_features: resolved.features } : h) } });
             get().setToast('VARIATION SAVED');
-            return;
+            return true;
         }
 
         const { error } = await supabaseBrowser
@@ -653,7 +653,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         if (error) {
             console.log("❌ SUPABASE ERROR:", error);
             get().setToast("Error saving hole");
-            return;
+            return false;
         }
 
         // The database write is authoritative. A follow-up reload failure
@@ -670,7 +670,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         if (reloadError || !freshHole) {
             console.log("❌ ERROR RELOADING HOLE:", reloadError);
-            return;
+            return true;
         }
 
         console.log("🔥 FRESH HOLE FROM DB:", freshHole);
@@ -686,6 +686,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             },
         });
 
+        return true;
     },
 
     // ⭐ NEW — ADD NEW HOLE

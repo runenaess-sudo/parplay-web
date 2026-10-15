@@ -1,5 +1,6 @@
 "use client";
 
+import { useWizardSave, useWizardDraft } from "@/components/course-wizard/WizardStep";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -8,14 +9,16 @@ type TextKey = keyof DirectionsValue;
 function parseCoordinate(value: string) { const normalized = value.trim().replace(",", "."); return normalized ? Number(normalized) : null; }
 
 export default function DirectionsForm({ courseId, initialValue }: { courseId: string; initialValue: DirectionsValue }) {
-    const [value, setValue] = useState(initialValue); const [saving, setSaving] = useState(false); const [locating, setLocating] = useState(false); const [error, setError] = useState<string | null>(null); const [saved, setSaved] = useState(false);
+    const [value, setValue, markSaved] = useWizardDraft("directions", initialValue); const [saving, setSaving] = useState(false); const [locating, setLocating] = useState(false); const [error, setError] = useState<string | null>(null); const [saved, setSaved] = useState(false);
     function update(key: TextKey, next: string) { setValue((current) => ({ ...current, [key]: next })); setSaved(false); }
     function usePosition() {
         if (!navigator.geolocation || locating) return setError("Location is not available in this browser.");
         setLocating(true); setError(null);
         navigator.geolocation.getCurrentPosition((position) => { setValue((current) => ({ ...current, parking_latitude: String(position.coords.latitude), parking_longitude: String(position.coords.longitude) })); setLocating(false); setSaved(false); }, () => { setError("Your location could not be read. You can enter the coordinates manually."); setLocating(false); }, { enableHighAccuracy: true, timeout: 15000 });
     }
+    useWizardSave(async () => { if (courseId) await save(); });
     async function save() {
+        if (!courseId) return;
         if (saving) return; setError(null); setSaved(false);
         const latitude = parseCoordinate(value.parking_latitude); const longitude = parseCoordinate(value.parking_longitude);
         if ((latitude === null) !== (longitude === null)) return setError("Enter both parking coordinates, or leave both empty.");
@@ -23,7 +26,7 @@ export default function DirectionsForm({ courseId, initialValue }: { courseId: s
         if (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) return setError("Parking longitude must be between -180 and 180.");
         setSaving(true);
         const { error: saveError } = await supabaseBrowser.rpc("upsert_course_directions_v1", { p_course_id: courseId, p_parking_latitude: latitude, p_parking_longitude: longitude, p_parking_description: value.parking_description, p_general_directions: value.general_directions, p_public_transport: value.public_transport, p_walking_path: value.walking_path, p_entrance_description: value.entrance_description });
-        if (saveError) setError("Directions could not be saved. Your changes are still here."); else setSaved(true);
+        if (saveError) setError("Directions could not be saved. Your changes are still here."); else { setSaved(true); markSaved(); }
         setSaving(false);
     }
     const areaClass = "mt-2 w-full resize-y rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/15";

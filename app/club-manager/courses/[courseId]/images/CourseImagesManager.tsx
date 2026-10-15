@@ -1,5 +1,6 @@
 "use client";
 
+import { useWizardSave, useWizardDraft } from "@/components/course-wizard/WizardStep";
 import Image from "next/image";
 import { ChangeEvent, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -81,7 +82,8 @@ export default function CourseImagesManager({ courseId, initialImages }: { cours
     </section>;
 }
 
-function ImageCard({ image, index, count, busy, onMove, onDelete, onSaveDescription }: { image: CourseImage; index: number; count: number; busy: boolean; onMove: (index: number, direction: -1 | 1) => void; onDelete: (image: CourseImage) => void; onSaveDescription: (image: CourseImage, description: string) => void }) {
-    const [description, setDescription] = useState(image.description ?? "");
+function ImageCard({ image, index, count, busy, onMove, onDelete, onSaveDescription }: { image: CourseImage; index: number; count: number; busy: boolean; onMove: (index: number, direction: -1 | 1) => void; onDelete: (image: CourseImage) => void; onSaveDescription: (image: CourseImage, description: string) => Promise<void> }) {
+    const [description, setDescription] = useWizardDraft(`image-${image.id}`, image.description ?? "");
+    useWizardSave(async () => { if (description.trim() !== (image.description ?? "")) await onSaveDescription(image, description); });
     return <article className="overflow-hidden rounded-xl border border-white/10 bg-black/20"><div className="relative aspect-[4/3] bg-black/30"><Image src={image.image_url} alt={image.description || `Course image ${index + 1}`} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" />{index === 0 && <span className="absolute left-3 top-3 rounded-full bg-blue-500 px-2.5 py-1 text-[11px] font-bold shadow-lg">Cover</span>}</div><div className="p-4"><label className="text-xs font-semibold text-gray-400">Description<input value={description} onChange={(event) => setDescription(event.target.value)} className="mt-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/15" placeholder="Optional image description" /></label><div className="mt-3 flex flex-wrap gap-2"><button type="button" disabled={busy || description.trim() === (image.description ?? "")} onClick={() => onSaveDescription(image, description)} className="rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/15 disabled:opacity-40">Save description</button><button type="button" aria-label="Move image earlier" disabled={busy || index === 0} onClick={() => onMove(index, -1)} className="rounded-lg border border-white/10 px-3 py-2 text-xs hover:bg-white/10 disabled:opacity-30">↑</button><button type="button" aria-label="Move image later" disabled={busy || index === count - 1} onClick={() => onMove(index, 1)} className="rounded-lg border border-white/10 px-3 py-2 text-xs hover:bg-white/10 disabled:opacity-30">↓</button><button type="button" disabled={busy} onClick={() => onDelete(image)} className="ml-auto rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/20 disabled:opacity-40">Delete</button></div></div></article>;
 }

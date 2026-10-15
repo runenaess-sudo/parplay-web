@@ -87,7 +87,7 @@ export default function Header() {
 
     const isLoggedIn = !!session?.user;
     const canCreateCourse =
-        access?.membership === "admin" || access?.limits?.can_create_course !== false;
+        access?.membership === "admin" || access?.hasCourseManagerAssignments || access?.limits?.can_create_course !== false;
     const profileLabel = access?.fullName || access?.username || session?.user.email || "Profile";
     const profileInitials = profileLabel
         .split(/\s+/)
@@ -134,7 +134,7 @@ export default function Header() {
                             <Link href="/courses" className="dropdown-item block whitespace-nowrap hover:bg-white/10">View Courses</Link>
 
                             {canCreateCourse && (
-                                <Link href="/create-course" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Create Course</Link>
+                                <Link href="/create-course/new" className="dropdown-item block whitespace-nowrap hover:bg-white/10">Create Course</Link>
                             )}
                             <Link href="/create-course/edit" className="dropdown-item block whitespace-nowrap hover:bg-white/10">My Course Builds</Link>
                         </div>

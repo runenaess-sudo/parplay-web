@@ -6,8 +6,9 @@
 ------------------------------ */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b1018;
+  --foreground: #edf2f7;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -17,12 +18,7 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
 body {
   background: var(--background);
@@ -74,3 +70,12 @@ body {
 .animate-fade-in {
   animation: fade-in 0.25s ease-out;
 }
+
+@layer base {
+ html { background: var(--background); color-scheme: dark; }
+ input, textarea, select { color-scheme: dark; }
+ select option, dialog { background: #151e2b; color: #edf2f7; }
+ :focus-visible { outline-color: #60a5fa; }
+}
+.mapboxgl-popup-content { background: #151e2b; color: #edf2f7; }
+.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip { border-top-color: #151e2b; }

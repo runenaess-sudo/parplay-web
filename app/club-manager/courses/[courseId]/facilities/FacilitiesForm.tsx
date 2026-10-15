@@ -1,5 +1,6 @@
 "use client";
 
+import { useWizardSave, useWizardDraft } from "@/components/course-wizard/WizardStep";
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -24,13 +25,15 @@ const fields: Array<{ key: TextKey; label: string; placeholder: string; multilin
 ];
 
 export default function FacilitiesForm({ courseId, initialValue }: { courseId: string; initialValue: FacilitiesValue }) {
-    const [value, setValue] = useState(initialValue);
+    const [value, setValue, markSaved] = useWizardDraft("facilities", initialValue);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
     function toggle(key: BooleanKey) { setValue((current) => ({ ...current, [key]: !current[key] })); setSaved(false); }
     function text(key: TextKey, next: string) { setValue((current) => ({ ...current, [key]: next })); setSaved(false); }
+    useWizardSave(async () => { if (courseId) await save(); });
     async function save() {
+        if (!courseId) return;
         if (saving) return;
         setSaving(true); setError(null); setSaved(false);
         const { error: saveError } = await supabaseBrowser.rpc("upsert_course_facilities_v1", {
@@ -42,7 +45,7 @@ export default function FacilitiesForm({ courseId, initialValue }: { courseId: s
             p_description: value.description, p_tee_type: value.tee_type, p_basket_type: value.basket_type,
         });
         if (saveError) setError("Facilities could not be saved. Your changes are still here.");
-        else setSaved(true);
+        else { setSaved(true); markSaved(); }
         setSaving(false);
     }
 

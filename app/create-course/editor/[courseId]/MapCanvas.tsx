@@ -17,6 +17,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 type EditorMode = "none" | "tee" | "basket" | "points";
 
 type MapCanvasProps = {
+    readOnly?: boolean;
     toolsOpen?: boolean;
     course: any;
     selectedHoleId: string | null;
@@ -38,6 +39,7 @@ type MapCanvasProps = {
 };
 
 export function MapCanvas({
+    readOnly = false,
     toolsOpen = false,
     course,
     selectedHoleId,
@@ -613,6 +615,15 @@ export function MapCanvas({
 
             updatePointsRef.current = updatePoints;
             updatePoints();
+            if (readOnly) {
+                const coords: [number, number][] = (courseRef.current?.holes ?? []).flatMap((h: any) => [[h.tee_longitude,h.tee_latitude], ...(h.fairway ?? []).map((p: any) => [p.lng,p.lat]), [h.basket_longitude,h.basket_latitude]]).filter((p: any) => p.every((v: unknown) => typeof v === "number" && Number.isFinite(v)));
+                if (coords.length) {
+                    const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
+                    coords.forEach(p => bounds.extend(p));
+                    map.fitBounds(bounds, { padding: 50, maxZoom: 18, duration: 0 });
+                }
+                return;
+            }
 
             map.on("click", (e) => {
                 const holeId = selectedHoleRef.current;

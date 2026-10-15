@@ -18,18 +18,18 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 export default async function PublicEventPage(props: Props) {
   const { event, image } = await resolveEvent(props);
   return <main className="mx-auto w-full max-w-3xl px-6 py-12">
-    <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
+    <article className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-sm">
       {/* Public storage/default asset; preserve the uploaded image's proportions. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={image.url} alt={image.alt} className="max-h-80 w-full bg-slate-50 object-contain" />
+      <img src={image.url} alt={image.alt} className="max-h-80 w-full bg-slate-950 object-contain" />
       <div className="space-y-4 p-6 sm:p-8">
-        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800">Follow my event</p>
+        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Follow my event</p>
         <h1 className="text-3xl font-bold">{event.name}</h1>
         <p className="font-semibold">{eventLabel(event)}</p>
         {event.places.length > 0 && <p>Place: {event.places.join(', ')}</p>}
         {event.type === 'league' && event.layout_name && <p>Layout: {event.layout_name}</p>}
-        <p className="text-slate-600">Follow this event in ParPlay.</p>
-        <Link href="/" className="inline-block font-semibold text-emerald-800 underline">Explore ParPlay</Link>
+        <p className="text-slate-300">Follow this event in ParPlay.</p>
+        <Link href="/" className="inline-block font-semibold text-emerald-300 underline">Explore ParPlay</Link>
       </div>
     </article>
   </main>;

@@ -91,26 +91,26 @@ function getRoundStatusBadge(status: string | null | undefined) {
     const normalized = String(status ?? "active").trim().toLowerCase();
 
     if (normalized === "finished") {
-        return { label: "Finished", bg: "#e2e8f0", color: "#111111" };
+        return { label: "Finished", bg: "#243244", color: "#e2e8f0" };
     }
 
     if (normalized === "paused") {
-        return { label: "Paused", bg: "#fee2e2", color: "#7f1d1d" };
+        return { label: "Paused", bg: "#451c24", color: "#fca5a5" };
     }
 
     if (normalized === "not_started") {
-        return { label: "Not started", bg: "#dbeafe", color: "#1e3a8a" };
+        return { label: "Not started", bg: "#172f50", color: "#93c5fd" };
     }
 
     if (normalized === "in_progress" || normalized === "active") {
-        return { label: "Active", bg: "#dcfce7", color: "#166534" };
+        return { label: "Active", bg: "#123b2c", color: "#86efac" };
     }
 
     const label = normalized.replace(/_/g, " ");
     return {
         label: label.length ? label.charAt(0).toUpperCase() + label.slice(1) : "Active",
-        bg: "#f3f4f6",
-        color: "#111111",
+        bg: "#1e293b",
+        color: "#e2e8f0",
     };
 }
 
@@ -551,8 +551,8 @@ export default function SharedLiveRoundPage() {
     const modeLabel = useMemo(() => getRoundModeLabel(round?.mode), [round?.mode]);
 
     const syncLabel = syncStatus === "live" ? "Live" : syncStatus === "connecting" ? "Connecting..." : "Auto-refresh";
-    const syncColor = "#111111";
-    const syncBg = syncStatus === "live" ? "#dcfce7" : syncStatus === "connecting" ? "#fef3c7" : "#dbeafe";
+    const syncColor = "#e2e8f0";
+    const syncBg = syncStatus === "live" ? "#123b2c" : syncStatus === "connecting" ? "#423312" : "#172f50";
     const isPortrait = viewport.height > viewport.width;
     const freezeLeaderCols = isPortrait || viewport.width <= 980;
     const posColWidth = freezeLeaderCols ? 36 : 30;
@@ -624,7 +624,7 @@ export default function SharedLiveRoundPage() {
                 maxWidth: 1180,
                 margin: "0 auto",
                 padding: "24px 16px 40px",
-                background: "radial-gradient(1200px 500px at 10% -15%, #eff6ff 0%, #ffffff 45%)",
+                background: "radial-gradient(1200px 500px at 10% -15%, #172b46 0%, #0f172a 45%)",
             }}
         >
             <section style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -635,8 +635,8 @@ export default function SharedLiveRoundPage() {
                             height: 84,
                             borderRadius: 10,
                             overflow: "hidden",
-                            background: "linear-gradient(135deg, #e2e8f0, #cbd5e1)",
-                            border: "1px solid #d1d5db",
+                            background: "linear-gradient(135deg, #243244, #334155)",
+                            border: "1px solid #334155",
                             flexShrink: 0,
                         }}
                     >
@@ -647,7 +647,7 @@ export default function SharedLiveRoundPage() {
                                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                             />
                         ) : (
-                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569", fontSize: 12, fontWeight: 700 }}>
+                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#cbd5e1", fontSize: 12, fontWeight: 700 }}>
                                 Course
                             </div>
                         )}
@@ -655,7 +655,7 @@ export default function SharedLiveRoundPage() {
 
                     <div style={{ minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                            <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1, color: "#111111" }}>Live Scorecard</h1>
+                            <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1, color: "#e2e8f0" }}>Live Scorecard</h1>
                             <span
                                 style={{
                                     padding: "6px 10px",
@@ -671,11 +671,11 @@ export default function SharedLiveRoundPage() {
                                 {roundStatus.label}
                             </span>
                         </div>
-                        <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 15, lineHeight: 1.2 }}>
+                        <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 15, lineHeight: 1.2 }}>
                             {courseName || "Course"}{layoutName ? ` (${layoutName})` : ""} | Mode: {modeLabel}
                         </p>
                         {round?.started_at ? (
-                            <p style={{ margin: "6px 0 0", color: "#111111", fontSize: 13, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <p style={{ margin: "6px 0 0", color: "#e2e8f0", fontSize: 13, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 Started: {new Date(round.started_at).toLocaleString()} | Duration: {duration} | Weather: {getWeatherIcon(weather?.code ?? null)} {weather?.temp == null ? "-" : `${Math.round(weather.temp)}°C`} | 💨 {weather?.wind == null ? "-" : `${Math.round(weather.wind)} m/s`} | Sync: {syncLabel}
                             </p>
                         ) : null}
@@ -684,20 +684,20 @@ export default function SharedLiveRoundPage() {
             </section>
 
             {loading ? <p>Loading scorecard...</p> : null}
-            {!loading && errorText ? <p style={{ color: "#b91c1c" }}>{errorText}</p> : null}
+            {!loading && errorText ? <p style={{ color: "#fca5a5" }}>{errorText}</p> : null}
 
             {!loading && !errorText && round ? (
                 <div
                     style={{
                         overflowX: freezeLeaderCols ? "auto" : "hidden",
-                        border: "1px solid #dbe3ef",
+                        border: "1px solid #334155",
                         borderRadius: 14,
-                        background: "#ffffff",
+                        background: "#0f172a",
                         boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
                     }}
                 >
                     {usingFallbackHoleMeta ? (
-                        <div style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", background: "#fffbeb", color: "#7c2d12", fontSize: 12, fontWeight: 600 }}>
+                        <div style={{ padding: "8px 12px", borderBottom: "1px solid #26354a", background: "#423312", color: "#fcd34d", fontSize: 12, fontWeight: 600 }}>
                             Live scores are updating, but hole metadata is unavailable for this public view.
                         </div>
                     ) : null}
@@ -735,7 +735,7 @@ export default function SharedLiveRoundPage() {
                                 {visibleHoles.map((hole) => (
                                     <th key={`h-${hole.layoutIndex}`} style={{ ...thHoleBox, minWidth: holeColWidth, width: holeColWidth }}>
                                         <div style={{ fontSize: freezeLeaderCols ? 12 : 10, fontWeight: 700, lineHeight: 1.05 }}>{hole.layoutIndex}</div>
-                                        <div style={{ fontSize: freezeLeaderCols ? 10 : 9, fontStyle: "italic", color: "#4b5563", lineHeight: 1.05, marginTop: 2 }}>
+                                        <div style={{ fontSize: freezeLeaderCols ? 10 : 9, fontStyle: "italic", color: "#94a3b8", lineHeight: 1.05, marginTop: 2 }}>
                                             {hole.distance ?? "-"}
                                         </div>
                                         <div style={{ fontSize: freezeLeaderCols ? 11 : 9, fontWeight: 600, lineHeight: 1.05, marginTop: 2 }}>
@@ -790,14 +790,14 @@ export default function SharedLiveRoundPage() {
                                                             height: avatarSize,
                                                             borderRadius: 999,
                                                             objectFit: "cover",
-                                                            border: "1px solid #cbd5e1",
+                                                            border: "1px solid #334155",
                                                             flexShrink: 0,
                                                         }}
                                                     />
                                                 ) : (
                                                     <span style={{ ...avatarBubble, width: avatarSize, height: avatarSize }}>{getInitials(row.name)}</span>
                                                 )}
-                                                <span style={{ color: "#111111", fontWeight: 600, whiteSpace: "nowrap" }}>{row.name}</span>
+                                                <span style={{ color: "#e2e8f0", fontWeight: 600, whiteSpace: "nowrap" }}>{row.name}</span>
                                             </div>
                                         </td>
                                         <td style={tdPinnedSmall}>{row.thru === 0 ? "-" : row.rd === 0 ? "E" : row.rd > 0 ? `+${row.rd}` : row.rd}</td>
@@ -835,7 +835,7 @@ export default function SharedLiveRoundPage() {
 }
 
 const baseCell: React.CSSProperties = {
-    borderBottom: "1px solid #e5e7eb",
+    borderBottom: "1px solid #26354a",
     borderRight: "none",
     textAlign: "center",
     padding: "6px 6px",
@@ -850,9 +850,9 @@ const thPinned: React.CSSProperties = {
     position: "sticky",
     left: 0,
     zIndex: 4,
-    background: "#f4f6f8",
+    background: "#1e293b",
     fontWeight: 700,
-    color: "#111111",
+    color: "#e2e8f0",
 };
 
 const thPinnedName: React.CSSProperties = {
@@ -871,9 +871,9 @@ const thPinnedSmall: React.CSSProperties = {
 
 const thHoleBox: React.CSSProperties = {
     ...baseCell,
-    background: "#f1f5f9",
+    background: "#1e293b",
     fontWeight: 600,
-    color: "#111111",
+    color: "#e2e8f0",
     minWidth: 48,
     paddingTop: 5,
     paddingBottom: 5,
@@ -890,9 +890,9 @@ const tdPinned: React.CSSProperties = {
     position: "sticky",
     left: 0,
     zIndex: 3,
-    background: "#ffffff",
+    background: "#0f172a",
     fontWeight: 700,
-    color: "#111111",
+    color: "#e2e8f0",
 };
 
 const tdPinnedName: React.CSSProperties = {
@@ -905,33 +905,33 @@ const tdPinnedName: React.CSSProperties = {
 const tdPinnedSmall: React.CSSProperties = {
     ...baseCell,
     minWidth: 50,
-    background: "#ffffff",
+    background: "#0f172a",
     fontWeight: 700,
-    color: "#111111",
+    color: "#e2e8f0",
 };
 
 const tdCellCompact: React.CSSProperties = {
     ...baseCell,
-    background: "#ffffff",
-    color: "#111111",
+    background: "#0f172a",
+    color: "#e2e8f0",
 };
 
 const tdLatestCompact: React.CSSProperties = {
     ...baseCell,
-    background: "#fef08a",
+    background: "#594311",
     borderColor: "#eab308",
     borderWidth: 2,
     borderStyle: "solid",
     fontWeight: 700,
-    color: "#111111",
+    color: "#e2e8f0",
 };
 
 const tdTail: React.CSSProperties = {
     ...baseCell,
     minWidth: 56,
     fontWeight: 700,
-    color: "#111111",
-    background: "#f8fafc",
+    color: "#e2e8f0",
+    background: "#162133",
 };
 
 const avatarBubble: React.CSSProperties = {
@@ -941,8 +941,8 @@ const avatarBubble: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#e2e8f0",
-    color: "#1f2937",
+    background: "#243244",
+    color: "#e2e8f0",
     fontSize: 10,
     fontWeight: 700,
     flexShrink: 0,

@@ -1,6 +1,7 @@
 "use client";
 
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useWizardSave, useWizardDraft } from "@/components/course-wizard/WizardStep";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -18,7 +19,8 @@ type InitialLayout = {
     selectedHoleIds: string[];
 };
 
-export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initialLayout }: {
+export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initialLayout, onSaved }: {
+    onSaved?: (id: string) => void;
     courseId: string;
     holes: CourseHole[];
     clubId: string | null;
@@ -26,18 +28,21 @@ export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initi
     initialLayout?: InitialLayout;
 }) {
     const router = useRouter();
-    const editing = Boolean(layoutId);
-    const [name, setName] = useState(initialLayout?.name ?? "");
-    const [description, setDescription] = useState(initialLayout?.description ?? "");
-    const [difficulty, setDifficulty] = useState(initialLayout?.difficulty ?? 3);
-    const [selectedHoleIds, setSelectedHoleIds] = useState<string[]>(initialLayout?.selectedHoleIds ?? []);
+    const wizard = Boolean(onSaved);
+    const [savedLayoutId, setSavedLayoutId] = useWizardDraft<string | null>("layout-id", layoutId ?? null);
+    const editing = Boolean(savedLayoutId);
+    const [name, setName] = useWizardDraft("layout-name", initialLayout?.name ?? (onSaved ? "Standard Layout" : ""));
+    const [description, setDescription] = useWizardDraft("layout-description", initialLayout?.description ?? "");
+    const [difficulty, setDifficulty] = useWizardDraft("layout-difficulty", initialLayout?.difficulty ?? 3);
+    const [selectedHoleIds, setSelectedHoleIds] = useWizardDraft<string[]>("layout-holes", initialLayout?.selectedHoleIds ?? []);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [options, setOptions] = useState<{ id: string; hole_id: string; tee_id: string; basket_id: string; is_default: boolean; par: number; distance: number }[]>([]);
     const [labels, setLabels] = useState<Record<string,string>>({});
-    const [choices, setChoices] = useState<Record<string,string | null>>({});
+    const [choices, setChoices] = useWizardDraft<Record<string,string | null>>("layout-choices", {});
     const [optionsReady, setOptionsReady] = useState(false);
     useEffect(() => {
+        if (!courseId) return;
         let active = true;
         void (async () => {
             const result = await supabaseBrowser.rpc('get_course_variant_editor_v5', { p_course_id: courseId });
@@ -46,11 +51,11 @@ export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initi
             if (result.error || membership.error) { setError('Could not load layout hole variations. Reload before saving.'); return; }
             setOptions(result.data.configs);
             setLabels(Object.fromEntries([...result.data.tees,...result.data.baskets].map((o: { id: string; label: string | null }) => [o.id,!o.label || o.label === 'Primary' ? 'Main' : o.label])));
-            setChoices(Object.fromEntries((membership.data ?? []).map(m => [m.hole_id,result.data.configs.some((c: { id: string; is_default: boolean }) => c.id === m.play_config_id && c.is_default) ? null : m.play_config_id])));
+            setChoices(current => wizard && Object.keys(current).length ? current : Object.fromEntries((membership.data ?? []).map(m => [m.hole_id,result.data.configs.some((c: { id: string; is_default: boolean }) => c.id === m.play_config_id && c.is_default) ? null : m.play_config_id])));
             setOptionsReady(true);
         })();
         return () => { active = false; };
-    }, [courseId,layoutId]);
+    }, [courseId,layoutId,setChoices,wizard,holes]);
 
     const holesById = useMemo(() => new Map(holes.map((hole) => [hole.id, hole])), [holes]);
     const selectedHoles = useMemo(
@@ -78,8 +83,9 @@ export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initi
         });
     }
 
-    async function saveLayout(event: React.FormEvent<HTMLFormElement>) {
-        event.preventDefault();
+    async function saveLayout(event?: React.FormEvent<HTMLFormElement>) {
+        event?.preventDefault();
+        if (!courseId) return;
         if (saving || !optionsReady) return;
         const trimmedName = name.trim();
         if (!trimmedName) {
@@ -109,13 +115,15 @@ export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initi
                 p_difficulty: difficulty,
                 p_hole_ids: selectedHoleIds,
             };
-            const { error: rpcError } = await supabaseBrowser.rpc('save_course_layout_options_v5', {
-                ...payload, p_layout_id: layoutId ?? null, p_config_ids: selectedHoleIds.map(id => choices[id] ?? null),
+            const { data: resultId, error: rpcError } = await supabaseBrowser.rpc('save_course_layout_options_v5', {
+                ...payload, p_layout_id: savedLayoutId ?? null, p_config_ids: selectedHoleIds.map(id => choices[id] ?? null),
             });
             if (rpcError) {
                 setError(rpcError.message || "Layout could not be created.");
                 return;
             }
+            setSavedLayoutId(resultId);
+            if (onSaved) { onSaved(resultId); return; }
             const query = clubId ? `?clubId=${encodeURIComponent(clubId)}` : "";
             router.push(`/club-manager/courses/${courseId}/layouts${query}`);
             router.refresh();
@@ -126,6 +134,7 @@ export default function AddLayoutForm({ courseId, holes, clubId, layoutId, initi
         }
     }
 
+    useWizardSave(async () => { if (courseId && name.trim() && selectedHoleIds.length) await saveLayout(); });
     const panelClass = "rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 sm:p-6";
     const inputClass = "mt-2 w-full rounded-xl border border-white/15 bg-black/25 px-4 py-3 text-white outline-none placeholder:text-gray-500 transition focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15";
 
