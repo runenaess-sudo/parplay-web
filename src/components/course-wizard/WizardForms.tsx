@@ -1,15 +1,24 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
 import { supabaseBrowser as db } from "@/lib/supabase-browser";
-import { useWizardDraft, useWizardSave } from "./WizardStep";
+import { useEffect, useRef, useState } from "react";
 import { CourseLocationMap } from "../../../app/(site)/courses/[courseId]/CourseLocationMap";
+import { useWizardDraft, useWizardSave } from "./WizardStep";
+import { BasicCourseValidationError, createSingleFlight, saveBasicCourse, validateBasicCourse, type BasicCourseFieldErrors } from "./basicCourseSave";
 
 export const emptyBasic = { name: "", location: "", latitude: "", longitude: "", description: "" };
 export const emptyContact = { name: "", email: "", phone: "", club: "", role: "", description: "", owner_contact_status: "" };
 const fieldClass = "mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-4 py-3 text-slate-100 focus:border-blue-400";
 const buttonClass = "rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-500 disabled:opacity-50";
-function fields<T extends Record<string, string>>(value: T, set: (value: T) => void, labels: Partial<Record<keyof T, string>>) {
-  return Object.entries(labels).map(([key, label]) => <label key={key} className="block text-sm text-slate-300">{label}{key === "description" ? <textarea className={fieldClass} rows={4} value={value[key]} onChange={e => set({ ...value, [key]: e.target.value })} /> : <input className={fieldClass} value={value[key]} onChange={e => set({ ...value, [key]: e.target.value })} />}</label>);
+function fields<T extends Record<string, string>>(value: T, set: (value: T) => void, labels: Partial<Record<keyof T, string>>, errors?: Partial<Record<keyof T, string>>) {
+  return Object.entries(labels).map(([rawKey, label]) => {
+    const key = rawKey as keyof T;
+    const error = errors?.[key];
+    const id = `course-basic-${String(key)}`;
+    const control = key === "description"
+      ? <textarea id={id} className={fieldClass} rows={4} value={value[key]} onChange={e => set({ ...value, [key]: e.target.value })} />
+      : <input id={id} className={fieldClass} value={value[key]} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} onChange={e => set({ ...value, [key]: e.target.value })} />;
+    return <label key={rawKey} htmlFor={id} className="block text-sm text-slate-300">{label}{control}{error && <span id={`${id}-error`} role="alert" className="mt-1 block text-sm text-red-300">{error}</span>}</label>;
+  });
 }
 const creationMessages: Record<string, string> = {
   COURSE_DAILY_LIMIT_REACHED: "You have reached today's course creation limit. You can continue an existing course.",
@@ -20,47 +29,68 @@ export function BasicStep({ initial, userId, courseId, isAdmin, created }: { ini
   const [value, setValue, markSaved] = useWizardDraft("basic", initial);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const busy = useRef(false);
+  const [fieldErrors, setFieldErrors] = useState<BasicCourseFieldErrors>({});
+  const performSaveRef = useRef<() => Promise<string>>(async () => { throw new Error("Step 1 save is unavailable."); });
+  const saveFlight = useRef<(() => Promise<string>) | null>(null);
   const idRef = useRef(courseId);
   const saved = useRef(JSON.stringify(initial));
   // A stable INSERT id also makes retries after a lost response idempotent.
   const insertId = useRef<string | null>(null);
-  async function save() {
-    if (busy.current) return;
-    if (!value.name.trim() || !value.location.trim()) { setMessage("Your draft is retained. Enter a real course name and location to save it."); return; }
-    if (idRef.current && saved.current === JSON.stringify(value)) return;
-    busy.current = true; setSaving(true); setMessage("Saving…");
-    try {
-      const lat = value.latitude.trim() ? Number(value.latitude.replace(",", ".")) : null;
-      const lng = value.longitude.trim() ? Number(value.longitude.replace(",", ".")) : null;
-      if ((lat === null) !== (lng === null) || (lat !== null && (!Number.isFinite(lat) || Math.abs(lat) > 90)) || (lng !== null && (!Number.isFinite(lng) || Math.abs(lng) > 180))) throw new Error("Enter a valid coordinate pair, or leave both coordinates empty.");
-      if (!idRef.current && insertId.current) {
-        const retry = await db.from("courses").select("id").eq("id", insertId.current).eq("created_by", userId).maybeSingle();
-        if (retry.error) throw retry.error;
-        if (retry.data) { idRef.current = retry.data.id; created(retry.data.id); }
+  async function performSave(): Promise<string> {
+    setFieldErrors({}); setMessage("");
+    const validation = validateBasicCourse(value);
+    if (Object.keys(validation.errors).length) {
+      setFieldErrors(validation.errors);
+      return Promise.reject(new BasicCourseValidationError(validation.errors));
+    }
+    if (idRef.current && saved.current === JSON.stringify(value)) return Promise.resolve(idRef.current);
+
+    insertId.current ??= crypto.randomUUID();
+    setSaving(true); setMessage("Saving…");
+    return saveBasicCourse({ value, userId, courseId: idRef.current, insertId: insertId.current, isAdmin }, {
+      findRetry: async (id, ownerId) => {
+        const result = await db.from("courses").select("id").eq("id", id).eq("created_by", ownerId).maybeSingle();
+        if (result.error) throw result.error;
+        return result.data?.id ?? null;
+      },
+      findNearby: async () => {
+        const result = await db.from("courses").select("id,name,latitude,longitude");
+        if (result.error) throw result.error;
+        return result.data ?? [];
+      },
+      insert: async (id, ownerId, payload) => {
+        const result = await db.from("courses").insert({ ...payload, id, created_by: ownerId, status: "draft", is_published: false }).select("id").single();
+        if (result.error) throw result.error;
+        return result.data?.id;
+      },
+      update: async (id, payload) => {
+        const result = await db.from("courses").update(payload).eq("id", id).select("id").single();
+        if (result.error) throw result.error;
+        return result.data?.id;
+      },
+    }).then(id => {
+      idRef.current = id; markSaved(); created(id); saved.current = JSON.stringify(value); setMessage("Basic information saved.");
+      return id;
+    }).catch(error => {
+      if (error instanceof BasicCourseValidationError) setFieldErrors(error.fields);
+      else {
+        const text = String((error as { message?: string }).message ?? "Could not save. Your draft is retained.");
+        setMessage(creationMessages[text] ?? text);
       }
-      if (!isAdmin && lat !== null && lng !== null) {
-        const nearby = await db.from("courses").select("id,name,latitude,longitude");
-        if (nearby.error) throw nearby.error;
-        const rad = (v: number) => v * Math.PI / 180;
-        const match = nearby.data.find(c => c.id !== idRef.current && c.latitude != null && c.longitude != null && 6371000 * 2 * Math.asin(Math.min(1, Math.sqrt(Math.sin(rad(c.latitude - lat) / 2) ** 2 + Math.cos(rad(lat)) * Math.cos(rad(c.latitude)) * Math.sin(rad(c.longitude - lng) / 2) ** 2))) < 200);
-        if (match) throw new Error(`A course already exists within 200 metres: ${match.name}. Check the location before creating another course.`);
-      }
-      const payload = { name: value.name.trim(), location: value.location.trim(), description: value.description.trim(), latitude: lat, longitude: lng };
-      insertId.current ??= crypto.randomUUID();
-      const result = idRef.current ? await db.from("courses").update(payload).eq("id", idRef.current).select("id").single() : await db.from("courses").insert({ ...payload, id: insertId.current, created_by: userId, status: "draft", is_published: false }).select("id").single();
-      if (result.error) throw result.error;
-      idRef.current = result.data.id; markSaved(); created(result.data.id); saved.current = JSON.stringify(value); setMessage("Basic information saved.");
-    } catch (e) { const text = String((e as { message?: string }).message ?? "Could not save. Your draft is retained."); setMessage(creationMessages[text] ?? text); throw e; }
-    finally { busy.current = false; setSaving(false); }
+      throw error;
+    }).finally(() => setSaving(false));
   }
+  performSaveRef.current = performSave;
+  saveFlight.current ??= createSingleFlight(() => performSaveRef.current());
+  const save = () => saveFlight.current!();
   useWizardSave(save);
   function gps() {
     if (!navigator.geolocation) { setMessage("Location unavailable. Enter coordinates manually."); return; }
     navigator.geolocation.getCurrentPosition(p => setValue(v => ({ ...v, latitude: String(p.coords.latitude), longitude: String(p.coords.longitude) })), () => setMessage("Location unavailable. Enter coordinates manually."));
   }
   const lat = Number(value.latitude.replace(",", ".")), lng = Number(value.longitude.replace(",", "."));
-  return <div className="max-w-3xl space-y-5">{fields(value, setValue, { name: "Course name", location: "City / area", latitude: "Latitude", longitude: "Longitude", description: "Description" })}<button className="text-blue-300" onClick={gps}>Use my position</button>{value.latitude && value.longitude && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && <CourseLocationMap latitude={lat} longitude={lng} name={value.name || "Course location"} />}<p className="text-sm text-slate-400">A real name and location are needed to save a course. You can open every step before completing them.</p><button className={buttonClass} disabled={saving} onClick={() => void save().catch(() => {})}>{saving ? "Saving…" : "Save basic information"}</button>{message && <p role="status">{message}</p>}</div>;
+  const updateValue = (next: typeof value) => { setValue(next); setFieldErrors({}); setMessage(""); };
+  return <div className="max-w-3xl space-y-5">{fields(value, updateValue, { name: "Course name", location: "City / area", latitude: "Latitude", longitude: "Longitude", description: "Description" }, fieldErrors)}<button type="button" className="text-blue-300" onClick={gps}>Use my position</button>{value.latitude && value.longitude && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && <CourseLocationMap latitude={lat} longitude={lng} name={value.name || "Course location"} />}{message && <p role={saving ? "status" : "alert"}>{message}</p>}</div>;
 }
 
 export function ContactStep({ initial, courseId }: { initial: typeof emptyContact; courseId: string | null }) {
@@ -83,7 +113,7 @@ export function ContactStep({ initial, courseId }: { initial: typeof emptyContac
     finally { busy.current = false; }
   }
   useWizardSave(save);
-  return <div className="max-w-3xl space-y-5"><fieldset><legend className="mb-3">Do you know who manages this course?</legend>{[["known", "Yes, I have contact information"], ["unknown", "No, the contact is unknown"]].map(([v, label]) => <label key={v} className="mr-5 inline-flex gap-2"><input type="radio" name="contact-status" checked={value.owner_contact_status === v} onChange={() => setValue({ ...value, owner_contact_status: v })} />{label}</label>)}</fieldset>{value.owner_contact_status !== "unknown" && fields(value, setValue, { name: "Contact name", email: "Email", phone: "Phone", club: "Club", role: "Role", description: "Additional information" })}<p className="text-sm text-slate-400">For a known owner, Basic and Pro creators need name, email and phone before publication.</p><button className={buttonClass} onClick={() => void save().catch(() => {})}>Save contact</button>{message && <p role="status">{message}</p>}</div>;
+  return <div className="max-w-3xl space-y-5"><fieldset><legend className="mb-3">Do you know who manages this course?</legend>{[["known", "Yes, I have contact information"], ["unknown", "No, the contact is unknown"]].map(([v, label]) => <label key={v} className="mr-5 inline-flex gap-2"><input type="radio" name="contact-status" checked={value.owner_contact_status === v} onChange={() => setValue({ ...value, owner_contact_status: v })} />{label}</label>)}</fieldset>{value.owner_contact_status !== "unknown" && fields(value, setValue, { name: "Contact name", email: "Email", phone: "Phone", club: "Club", role: "Role", description: "Additional information" })}<p className="text-sm text-slate-400">For a known owner, Basic and Pro creators need name, email and phone before publication.</p><button className={buttonClass} onClick={() => void save().catch(() => { })}>Save contact</button>{message && <p role="status">{message}</p>}</div>;
 }
 
 export function PublishStep({ courseId, active, onPublished }: { courseId: string | null; active: boolean; onPublished: () => void }) {

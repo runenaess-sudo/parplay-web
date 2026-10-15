@@ -10,6 +10,7 @@ const items = [
     { href: "/admin/course-claims", label: "Course Claims" },
     { href: "/admin/messages", label: "Messages" },
     { href: "/admin/user-messages", label: "User Messages" },
+    { href: "/admin/foundation-fame", label: "Foundation Fame" },
 ];
 
 export default function AdminShell({ children }: { children: ReactNode }) {
