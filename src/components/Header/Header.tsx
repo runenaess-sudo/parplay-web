@@ -104,16 +104,16 @@ export default function Header() {
 
     return (
         <header className="parplay-header">
-            <Link href="/" className="text-xl font-semibold">ParPlay</Link>
+            <Link href="/" className="parplay-brand" aria-label="ParPlay home">ParPlay</Link>
 
             {isLoggedIn ? (
-                <nav className="menu">
-                    {invitations.length > 0 && <div className="relative">
+                <nav className="menu" aria-label="Main navigation">
+                    {invitations.length > 0 && <div className="header-notifications relative">
                         <button type="button" aria-label={`${invitations.length} course invitation${invitations.length === 1 ? "" : "s"}`} aria-expanded={showInvitations} onClick={() => setShowInvitations((visible) => !visible)} className="relative rounded-full p-2 text-white hover:bg-white/10">
                             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17H9m9-6a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7M13.73 21a2 2 0 0 1-3.46 0" /></svg>
                             <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4">{invitations.length}</span>
                         </button>
-                        {showInvitations && <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-white/10 bg-black/95 p-3 text-white shadow-xl backdrop-blur-md">
+                        {showInvitations && <div className="header-invitations absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-white/10 bg-black/95 p-3 text-white shadow-xl backdrop-blur-md">
                             <p className="text-sm font-semibold">Course invitations</p>
                             {invitations.map((invitation) => <div key={invitation.invitation_id} className="mt-3 border-t border-white/10 pt-3">
                                 <p className="text-sm text-gray-300">You have a course ready to manage</p><p className="mt-1 font-semibold">{invitation.course_name}</p>
@@ -127,10 +127,10 @@ export default function Header() {
                         <MenuItem href="/admin" active={pathname.startsWith("/admin")}>Admin</MenuItem>
                     )}
 
-                    <div className="relative group">
-                        <div className="menu-item cursor-default select-none">Courses</div>
+                    <div className="header-courses relative group">
+                        <button type="button" className="menu-item" aria-label="Courses menu">Courses <span aria-hidden="true" className="text-xs text-slate-400">&#9662;</span></button>
 
-                        <div className="absolute left-0 top-full hidden group-hover:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
+                        <div className="header-courses-dropdown absolute left-0 top-full hidden group-hover:block group-focus-within:block bg-black/80 text-white shadow-xl rounded-md backdrop-blur-md z-50">
                             <Link href="/courses" className="dropdown-item block whitespace-nowrap hover:bg-white/10">View Courses</Link>
 
                             {canCreateCourse && (
@@ -143,10 +143,10 @@ export default function Header() {
                     <MenuItem href="/tournaments" active={pathname.startsWith("/tournaments")}>Tournaments</MenuItem>
                 </nav>
             ) : (
-                <nav className="menu"><MenuItem href="/community" active={pathname.startsWith("/community")}>COMMUNITY</MenuItem></nav>
+                <nav className="menu" aria-label="Main navigation"><MenuItem href="/community" active={pathname.startsWith("/community")}>COMMUNITY</MenuItem></nav>
             )}
 
-            <nav>
+            <nav className="header-account" aria-label="Account navigation">
                 {isLoggedIn ? (
                     <div className="relative group">
                         <Link

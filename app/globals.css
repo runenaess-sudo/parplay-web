@@ -32,23 +32,108 @@ body {
 ------------------------------ */
 
 .parplay-header {
-  @apply bg-black text-white h-16 flex items-center justify-between px-6;
+  position: relative;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "brand account" "navigation navigation";
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 72px;
+  padding: 12px 16px 8px;
+  column-gap: 16px;
+  color: #f1f5f9;
+  background: #0d1420;
+  border-bottom: 1px solid #ffffff14;
+  color-scheme: dark;
 }
 
-.parplay-header a {
-  @apply text-white;
+.parplay-header .parplay-brand {
+  grid-area: brand;
+  justify-self: start;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: #f8fafc;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-decoration: none;
 }
 
 .parplay-header .menu {
-  @apply flex gap-8 text-sm font-medium;
+  grid-area: navigation;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 20px;
+  font-size: 15px;
+  font-weight: 500;
 }
 
-.parplay-header .dropdown {
-  @apply absolute hidden group-hover:flex flex-col bg-black text-white border border-gray-700 rounded-md shadow-lg mt-2 w-40;
+.parplay-header .menu > a,
+.parplay-header .menu-item,
+.parplay-header .header-account > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
+.parplay-header .menu-item { cursor: pointer; }
+.parplay-header .menu-item:hover { color: #93c5fd; }
+.parplay-header .header-account {
+  grid-area: account;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 15px;
+}
+.parplay-header .header-account > div > a { width: 44px; height: 44px; }
 .parplay-header .dropdown-item {
-  @apply px-4 py-2 hover:bg-gray-800;
+  display: block;
+  min-height: 44px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #e2e8f0;
+}
+.parplay-header .dropdown-item:hover,
+.parplay-header .dropdown-item:focus-visible { background: #1e293b; }
+.parplay-header .header-courses,
+.parplay-header .header-notifications { position: static; }
+.parplay-header .header-courses-dropdown,
+.parplay-header .header-invitations {
+  left: 16px;
+  right: 16px;
+  width: auto;
+  max-width: calc(100vw - 32px);
+  overflow-wrap: anywhere;
+  border: 1px solid #ffffff14;
+  background: #111b2a;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px #0006;
+}
+
+@media (min-width: 640px) {
+  .parplay-header { padding-inline: 24px; }
+}
+@media (min-width: 1024px) {
+  .parplay-header {
+    height: 74px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas: "brand navigation account";
+    padding: 0 32px;
+  }
+  .parplay-header .menu { flex-wrap: nowrap; gap: 28px; font-size: 16px; }
+  .parplay-header .parplay-brand { font-size: 30px; }
+  .parplay-header .header-courses,
+  .parplay-header .header-notifications { position: relative; }
+  .parplay-header .header-courses-dropdown { left: 0; right: auto; min-width: 200px; }
+  .parplay-header .header-invitations { left: 0; right: auto; width: 288px; }
 }
 
 /* ------------------------------
