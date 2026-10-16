@@ -1,9 +1,12 @@
 "use client";
+import { supabaseBrowser } from '@/lib/supabase-browser';
+import { physicalMarkers, type MarkerPoint, type MarkerConfig } from '@/lib/physicalCourseMarkers';
+
 
 import { useCourseEditor } from "@/state/useCourseEditor";
 import { type HoleFeature } from "@/types/holeFeatures";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import EditorPanel from "./EditorPanel";
 import PlayOptionsPanel from './PlayOptionsPanel';
 import LoadEditorData from "./LoadEditorData";
@@ -100,6 +103,14 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
         ? "OB line"
         : selectedWeakFeature?.feature_type === "OB_AREA" ? "OB area" : "hazard area";
 
+    const activeConfigId=course?.holes.find((h: {id:string})=>h.id===selectedHoleId)?.play_config_id;
+    const [physicalData,setPhysicalData]=useState<{tees:MarkerPoint[];baskets:MarkerPoint[];configs:MarkerConfig[]}|null>(null);
+    useEffect(()=>{let live=true;const load=()=>{void supabaseBrowser.rpc('get_course_variant_editor_v5',{p_course_id:courseId}).then(r=>{if(live&&!r.error)setPhysicalData(r.data);});};load();window.addEventListener('hole-alternate-saved',load);return()=>{live=false;window.removeEventListener('hole-alternate-saved',load);};},[courseId,selectedHoleId,activeConfigId]);
+    const activeHole=course?.holes.find((h: {id:string})=>h.id===selectedHoleId);
+    const mapMarkers=physicalData?physicalMarkers({...physicalData,
+      tees:physicalData.tees.map(p=>p.id===activeHole?.tee_id?{...p,latitude:activeHole.tee_latitude,longitude:activeHole.tee_longitude}:p),
+      baskets:physicalData.baskets.map(p=>p.id===activeHole?.basket_id?{...p,latitude:activeHole.basket_latitude,longitude:activeHole.basket_longitude}:p)
+    },[activeHole?.tee_id,activeHole?.basket_id].filter(Boolean)):undefined;
     return (
         <div className={`flex ${embedded ? "h-[75vh] min-h-[600px]" : "h-dvh"} flex-col overflow-hidden bg-slate-900`}>
 
@@ -157,6 +168,7 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
 
                     {/* KARTET (FULLSCREEN UNDER ALT) */}
                     <MapCanvas
+                        physicalMarkers={mapMarkers}
                         toolsOpen={toolsOpen}
                         course={course}
                         selectedHoleId={selectedHoleId}

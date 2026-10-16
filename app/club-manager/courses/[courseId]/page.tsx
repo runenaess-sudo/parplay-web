@@ -1,3 +1,4 @@
+import CourseConfigurationMap from '@/components/CourseConfigurationMap';
 import Image from "next/image";
 import Link from "next/link";
 import { canOpenCourseEditor } from "@/lib/course-manager-auth";
@@ -117,5 +118,6 @@ export default async function ManageCourseOverview({ params, searchParams }: {
         </section>
 
         <section className={`mt-8 rounded-2xl border p-5 ${attentionItems.length ? "border-amber-400/20 bg-amber-500/[0.07]" : "border-emerald-400/20 bg-emerald-500/[0.07]"}`}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">{attentionItems.length ? "Needs attention" : "Core setup complete"}</h2><p className="mt-1 text-sm text-gray-400">{attentionItems.length ? "Straightforward items that are still missing." : "No obvious setup gaps were found."}</p></div><StatusPill positive={!attentionItems.length}>{attentionItems.length ? `${attentionItems.length} items` : "Ready"}</StatusPill></div>{attentionItems.length > 0 && <ul className="mt-4 grid gap-2 text-sm text-amber-100/85 sm:grid-cols-2">{attentionItems.map((item) => <li key={item} className="rounded-xl bg-black/15 px-3 py-2">{item}</li>)}</ul>}</section>
+    <section className="mt-6 overflow-hidden rounded-xl border border-white/10"><CourseConfigurationMap courseId={course.id} /></section>
     </main>;
 }

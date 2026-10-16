@@ -8,6 +8,8 @@ import {
     fairwayWidthHandles,
 } from "@/utils/fairwayCorridor";
 import type { Feature, Geometry, LineString, Point, Polygon } from "geojson";
+import { mountPhysicalMarkers } from './PhysicalPointsMap';
+import type { PhysicalMarker } from '@/lib/physicalCourseMarkers';
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef } from "react";
@@ -17,6 +19,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 type EditorMode = "none" | "tee" | "basket" | "points";
 
 type MapCanvasProps = {
+    physicalMarkers?: PhysicalMarker[];
     readOnly?: boolean;
     toolsOpen?: boolean;
     course: any;
@@ -39,6 +42,7 @@ type MapCanvasProps = {
 };
 
 export function MapCanvas({
+    physicalMarkers,
     readOnly = false,
     toolsOpen = false,
     course,
@@ -991,6 +995,19 @@ export function MapCanvas({
         });
     }, [selectedHoleId, course?.holes.find((h: any) => h.id === selectedHoleId)?.play_config_id, toolsOpen]);
 
+
+    useEffect(() => {
+        const map=mapRef.current;
+        if(!map || !physicalMarkers)return;
+        const markers=mountPhysicalMarkers(map,physicalMarkers);
+        if(!readOnly) markers.forEach((marker,index)=>{
+            // Active endpoints retain native map dragging; other physical points absorb clicks.
+            if(physicalMarkers[index].selected)marker.getElement().style.pointerEvents='none';
+        });
+        const hide=()=>{if(readOnly)for(const id of ['tee-layer','basket-layer'])if(map.getLayer(id))map.setLayoutProperty(id,'visibility','none');};
+        if(map.isStyleLoaded())hide();else map.on('load',hide);
+        return()=>{markers.forEach(m=>m.remove());map.off('load',hide);if(readOnly&&map.isStyleLoaded())for(const id of ['tee-layer','basket-layer'])if(map.getLayer(id))map.setLayoutProperty(id,'visibility','visible');};
+    },[physicalMarkers,readOnly]);
 
     return (
         <div

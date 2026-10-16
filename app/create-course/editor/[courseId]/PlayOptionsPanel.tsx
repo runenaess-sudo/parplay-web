@@ -1,9 +1,8 @@
 'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { useCourseEditor } from '@/state/useCourseEditor';
-import { calculateHoleLength } from '@/utils/holeLength';
 
 import { configurationName } from './alternateHole';
 
@@ -14,12 +13,7 @@ export default function PlayOptionsPanel() {
  const [data, setData] = useState<any>(null);
  const [busy, setBusy] = useState(false);
  const [error, setError] = useState('');
- const [name, setName] = useState('');
- const [existingBasket, setExistingBasket] = useState('');
- const [adding, setAdding] = useState<'choose' | 'tee' | 'basket' | 'shared' | null>(null);
- const [editing, setEditing] = useState<any>(null);
- const requestIds = useRef<{ physical: string; config: string } | null>(null);
- function closeAdd() { setAdding(null); setName(''); setExistingBasket(''); requestIds.current = null; }
+ const [editing,setEditing] = useState<any>(null);
  const hole = course?.holes.find((h: any) => h.id === holeId);
  const current = data?.configs.find((c: any) => c.id === hole?.play_config_id);
  async function refresh() {
@@ -55,27 +49,6 @@ export default function PlayOptionsPanel() {
   setEditing(null);
   useCourseEditor.setState(s => ({ course: { ...s.course, holes: s.course.holes.map((h: any) => h.id === holeId
    ? { ...h, ...result.data, hole_features: result.data.features } : h) }, mode: 'none', featureTool: null, selectedFeatureId: null, drawingCoordinates: [] }));
- }
- async function add(kind: 'tee' | 'basket' | 'shared') {
-  if (!current) throw new Error('Save Main first.');
-  requestIds.current ??= { physical: crypto.randomUUID(), config: crypto.randomUUID() };
-  if (kind !== 'shared' && !name.trim()) throw new Error('Enter a name first.');
-  let tee = data.tees.find((t: any) => t.id === current.tee_id);
-  let basket = data.baskets.find((b: any) => b.id === (kind === 'shared' ? existingBasket : current.basket_id));
-  let physical = null;
-  if (kind !== 'shared') {
-   physical = { id: requestIds.current.physical, label: name.trim(), latitude: hole[`${kind}_latitude`], longitude: hole[`${kind}_longitude`], elevation: hole[`${kind}_elevation`] };
-   if (kind === 'tee') tee = physical; else basket = physical;
-  }
-  if (!tee || !basket || tee.latitude == null || tee.longitude == null || basket.latitude == null || basket.longitude == null) throw new Error('Set positions on the map first.');
-  const id = requestIds.current.config;
-  const result = await supabaseBrowser.rpc('save_hole_variant_draft_v5', {
-   p_hole_id: holeId, p_config: { id, tee_id: tee.id, basket_id: basket.id, label: `${label(tee.label)} → ${label(basket.label)}`.slice(0,40), par: current.par,
-    distance: Math.round(calculateHoleLength([[tee.longitude,tee.latitude],[basket.longitude,basket.latitude]])), fairway: [], tee_angle: current.tee_angle },
-   p_tee: kind === 'tee' ? physical : null, p_basket: kind === 'basket' ? physical : null,
-  });
-  if (result.error) throw result.error;
-  await refresh(); await select(id); closeAdd();
  }
  const button = 'min-h-11 w-full rounded bg-slate-700 px-3 py-2 text-left text-sm disabled:opacity-40';
  if (!hole) return null;
@@ -118,24 +91,6 @@ export default function PlayOptionsPanel() {
      });
     }}>Remove Variation</button>}
    </details>}
-   <button disabled={busy || !current} className={button} onClick={() => { closeAdd(); setAdding('choose'); }}>Advanced: create physical tee / basket</button>
-   {adding && <section aria-label="Add variation" className="space-y-2 rounded-xl border border-white/20 bg-slate-900/80 p-3">
-    {adding === 'choose' ? <>
-     <button className={button} onClick={() => setAdding('tee')}>New tee</button>
-     <button className={button} onClick={() => setAdding('basket')}>New basket</button>
-     <button className={button} onClick={() => setAdding('shared')}>Use existing basket</button>
-    </> : adding === 'shared' ? <>
-     <label className="block text-sm">Course baskets<select aria-label="Existing basket" disabled={busy} value={existingBasket} onChange={e => setExistingBasket(e.target.value)} className="mt-2 min-h-11 w-full rounded bg-slate-800 p-2 text-sm">
-      <option value="">Select basket</option>{data.baskets.map((b: any) => <option key={b.id} value={b.id}>{label(b.label)} · Used by holes {[...new Set(b.usage.map((u: any) => u.number))].join(', ') || 'none'}</option>)}
-     </select></label>
-     <button disabled={busy || !existingBasket} className={button} onClick={() => void run(() => add('shared'))}>USE BASKET</button>
-    </> : <>
-     <p className="text-xs text-slate-300">Set the {adding} position on the map, then create this option. The current {adding === 'tee' ? 'basket' : 'tee'} is reused.</p>
-     <input aria-label={`New ${adding} name`} disabled={busy} placeholder="Name" maxLength={40} value={name} onChange={e => setName(e.target.value)} className="min-h-11 w-full rounded bg-slate-800 p-2 text-sm" />
-     <button disabled={busy || !name.trim()} className={button} onClick={() => void run(() => add(adding))}>Create variation</button>
-    </>}
-    <button disabled={busy} className={button} onClick={closeAdd}>Cancel</button>
-   </section>}
    {(['tee','basket'] as const).map(kind => <section key={kind} className="space-y-2"><h3 className="font-bold">{kind === 'tee' ? 'TEE' : 'BASKET'}</h3>
     {data[kind === 'tee' ? 'tees' : 'baskets'].filter((object: any) => object.id === current?.[kind === 'tee' ? 'tee_id' : 'basket_id']).map((object: any) => <div key={object.id} className="relative rounded border border-white/10 p-2 text-sm"><p className="pr-11">{label(object.label)}</p>
      <p className="pr-11 text-xs text-slate-400">Used by holes {[...new Set(object.usage.map((u: any) => u.number))].join(', ') || 'none'}</p>

@@ -1,9 +1,10 @@
+import CourseConfigurationMap from '@/components/CourseConfigurationMap';
 import CourseFeed from '@/components/community/CourseFeed';
 import { supabaseServer } from "@/lib/supabase-server";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CourseLocationMap } from "./CourseLocationMap";
+
 import { CourseLeaderboard, type LeaderboardData } from "./CourseLeaderboard";
 import { CourseTrafficPanel, type CourseTrafficData } from "./CourseTrafficPanel";
 
@@ -163,7 +164,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             </DashboardCard>
 
             <DashboardCard eyebrow="Find your way" title="Location" flush>
-                {course.latitude != null && course.longitude != null && <CourseLocationMap latitude={course.latitude} longitude={course.longitude} name={course.name} />}
+                <CourseConfigurationMap courseId={course.id} />
                 <div className="p-5">{locationLine && <p className="text-sm text-white/65">{locationLine}</p>}{directionsUrl && <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-bold hover:bg-blue-500">Open in maps ↗</a>}</div>
             </DashboardCard>
         </section>
