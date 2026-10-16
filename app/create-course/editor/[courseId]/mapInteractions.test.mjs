@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+const file=fs.readFileSync('app/create-course/editor/[courseId]/MapCanvas.tsx','utf8');
+const ast=ts.createSourceFile('MapCanvas.tsx',file,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+const callbacks=[];let escape;
+function visit(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='map.on') callbacks.push({event:n.arguments[0].text,layer:n.arguments.length===3?n.arguments[1].text:null,body:n.arguments.at(-1).getText(ast)});if(ts.isVariableDeclaration(n)&&n.name.getText(ast)==='onEscape')escape=n.initializer.getText(ast);ts.forEachChild(n,visit);}visit(ast);
+function setup(mode='points'){
+ const calls=[],listeners={};const ctx={Date,Number,Boolean,selectedHoleRef:{current:'h'},modeRef:{current:mode},featureToolRef:{current:null},selectedFeatureRef:{current:null},selectedFairwayPointRef:{current:null},suppressClickUntil:{current:0},updatePointsRef:{current:()=>calls.push('draw')},document:{querySelector:()=>null},mapRef:{current:{getSource:()=>({setData:()=>{}})}},courseRef:{current:{holes:[{id:'h',fairway:[{lng:1,lat:2}]}]}},fairwayDistanceMeters:()=>6};
+ for(const name of ['onAddFairwayPoint','onMoveFairwayPoint','onRemoveFairwayPoint','onSetFairwayPointWidth','onSetTee','onSetBasket','onMoveFeatureVertex','onAddFeatureCoordinate'])ctx[name]=(...args)=>calls.push([name,...args]);
+ ctx.map={queryRenderedFeatures:()=>[],on:(name,fn)=>listeners[name]=fn,off:name=>delete listeners[name],dragPan:{disable(){},enable(){}},getCanvas:()=>({style:{}}),getSource:()=>({setData(){}})};
+ const run=body=>vm.runInNewContext(ts.transpileModule('('+body+')',{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText,ctx);
+ const event={point:{},lngLat:{lng:3,lat:4},originalEvent:{button:0},features:[{properties:{holeId:'h',index:0}}],preventDefault(){}};
+ return {ctx,calls,listeners,run,event};
+}
+const find=(event,layer=null)=>callbacks.find(c=>c.event===event&&c.layer===layer).body;
+test('click selects then deselects without leaving Set Points',()=>{const h=setup();const click=h.run(find('click','fairway-layer'));click(h.event);assert.equal(h.ctx.selectedFairwayPointRef.current.index,0);click(h.event);assert.equal(h.ctx.selectedFairwayPointRef.current,null);assert.equal(h.ctx.modeRef.current,'points');});
+test('empty click adds; marker/handle and post-drag click do not',()=>{const h=setup();const click=h.run(find('click'));click(h.event);assert.equal(h.calls.length,1);h.ctx.map.queryRenderedFeatures=()=>[{}];click(h.event);assert.equal(h.calls.length,1);h.ctx.map.queryRenderedFeatures=()=>[];h.ctx.suppressClickUntil.current=Date.now()+1000;click(h.event);assert.equal(h.calls.length,1);});
+test('Escape preserves mode and edits; modal takes priority',()=>{const h=setup();h.ctx.selectedFairwayPointRef.current={holeId:'h',index:0};h.ctx.document.querySelector=()=>({});h.run(escape)({key:'Escape'});assert.ok(h.ctx.selectedFairwayPointRef.current);h.ctx.document.querySelector=()=>null;h.run(escape)({key:'Escape'});assert.equal(h.ctx.selectedFairwayPointRef.current,null);assert.equal(h.ctx.modeRef.current,'points');assert.deepEqual(h.calls,['draw']);});
+test('No Mode blocks placement, point deletion and all geometry drag starts',()=>{const h=setup('none');h.ctx.map.queryRenderedFeatures=()=>h.event.features;for(const c of callbacks.filter(c=>['mousedown','contextmenu'].includes(c.event)))h.run(c.body)(h.event);h.run(find('click'))(h.event);assert.deepEqual(h.calls,[]);assert.deepEqual(h.listeners,{});});
+test('point drag and right-click deletion remain available',()=>{const h=setup();h.ctx.map.queryRenderedFeatures=()=>h.event.features;h.run(find('mousedown'))(h.event);h.listeners.mousemove(h.event);assert.equal(h.calls[0][0],'onMoveFairwayPoint');h.listeners.mouseup();h.run(find('contextmenu'))(h.event);assert.ok(h.calls.some(c=>c[0]==='onRemoveFairwayPoint'));assert.equal(h.ctx.selectedFairwayPointRef.current,null);});
+test('width drag retains calculation and stops updates after Escape',()=>{const h=setup();h.ctx.selectedFairwayPointRef.current={holeId:'h',index:0};h.run(find('mousedown','fairway-width-handle-layer'))(h.event);h.listeners.mousemove(h.event);assert.equal(h.calls[0][0],'onSetFairwayPointWidth');assert.equal(h.calls[0][3],6);h.run(escape)({key:'Escape'});h.listeners.mousemove(h.event);assert.equal(h.calls.filter(c=>c[0]==='onSetFairwayPointWidth').length,1);h.listeners.mouseup(h.event);});
+test('explicit No Mode still saves before switching; Help retains dialog Escape priority',()=>{const store=fs.readFileSync('src/state/useCourseEditor.ts','utf8');const mode=store.slice(store.indexOf('setMode: async'),store.indexOf('startFeatureTool:',store.indexOf('setMode: async')));assert.ok(mode.indexOf('await get().saveHole(holeId)')<mode.indexOf('set({ mode'));const help=fs.readFileSync('app/create-course/editor/[courseId]/HoleEditorHelp.tsx','utf8');assert.ok(help.includes('onKeyDown={event => event.stopPropagation()}'));assert.ok(help.includes('Undo is not available'));});

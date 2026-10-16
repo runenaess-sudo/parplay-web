@@ -1,4 +1,5 @@
 "use client";
+import AddAlternateHole from './AddAlternateHole';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Toast } from "@/components/Toast";
@@ -13,6 +14,7 @@ import {
     type ObLineSide,
 } from "@/types/holeFeatures";
 import { useState } from "react";
+import HoleEditorHelp from "./HoleEditorHelp";
 
 function FeatureDetails({ feature, mandoPartners, originHoleNumber, currentHoleNumber,
     applicableHoleNumbers, linkPending, onSave, onDelete, onDetach, onMandoSide, onPairMando, onObLineSide }: {
@@ -202,6 +204,7 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                                 : `Set ${m.charAt(0).toUpperCase() + m.slice(1)}`}
                         </button>
                     ))}
+                    <HoleEditorHelp />
                 </div>
 
                 </>}
@@ -213,6 +216,7 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                         FEATURES {toolsOpen ? "▲" : "▼"}
                     </button>
 
+                    {hole && <AddAlternateHole key={hole.id} courseId={course.id} holeId={hole.id} number={hole.number} />}
                     {toolsOpen && hole && (
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 gap-2">

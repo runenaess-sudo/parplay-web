@@ -69,6 +69,7 @@ export function MapCanvas({
     const drawingCoordinatesRef = useRef<[number, number][]>(drawingCoordinates);
     const selectedFeatureRef = useRef<string | null>(selectedFeatureId);
     const selectedFairwayPointRef = useRef<{ holeId: string; index: number } | null>(null);
+    const suppressClickUntil = useRef(0);
     const onSelectWeakFeatureRef = useRef(onSelectWeakFeature);
 
     const updatePointsRef = useRef<() => void>(() => { });
@@ -95,6 +96,20 @@ export function MapCanvas({
     useEffect(() => { drawingCoordinatesRef.current = drawingCoordinates; }, [drawingCoordinates]);
     useEffect(() => { selectedFeatureRef.current = selectedFeatureId; }, [selectedFeatureId]);
     useEffect(() => { onSelectWeakFeatureRef.current = onSelectWeakFeature; }, [onSelectWeakFeature]);
+
+    useEffect(() => {
+        if (readOnly) return;
+        const onEscape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape" || event.defaultPrevented
+                || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return;
+            selectedFairwayPointRef.current = null;
+            updatePointsRef.current();
+            const source = mapRef.current?.getSource("fairway-width-label-source") as mapboxgl.GeoJSONSource | undefined;
+            source?.setData({ type: "FeatureCollection", features: [] });
+        };
+        window.addEventListener("keydown", onEscape);
+        return () => window.removeEventListener("keydown", onEscape);
+    }, [readOnly]);
 
     useEffect(() => {
         if (!ref.current) return;
@@ -626,6 +641,7 @@ export function MapCanvas({
             }
 
             map.on("click", (e) => {
+                if (Date.now() < suppressClickUntil.current) return;
                 const holeId = selectedHoleRef.current;
                 const currentMode = modeRef.current;
                 if (!holeId) return;
@@ -644,7 +660,7 @@ export function MapCanvas({
                     onSetBasket(holeId, lng, lat);
                 } else if (currentMode === "points") {
                     const existingControl = map.queryRenderedFeatures(e.point, {
-                        layers: ["fairway-layer", "fairway-width-handle-layer"],
+                        layers: ["fairway-layer", "fairway-width-handle-layer", "tee-layer", "basket-layer", "hole-feature-vertex-layer", "hole-feature-point-layer", "hole-feature-stake-layer"],
                     });
                     if (existingControl.length > 0) return;
                     onAddFairwayPoint(holeId, lng, lat);
@@ -676,15 +692,18 @@ export function MapCanvas({
             }
 
             map.on("click", "fairway-layer", (event) => {
-                if (modeRef.current !== "points") return;
+                if (modeRef.current !== "points" || Date.now() < suppressClickUntil.current) return;
                 const holeId = event.features?.[0]?.properties?.holeId;
                 const index = Number(event.features?.[0]?.properties?.index);
                 if (typeof holeId !== "string" || !Number.isInteger(index)) return;
-                selectedFairwayPointRef.current = { holeId, index };
+                const previous = selectedFairwayPointRef.current;
+                selectedFairwayPointRef.current = previous?.holeId === holeId && previous.index === index
+                    ? null : { holeId, index };
                 updatePointsRef.current();
             });
 
             map.on("mousedown", "fairway-width-handle-layer", (event) => {
+                if (modeRef.current !== "points" || event.originalEvent.button !== 0) return;
                 const holeId = event.features?.[0]?.properties?.holeId;
                 const index = Number(event.features?.[0]?.properties?.index);
                 if (typeof holeId !== "string" || !Number.isInteger(index)) return;
@@ -713,6 +732,8 @@ export function MapCanvas({
                 };
 
                 const updateWidth = (moveEvent: mapboxgl.MapMouseEvent) => {
+                    if (modeRef.current !== "points" || !selectedFairwayPointRef.current) return;
+                    suppressClickUntil.current = Date.now() + 250;
                     const width = Math.max(1, Math.min(100, fairwayDistanceMeters(
                         center,
                         { lng: moveEvent.lngLat.lng, lat: moveEvent.lngLat.lat },
@@ -738,6 +759,7 @@ export function MapCanvas({
             });
 
             map.on("mousedown", "hole-feature-vertex-layer", (event) => {
+                if (!selectedFeatureRef.current || event.originalEvent.button !== 0) return;
                 const featureId = event.features?.[0]?.properties?.featureId;
                 const vertexIndex = Number(event.features?.[0]?.properties?.vertexIndex);
                 if (typeof featureId !== "string" || !Number.isInteger(vertexIndex)) return;
@@ -745,6 +767,7 @@ export function MapCanvas({
                 map.dragPan.disable();
                 map.getCanvas().style.cursor = "grabbing";
                 const onMove = (moveEvent: mapboxgl.MapMouseEvent) => {
+                    if (selectedFeatureRef.current !== featureId) return;
                     onMoveFeatureVertex(featureId, vertexIndex, moveEvent.lngLat.lng, moveEvent.lngLat.lat, false);
                 };
                 const onUp = (upEvent: mapboxgl.MapMouseEvent) => {
@@ -752,6 +775,7 @@ export function MapCanvas({
                     map.getCanvas().style.cursor = "";
                     map.off("mousemove", onMove);
                     map.off("mouseup", onUp);
+                    if (selectedFeatureRef.current !== featureId) return;
                     onMoveFeatureVertex(featureId, vertexIndex, upEvent.lngLat.lng, upEvent.lngLat.lat, true);
                 };
                 map.on("mousemove", onMove);
@@ -778,12 +802,15 @@ export function MapCanvas({
                 const index = props?.index;
 
                 if (hitHoleId && typeof index === "number") {
+                    selectedFairwayPointRef.current = null;
                     onRemoveFairwayPoint(hitHoleId, index);
+                    updatePointsRef.current();
 
                 }
             });
 
             map.on("mousedown", (e) => {
+                if (e.originalEvent.button !== 0) return;
                 const currentMode = modeRef.current;
                 if (currentMode !== "points") return;
 
@@ -807,6 +834,8 @@ export function MapCanvas({
                 const onMove = (ev: mapboxgl.MapMouseEvent) => {
                     const lng = ev.lngLat.lng;
                     const lat = ev.lngLat.lat;
+                    if (modeRef.current !== "points") return;
+                    suppressClickUntil.current = Date.now() + 250;
                     onMoveFairwayPoint(holeId, index, lng, lat);
                 };
 
@@ -822,6 +851,8 @@ export function MapCanvas({
             });
 
             map.on("mousedown", (e) => {
+                if (e.originalEvent.button !== 0) return;
+                if (modeRef.current !== "tee") return;
                 const features = map.queryRenderedFeatures(e.point, {
                     layers: ["tee-layer"],
                 });
@@ -838,6 +869,8 @@ export function MapCanvas({
                 const onMove = (ev: mapboxgl.MapMouseEvent) => {
                     const lng = ev.lngLat.lng;
                     const lat = ev.lngLat.lat;
+                    if (modeRef.current !== "tee") return;
+                    suppressClickUntil.current = Date.now() + 250;
                     onSetTee(holeId, lng, lat);
                 };
 
@@ -853,6 +886,8 @@ export function MapCanvas({
             });
 
             map.on("mousedown", (e) => {
+                if (e.originalEvent.button !== 0) return;
+                if (modeRef.current !== "basket") return;
                 const features = map.queryRenderedFeatures(e.point, {
                     layers: ["basket-layer"],
                 });
@@ -869,6 +904,8 @@ export function MapCanvas({
                 const onMove = (ev: mapboxgl.MapMouseEvent) => {
                     const lng = ev.lngLat.lng;
                     const lat = ev.lngLat.lat;
+                    if (modeRef.current !== "basket") return;
+                    suppressClickUntil.current = Date.now() + 250;
                     onSetBasket(holeId, lng, lat);
                 };
 

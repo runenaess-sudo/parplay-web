@@ -144,8 +144,8 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
                     <button onClick={() => setToolsOpen(open => !open)} aria-expanded={toolsOpen}
                         className="absolute right-2 top-14 z-50 min-h-11 rounded bg-slate-800 px-3 text-white lg:hidden">{toolsOpen ? 'Close tools' : 'Tools'}</button>
                     <aside className={`${toolsOpen ? 'block' : 'hidden lg:block'} absolute right-0 top-28 lg:top-0 bottom-0 z-40 w-[260px] max-w-[85vw] overflow-y-auto border-l border-white/10 bg-slate-950/95 backdrop-blur-md`}>
-                        <PlayOptionsPanel key={`${courseId}:${selectedHoleId}`} />
                         <EditorPanel toolsOnly />
+                        <PlayOptionsPanel key={`${courseId}:${selectedHoleId}`} />
                     </aside>
 
                     {/* HULL-LISTE OVERLAY */}

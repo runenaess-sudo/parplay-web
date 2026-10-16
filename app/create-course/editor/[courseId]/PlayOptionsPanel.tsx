@@ -5,6 +5,8 @@ import { supabaseBrowser } from '@/lib/supabase-browser';
 import { useCourseEditor } from '@/state/useCourseEditor';
 import { calculateHoleLength } from '@/utils/holeLength';
 
+import { configurationName } from './alternateHole';
+
 const label = (name: string | null) => !name || name === 'Primary' ? 'Main' : name;
 export default function PlayOptionsPanel() {
  const course = useCourseEditor(s => s.course);
@@ -33,6 +35,13 @@ export default function PlayOptionsPanel() {
   });
   return () => { active = false; };
  }, [course?.id, holeId, hole?.play_config_id]);
+ useEffect(() => {
+  const reload = () => { void refresh().catch(e => setError(e.message || 'Could not refresh configurations.')); };
+  window.addEventListener('hole-alternate-saved', reload);
+  return () => window.removeEventListener('hole-alternate-saved', reload);
+ // Refresh depends only on the current course; no editor state is changed.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [course?.id]);
  async function run(action: () => Promise<void>) {
   if (busy) return;
   setBusy(true); setError('');
@@ -79,7 +88,7 @@ export default function PlayOptionsPanel() {
     <select id="hole-variation" aria-label="Select Variation" disabled={busy} value={hole.play_config_id || ''} className="min-h-11 w-full rounded bg-slate-800 p-2 text-sm"
      onChange={e => { const id = e.target.value; if (window.confirm('Switch variation? Save current map changes first; unsaved changes will be discarded.')) void run(() => select(id)); }}>
      {data.configs.filter((c: any) => c.hole_id === holeId).map((c: any) => <option key={c.id} value={c.id}>
-      {label(data.tees.find((t: any) => t.id === c.tee_id)?.label)} → {label(data.baskets.find((b: any) => b.id === c.basket_id)?.label)}
+      {configurationName(c, hole.number)}
       {c.id !== current?.id ? ` · ${c.distance} m · Par ${c.par}` : ''}
      </option>)}
     </select>
@@ -88,7 +97,7 @@ export default function PlayOptionsPanel() {
     <label className="flex items-center justify-between gap-3 py-2">Par<input disabled={busy} type="number" min={1} max={10} value={hole.par ?? 3} className="ml-2 w-16 rounded bg-slate-800 p-2"
      onChange={e => { const par = Number(e.target.value); useCourseEditor.setState(s => ({ course: { ...s.course, holes: s.course.holes.map((h: any) => h.id === holeId ? { ...h, par } : h) } })); }} /></label></details>
    </section>
-   {current && <details className="rounded border border-white/10 p-2 text-sm"><summary className="min-h-11 cursor-pointer py-2">Edit Variation</summary>
+   {current && <details className="rounded border border-white/10 p-2 text-sm"><summary className="min-h-11 cursor-pointer py-2">Configuration details</summary>
     <button disabled={busy} className={button} onClick={() => setEditing({ ...current })}>Edit tee, basket, par and distance</button>
     {editing && <div className="space-y-2 py-2">
      {!current.is_default && (['tee','basket'] as const).map(kind => <label key={kind} className="block">Select {kind}
@@ -109,7 +118,7 @@ export default function PlayOptionsPanel() {
      });
     }}>Remove Variation</button>}
    </details>}
-   <button disabled={busy || !current} className={button} onClick={() => { closeAdd(); setAdding('choose'); }}>Add Hole Variation</button>
+   <button disabled={busy || !current} className={button} onClick={() => { closeAdd(); setAdding('choose'); }}>Advanced: create physical tee / basket</button>
    {adding && <section aria-label="Add variation" className="space-y-2 rounded-xl border border-white/20 bg-slate-900/80 p-3">
     {adding === 'choose' ? <>
      <button className={button} onClick={() => setAdding('tee')}>New tee</button>
