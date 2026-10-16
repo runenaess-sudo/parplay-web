@@ -998,12 +998,10 @@ export function MapCanvas({
 
     useEffect(() => {
         const map=mapRef.current;
-        if(!map || !physicalMarkers)return;
-        const markers=mountPhysicalMarkers(map,physicalMarkers,false,readOnly);
-        if(!readOnly) markers.forEach((marker,index)=>{
-            // Active endpoints retain native map dragging; other physical points absorb clicks.
-            if(physicalMarkers[index].selected)marker.getElement().style.pointerEvents='none';
-        });
+        // The editor already renders draggable tee/basket symbol layers.
+        // DOM markers are only needed by the read-only configuration preview.
+        if(!map || !physicalMarkers || !readOnly)return;
+        const markers=mountPhysicalMarkers(map,physicalMarkers,false,true);
         const hide=()=>{if(readOnly)for(const id of ['tee-layer','basket-layer'])if(map.getLayer(id))map.setLayoutProperty(id,'visibility','none');};
         if(map.isStyleLoaded())hide();else map.on('load',hide);
         return()=>{markers.forEach(m=>m.remove());map.off('load',hide);if(readOnly&&map.isStyleLoaded())for(const id of ['tee-layer','basket-layer'])if(map.getLayer(id))map.setLayoutProperty(id,'visibility','visible');};
