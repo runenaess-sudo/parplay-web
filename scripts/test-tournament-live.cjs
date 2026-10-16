@@ -53,7 +53,7 @@ assert.ok(!api.publicFailure(new Error('network private details')).message.inclu
 // Exercise the actual proxy with cookie-less requests, including protected neighbouring routes.
 const proxy = load('proxy.ts', {'next/server':{NextResponse:{next:()=> 'next',redirect:()=> 'login'}}}).proxy;
 for (const [pathname, expected] of [[`/future/tournaments/${id}/round/${round}`,'next'],[`/future/tournaments/${id}/round/${round}/`,'next'],
-  [`/future/tournaments/${id}/admin`,'login'],[`/future/tournaments/${id}/round/${round}/admin`,'login'],[`/future/tournaments/${id}`,'login'],['/future/round/id','next']]) {
+  [`/future/tournaments/${id}/admin`,'login'],[`/future/tournaments/${id}/round/${round}/admin`,'login'],[`/future/tournaments/${id}`,'next'],['/future/round/id','next']]) {
   assert.equal(proxy({nextUrl:{pathname,clone:()=>({pathname})},headers:{get:()=>null},cookies:{getAll:()=>[]}}),expected,pathname);
 }
 
@@ -97,3 +97,37 @@ if(fs.existsSync(canonical)) assert.equal(fs.readFileSync(path.join(root,'src/li
   assert.equal(received,1); assert.equal(timers.length,0);
   console.log('PASS Tournament public route, class ordering/switching, Results placement/ties, display fields, SSR table, responsive CSS guardrails, polling/error cleanup and canonical ordering parity.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+// Assignment publication, rather than an independent round flag, owns public Live visibility.
+const migration = fs.readFileSync(path.resolve(root, '../parplay/supabase/migrations/20270502_tournament_live_published_groups_v1.sql'), 'utf8');
+assert.equal((migration.match(/join public.tournament_group_publications pub/g) || []).length, 3);
+assert.doesNotMatch(migration, /and is_published=true order by round_number/);
+assert.match(migration, /t.is_published is true/);
+assert.match(migration, /tournament_round_results_for_viewer_private_v1\(p_tournament_id,p_round_id,null\)/);
+assert.match(migration, /'group_number'/);
+assert.match(migration, /'group_start_time'/);
+assert.doesNotMatch(migration, /insert into|update public|delete from/i);
+assert.match(page, /requestedView.current = eventType === 'tournament' \? roundId/);
+assert.match(page, /setInterval/);
+assert.match(page, /navigator.onLine/);
+assert.match(page, /overview && isTotal/);
+assert.ok(html.includes('Not started'));
+
+(async () => {
+  const otherRound = '33333333-3333-3333-3333-333333333333';
+  let fetchedRound;
+  const overviewApi = load('src/lib/tournament-overview.ts', {
+    './public-event-round': { readPublicEventRound: async (_type, event, selected) => {
+      assert.equal(event, id); fetchedRound = selected; return data;
+    } },
+  }, { process: { env: { NEXT_PUBLIC_SUPABASE_URL: 'https://example.invalid', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'public-test' } },
+    fetch: async (_url, options) => {
+      assert.equal(options.credentials, 'omit'); assert.equal(options.cache, 'no-store');
+      return { ok: true, json: async () => ({ version: 1, tournament: { id, name: 'Event' },
+        rounds: [{ id: otherRound, round_number: 2, status: 'upcoming' }], classes: [] }) };
+    },
+  });
+  const result = await overviewApi.readTournamentView(id, round, new AbortController().signal);
+  assert.equal(result.view, round); assert.equal(fetchedRound, round);
+  console.log('PASS anonymous overview requests retain the exact linked round, including an unpublished requested round.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

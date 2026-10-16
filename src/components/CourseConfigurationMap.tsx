@@ -10,5 +10,5 @@ export default function CourseConfigurationMap({courseId,layoutId}:{courseId:str
  if(error)return <p role="alert" className="p-3 text-sm text-amber-200">{error}</p>;
  if(result?.key!==key)return <p className="p-3 text-sm">Loading configurations...</p>;
  const markers=physicalMarkers(result.data);
- return <div><p className="p-2 text-sm text-slate-300">{layoutId?'Selected layout only':'Course configurations'} - B blue, C red. Shared points retain one identity; click a marker for its configurations.</p><div className="h-96"><PhysicalPointsMap key={key} markers={markers}/></div></div>;
+ return <div><p className="p-2 text-sm text-slate-300">{layoutId?'Selected layout only':'Course configurations'} - B blue, C red. Shared points retain one identity; click a marker for its configurations.</p><div className="h-96"><PhysicalPointsMap key={key} markers={markers} hideBasketLabels/></div></div>;
 }

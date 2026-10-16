@@ -27,8 +27,8 @@ export async function readTournamentView(eventId: string, requested: string, sig
   const raw: unknown = await response.json();
   if (!response.ok) throw raw;
   const overview = readOverview(raw, eventId);
-  const view = overview.rounds.length === 1 ? overview.rounds[0].id
-    : requested !== 'total' && overview.rounds.some(r => r.id === requested) ? requested : 'total';
+  const view = requested !== 'total' ? requested
+    : overview.rounds.length === 1 ? overview.rounds[0].id : 'total';
   const round = view === 'total' ? null : await readPublicEventRound('tournament', eventId, view, signal);
   return { overview, round, view, requested };
 }

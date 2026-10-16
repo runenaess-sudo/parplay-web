@@ -4,6 +4,7 @@ export type Hole = { hole_id: string; display_order: number; par: number; distan
 export type Score = { hole_id: string; strokes: number | null; score_source: string | null; has_conflict: boolean;
   session_hole_state: 'not_started' | 'matched' | 'awaiting_scorers' | 'discrepancy' };
 export type Player = {
+  group_number?: number; group_start_time?: string | null;
   player_id: string; display_name: string; started: boolean; scores: Score[];
   total_hole_count: number; completed_hole_count: number; relative_to_par: number | null;
   authoritative_total_strokes: number | null; played_total_strokes: number | null;

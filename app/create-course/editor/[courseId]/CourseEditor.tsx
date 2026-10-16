@@ -35,7 +35,7 @@ function HoleListOverlay({
     onSelect,
 }: HoleListOverlayProps) {
     return (
-        <div className="absolute top-0 left-0 right-0 lg:left-64 lg:right-[260px] z-30 p-2">
+        <div className="absolute top-0 left-0 right-0 lg:left-64 lg:right-65 z-30 p-2">
             <div className="flex gap-2 overflow-x-auto bg-black/60 backdrop-blur-sm rounded-xl p-2">
                 {holes.map((h) => (
                     <button
@@ -112,7 +112,7 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
       baskets:physicalData.baskets.map(p=>p.id===activeHole?.basket_id?{...p,latitude:activeHole.basket_latitude,longitude:activeHole.basket_longitude}:p)
     },[activeHole?.tee_id,activeHole?.basket_id].filter(Boolean)):undefined;
     return (
-        <div className={`flex ${embedded ? "h-[75vh] min-h-[600px]" : "h-dvh"} flex-col overflow-hidden bg-slate-900`}>
+        <div className={`flex ${embedded ? "h-[75vh] min-h-150" : "h-dvh"} flex-col overflow-hidden bg-slate-900`}>
 
             {/* HEADER */}
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
@@ -154,7 +154,7 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
                     </div>
                     <button onClick={() => setToolsOpen(open => !open)} aria-expanded={toolsOpen}
                         className="absolute right-2 top-14 z-50 min-h-11 rounded bg-slate-800 px-3 text-white lg:hidden">{toolsOpen ? 'Close tools' : 'Tools'}</button>
-                    <aside className={`${toolsOpen ? 'block' : 'hidden lg:block'} absolute right-0 top-28 lg:top-0 bottom-0 z-40 w-[260px] max-w-[85vw] overflow-y-auto border-l border-white/10 bg-slate-950/95 backdrop-blur-md`}>
+                    <aside className={`${toolsOpen ? 'block' : 'hidden lg:block'} absolute right-0 top-28 lg:top-0 bottom-0 z-40 w-65 max-w-[85vw] overflow-y-auto border-l border-white/10 bg-slate-950/95 backdrop-blur-md`}>
                         <EditorPanel toolsOnly />
                         <PlayOptionsPanel key={`${courseId}:${selectedHoleId}`} />
                     </aside>

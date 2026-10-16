@@ -13,8 +13,8 @@ import styles from './TournamentLivePage.module.css';
 
 export default function TournamentLivePage({ tournamentId, roundId, eventType = 'tournament' }: { tournamentId: string; roundId: string; eventType?: 'tournament' | 'league' }) {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [view, setView] = useState('total');
-  const requestedView = useRef('total');
+  const [view, setView] = useState(eventType === 'tournament' ? roundId : 'total');
+  const requestedView = useRef(eventType === 'tournament' ? roundId : 'total');
   const [viewLoading, setViewLoading] = useState(false);
   const [data, setData] = useState<TournamentLive | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -28,7 +28,7 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
 
   useEffect(() => {
     if (!valid) return;
-    requestedView.current = 'total';
+    requestedView.current = eventType === 'tournament' ? roundId : 'total';
     const identity = { eventType, eventId: tournamentId, roundId: eventType === 'tournament' ? 'total' : roundId };
     const updater = eventRoundUpdates({
       identity, browser: window, document, status: setLiveStatus,
@@ -69,10 +69,18 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
   }, [tournamentId, roundId, valid, eventType]);
 
   useEffect(() => { updates.current?.setEnabled(liveUpdate); }, [liveUpdate]);
+  // Group publication is assignment-scoped and may not emit the round-publication broadcast.
+  useEffect(() => {
+    if (eventType !== 'tournament' || !liveUpdate) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'hidden' && navigator.onLine !== false) updates.current?.refresh();
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [eventType, liveUpdate]);
 
   const isTotal = eventType === 'tournament' && view === 'total' && overview !== null;
   const visible = data !== null || overview !== null;
-  const classOptions = eventType === 'tournament' && overview
+  const classOptions = eventType === 'tournament' && overview && isTotal
     ? [...overview.classes].sort((a,b) => compareEventClasses(a.code,b.code,a.id,b.id)) : orderedClasses(data?.classes ?? []);
   const activeClassId = classOptions.find(c => c.id === classId)?.id ?? classOptions[0]?.id;
   const totalClass = overview?.classes.find(c => c.id === activeClassId);
@@ -120,7 +128,7 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
         </tr>)}</tbody>
       </table></div><p className={styles.legend}>* Provisional score · TOTAL includes scored holes only.</p>
     </section>}
-    {!viewLoading && visible && (isTotal ? !totalClass : !current) && <section className={styles.empty}>{isTotal ? 'No scores or assigned players are available for this view.' : 'Round setup is not ready yet. No represented classes or assigned players are available.'}</section>}
+    {!viewLoading && visible && (isTotal ? !totalClass : !current) && <section className={styles.empty}>{isTotal ? 'No published group assignments are available yet.' : 'Round setup is not ready yet. No represented classes or assigned players are available.'}</section>}
     {!viewLoading && !isTotal && current && <>
       <section aria-labelledby="selected-class">
         <div className={styles.classHeader}>
@@ -142,7 +150,10 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
               <td className={styles.position}>{place ?? '—'}</td>
               <th scope="row" className={styles.player}><div className={styles.identity}>
                 <span className={styles.avatar} aria-hidden="true">{getInitials(p.display_name)}</span>
-                <span>{p.display_name}{p.has_conflict && <small className={styles.conflictText}>Score discrepancy</small>}</span>
+                <span>{p.display_name}{eventType === 'tournament' && <>
+                  {p.group_number != null && <small>Group {p.group_number}{p.group_start_time ? ' - ' + new Date(p.group_start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small>}
+                  {!p.started && <small>Not started</small>}
+                </>}{p.has_conflict && <small className={styles.conflictText}>Score discrepancy</small>}</span>
               </div></th>
               <td>{relative(p.relative_to_par)}</td><td>{thru(p)}</td>
               {[...current.holes].sort((a, b) => a.display_order - b.display_order).map(h => {
