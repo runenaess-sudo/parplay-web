@@ -999,7 +999,7 @@ export function MapCanvas({
     useEffect(() => {
         const map=mapRef.current;
         if(!map || !physicalMarkers)return;
-        const markers=mountPhysicalMarkers(map,physicalMarkers);
+        const markers=mountPhysicalMarkers(map,physicalMarkers,false,readOnly);
         if(!readOnly) markers.forEach((marker,index)=>{
             // Active endpoints retain native map dragging; other physical points absorb clicks.
             if(physicalMarkers[index].selected)marker.getElement().style.pointerEvents='none';
