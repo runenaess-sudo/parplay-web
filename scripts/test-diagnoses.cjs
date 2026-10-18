@@ -19,7 +19,7 @@ function api(allowed=true){
 }
 test('non-admin list, detail, count and status update denied before RPC',async()=>{
  const a=api(false);
- for(const query of ['', '?id='+id,'?count=1'])assert.equal((await a.route.GET(new Request('https://app.test/api/admin/diagnoses'+query))).status,403);
+ for(const query of ['', '?id='+id,'?count=1','?view=new','?view=finished'])assert.equal((await a.route.GET(new Request('https://app.test/api/admin/diagnoses'+query))).status,403);
  assert.equal((await a.route.POST(new Request('https://app.test/api/admin/diagnoses',{method:'POST'}))).status,403);
  assert.equal(a.calls.length,0);
 });
@@ -27,6 +27,21 @@ test('count reads only count RPC branch; no payload listing',async()=>{
  const a=api(),res=await a.route.GET(new Request('https://app.test/api/admin/diagnoses?count=1'));
  assert.equal(res.status,200);assert.equal(res.data.pending_count,3);assert.equal(a.calls[0].args.p_count_only,true);
  assert.match(res.headers['Cache-Control'],/no-store/);
+});
+test('status tabs filter server-side with cursor; detail and count retain existing RPC',async()=>{
+ const a=api();
+ for(const view of ['new','finished']){
+  await a.route.GET(new Request('https://app.test/api/admin/diagnoses?view='+view+'&before=2026-10-18T10:00:00Z&before_id='+id));
+  const call=a.calls.at(-1);assert.equal(call.name,'get_admin_diagnoses_by_status_v1');
+  assert.equal(call.args.p_finished,view==='finished');assert.equal(call.args.p_before_id,id);
+ }
+ for(const query of ['?view=new&count=1','?view=finished&id='+id]){
+  await a.route.GET(new Request('https://app.test/api/admin/diagnoses'+query));
+  assert.equal(a.calls.at(-1).name,'get_admin_diagnoses_v1');
+ }
+ const count=a.calls.length;
+ assert.equal((await a.route.GET(new Request('https://app.test/api/admin/diagnoses?view=deleted'))).status,400);
+ assert.equal(a.calls.length,count);
 });
 test('detail and cursor forwarded separately; invalid cursor rejected',async()=>{
  const a=api();await a.route.GET(new Request('https://app.test/api/admin/diagnoses?id='+id));assert.equal(a.calls[0].args.p_id,id);
@@ -57,4 +72,15 @@ test('navigation count has no polling; list and detail fetched separately with b
  const link=fs.readFileSync('src/components/admin/DiagnosesLink.tsx','utf8');const page=fs.readFileSync('app/admin/diagnoses/Diagnoses.tsx','utf8');
  assert.match(link,/count=1/);assert.doesNotMatch(link,/setInterval/);assert.match(page,/before_id/);assert.match(page,/diagnoses\?id=/);
  assert.match(page,/expected_status: detail.status/);assert.match(page,/Copy for Codex/);
+});
+
+test('whole outbox export preserves Tournament subjects and strips arbitrary fields without a round',()=>{
+ const {copyOutbox,copyDiagnose}=load('src/lib/diagnoses.ts');
+ const op={id,stream_id:id,revision:1,mode:'tournament',status:'failed',attempts:3,next_retry_at:100,created_at:10,
+  tournament_id:id,round_id:id,session_id:id,card_id:id,scorer_player_id:id,hole_id:id,
+  subjects:[{player_id:id,score:4,token:'SECRET'}],Authorization:'SECRET'};
+ const queue={operations:[op],total_pending:1,pending_by_mode:{tournament:1,SECRET:5},blocking_operation:op,later_pending_by_mode:{},first_failed_operation_id:id};
+ const text=copyDiagnose({id,status:'New',created_at:'now',payload:{mode:'outbox',round_id:null,local_scores:{},guest_scores:{},server_scores:{},server_guest_scores:{},operations:[],outbox:queue,error:{code:null,reason:'SCORECARD_CARD_FINISHED'}}});
+ assert(!text.includes('SECRET'));assert.match(text,/no server score comparison/i);
+ const clean=copyOutbox(queue);assert.equal(clean.blocking_operation.subjects[0].score,4);assert.equal(clean.operations[0].session_id,id);
 });

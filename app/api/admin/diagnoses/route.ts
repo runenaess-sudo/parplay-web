@@ -11,11 +11,15 @@ export async function GET(request: Request) {
     try {
         const { supabase } = await requireServerAdmin();
         const params = new URL(request.url).searchParams;
+        const view = params.get('view');
+        if (view !== null && !['new', 'finished'].includes(view)) return NextResponse.json({ error: 'Invalid report view.' }, { status: 400, headers });
         const id = params.get('id'), before = params.get('before'), beforeId = params.get('before_id');
         if ((id && !uuid.test(id)) || (!!before !== !!beforeId) || (beforeId && !uuid.test(beforeId))
             || (before && (before.length > 40 || !Number.isFinite(Date.parse(before)))))
             return NextResponse.json({ error: 'Invalid report reference.' }, { status: 400, headers });
-        const { data, error } = await supabase.rpc('get_admin_diagnoses_v1', {
+        const { data, error } = view && !id && params.get('count') !== '1'
+            ? await supabase.rpc('get_admin_diagnoses_by_status_v1', { p_finished: view === 'finished', p_before: before, p_before_id: beforeId })
+            : await supabase.rpc('get_admin_diagnoses_v1', {
             p_id: id, p_before: before, p_before_id: beforeId, p_count_only: params.get('count') === '1',
         });
         if (error) throw error;
