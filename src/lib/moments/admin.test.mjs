@@ -46,19 +46,24 @@ test('invalid bodies and cross-origin mutations fail closed',async()=>{
 test('preview registry exactly mirrors app; every type renders the original text and colors',()=>{
     const original=fs.readFileSync('../parplay/src/features/moments/registry.ts','utf8');
     const generated=fs.readFileSync('src/lib/moments/registry.generated.ts','utf8');assert.ok(generated.endsWith(original));
+    const source=fs.readFileSync('../parplay/src/features/moments/MomentPresentation.tsx','utf8');
+    const shared=fs.readFileSync('src/lib/moments/MomentPresentation.generated.tsx','utf8');
+    assert.ok(shared.endsWith(source.replace("from './registry'", "from './registry.generated'")));
+    const presentation=load('src/lib/moments/MomentPresentation.generated.tsx', {react:React,'react/jsx-runtime':jsx,'./registry.generated':registry});
     const {default:Preview,examplePayload}=load('app/admin/moments/MomentPreview.tsx',{
         '@/lib/moments/registry.generated':registry,
+        '@/lib/moments/MomentPresentation.generated':presentation,
         '@/lib/moments/icons.generated.json':JSON.parse(fs.readFileSync('src/lib/moments/icons.generated.json','utf8')),
         './moments.module.css':Object.fromEntries(['card','top','icon','close','title','message','actionSlot','challenge'].map(k=>[k,k])), 'react/jsx-runtime':jsx,
     });
     for(const type of Object.keys(registry.momentRegistry)) {
         const html=renderToStaticMarkup(React.createElement(Preview,{type,challenge:true}));
         const content=registry.renderMoment(type,examplePayload);
-        assert.ok(html.includes(content.colors[0]),type);assert.ok(html.includes('linear-gradient'),type);
-        assert.ok(html.includes(renderToStaticMarkup(React.createElement('h3',{className:'title'},content.title))),type);
+        assert.ok(html.includes(presentation.momentVisual({type,payload:examplePayload})[0]),type);assert.ok(html.includes('linear-gradient'),type);
+        assert.ok(html.includes(content.title.replaceAll('&','&amp;').replaceAll("'",'&#x27;')),type);
     }
     const negative=renderToStaticMarkup(React.createElement(Preview,{type:'weekly_rating_update',negative:true}));
-    assert.ok(negative.includes('−8 Rating Points'));assert.ok(negative.includes('908'));
+    assert.ok(negative.includes('\u22128'));assert.ok(negative.includes('Rating Points'));assert.ok(negative.includes('#25131F'));assert.ok(negative.includes('908'));
 });
 test('admin UI uses confirmed reversible switches, keeps examples separate from delivery',()=>{
     const ui=fs.readFileSync('app/admin/moments/Moments.tsx','utf8');

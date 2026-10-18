@@ -7,8 +7,11 @@ fs.mkdirSync('src/lib/moments',{recursive:true});
 fs.writeFileSync('src/lib/moments/registry.generated.ts','// Generated from parplay/src/features/moments/registry.ts. Do not edit; run scripts/sync-moment-preview.mjs.\n'+registry);
 const vector=path.join(root,'node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons');
 const glyphs=JSON.parse(fs.readFileSync(path.join(vector,'glyphmaps/MaterialCommunityIcons.json'),'utf8'));
-const names=['trophy','trending-up','trending-down','calendar','medal','crown','flag','check-decagram','fire','sword-cross','disc','close'];
+const names=['trophy','trending-up','trending-down','calendar','medal','crown','flag','check-decagram','fire','sword-cross','disc','star','close'];
 fs.writeFileSync('src/lib/moments/icons.generated.json',JSON.stringify(Object.fromEntries(names.map(n=>[n,glyphs[n]])),null,2)+'\n');
 fs.mkdirSync('public/fonts',{recursive:true});
 fs.copyFileSync(path.join(vector,'Fonts/MaterialCommunityIcons.ttf'),'public/fonts/MomentsMaterialCommunityIcons.ttf');
 fs.copyFileSync(path.join(vector,'LICENSE'),'public/fonts/MomentsIcons-LICENSE.txt');
+
+const presentation=fs.readFileSync(path.join(root,'src/features/moments/MomentPresentation.tsx'),'utf8');
+fs.writeFileSync('src/lib/moments/MomentPresentation.generated.tsx','// Generated from parplay/src/features/moments/MomentPresentation.tsx. Do not edit; run scripts/sync-moment-preview.mjs.\n'+presentation.replace("from './registry'", "from './registry.generated'"));

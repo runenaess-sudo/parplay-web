@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { communityModeratedEvent } from "@/lib/community-admin";
+import DiagnosesLink from './DiagnosesLink';
 
 const items = [
     { href: "/admin", label: "Overview", exact: true },
@@ -50,6 +51,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                     Admin
                 </p>
                 <nav className="flex gap-2 overflow-x-auto md:flex-col" aria-label="Admin navigation">
+                    <DiagnosesLink />
                     {items.map((item) => {
                         const active = item.exact
                             ? pathname === item.href
