@@ -141,9 +141,10 @@ export default function Header() {
                     </div>
 
                     <MenuItem href="/tournaments" active={pathname.startsWith("/tournaments")}>Tournaments</MenuItem>
+                    <MenuItem href="/status-updates" active={pathname.startsWith("/status-updates")}>Status Updates</MenuItem>
                 </nav>
             ) : (
-                <nav className="menu" aria-label="Main navigation"><MenuItem href="/community" active={pathname.startsWith("/community")}>COMMUNITY</MenuItem></nav>
+                <nav className="menu" aria-label="Main navigation"><MenuItem href="/community" active={pathname.startsWith("/community")}>COMMUNITY</MenuItem><MenuItem href="/status-updates" active={pathname.startsWith("/status-updates")}>Status Updates</MenuItem></nav>
             )}
 
             <nav className="header-account" aria-label="Account navigation">
