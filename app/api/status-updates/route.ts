@@ -23,9 +23,10 @@ export async function GET(request: Request) {
   const { db, user } = await session();
   const q = new URL(request.url).searchParams, id = q.get('id'), cursor = q.get('cursor'), cursorId = q.get('cursor_id');
   if ((id && !validId(id)) || (!!cursor !== !!cursorId) || (cursorId && !validId(cursorId)) || (cursor && (cursor.length > 40 || !Number.isFinite(Date.parse(cursor))))) return json({ error: 'Invalid page.' }, 400);
-  const authority = await db.rpc('is_status_updates_admin_v1');
-  if (authority.error) throw authority.error;
-  const admin = authority.data === true;
+  const management = q.get('management') === '1';
+  if (management) await requireServerAdmin();
+  const admin = management;
+  if (!management && (q.get('drafts') === '1' || q.get('hidden') === '1')) return json({error:'Admin management required.'},403);
   if (!id) {
    if (q.get('drafts') === '1') {
     await requireServerAdmin();

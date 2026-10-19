@@ -8,7 +8,6 @@ import DiagnosesLink from './DiagnosesLink';
 
 const items = [
     { href: "/admin/suggestions", label: "Suggestions" },
-    { href: "/status-updates", label: "Status Updates" },
     { href: "/admin", label: "Overview", exact: true },
     { href: "/admin/course-claims", label: "Course Claims" },
     { href: "/admin/messages", label: "Messages" },

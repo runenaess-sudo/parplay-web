@@ -11,8 +11,9 @@ const input='w-full rounded-lg border border-white/20 bg-slate-950 p-3 text-whit
 type Cursor={cursor:string;cursor_id:string};
 type Data={rows?:Update[];update?:Update;comments?:Comment[];admin:boolean;user_id:string};
 type Editor={id?:string;revision?:number;headline:string;body:string};
-export default function StatusUpdates({id}:{id?:string}) {
+export default function StatusUpdates({id,management=false}:{id?:string;management?:boolean}) {
  const router=useRouter();
+ const listHref=management?'/admin/suggestions?view=updates':'/status-updates';
  const [data,setData]=useState<Data|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[unauthorized,setUnauthorized]=useState(false);
  const [revision,setRevision]=useState(0),[cursors,setCursors]=useState<(Cursor|null)[]>([null]);
@@ -33,14 +34,14 @@ export default function StatusUpdates({id}:{id?:string}) {
  },[]);
  useEffect(()=>{
   const abort=new AbortController();
-  const query=new URLSearchParams({...cursor,...(id?{id}:{}),...(drafts?{drafts:'1'}:{}),...(hidden?{hidden:'1'}:{})});
+  const query=new URLSearchParams({...cursor,...(id?{id}:{}),...(management?{management:'1'}:{}),...(drafts?{drafts:'1'}:{}),...(hidden?{hidden:'1'}:{})});
   void fetch('/api/status-updates?'+query,{cache:'no-store',signal:abort.signal}).then(async response=>{
    const value=await response.json();if(abort.signal.aborted)return;
    if(!response.ok){setUnauthorized(response.status===401);throw Error(value.error||'Could not load updates.');}
    setUnauthorized(false);setData(value);
   }).catch(e=>{if(!abort.signal.aborted){setData(null);setError(e.message);}}).finally(()=>{if(!abort.signal.aborted)setLoading(false);});
   return()=>abort.abort();
- },[id,cursor,drafts,hidden,revision]);
+ },[id,cursor,drafts,hidden,revision,management]);
  async function mutation(body:Record<string,unknown>) {
   const response=await fetch('/api/status-updates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const value=await response.json();
@@ -76,14 +77,14 @@ export default function StatusUpdates({id}:{id?:string}) {
  const rows=id?data?.comments??[]:data?.rows??[];
  const pageSize=id?50:25;
  return <main className="mx-auto my-8 w-full max-w-7xl space-y-6 px-4 text-white sm:px-8">
-  <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Status Updates</h1><p className="mt-3 text-slate-400">Manage news and updates for the ParPlay community.</p></div><button className={button} disabled={busy||loading} onClick={()=>refresh()}>Refresh</button></div>
-  {id&&<Link className="text-orange-300" href="/status-updates">Back to updates</Link>}
+  <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{management?'Manage Updates':'Status Updates'}</h1><p className="mt-3 text-slate-400">{management?'Manage news and updates for the ParPlay community.':'News and updates from the ParPlay community.'}</p></div><button className={button} disabled={busy||loading} onClick={()=>refresh()}>Refresh</button></div>
+  {id&&<Link className="text-orange-300" href={listHref}>Back to updates</Link>}
 
-  {data?.admin&&!id&&<div className="flex flex-wrap gap-2"><button className={primary} disabled={busy} onClick={()=>{setEditor({headline:'',body:''});setError('');}}>+ New Update</button><nav aria-label="Update views" className="flex gap-2 rounded-xl bg-white/5 p-1">{[false,true].map(value=><button key={String(value)} aria-pressed={drafts===value} className={button+(drafts===value?' bg-orange-500/15 text-orange-300':' text-slate-400')} disabled={busy||loading} onClick={()=>{setDrafts(value);refresh(true);}}>{value?'Drafts':'Published'}</button>)}</nav></div>}
+  {management&&data?.admin&&!id&&<div className="flex flex-wrap gap-2"><button className={primary} disabled={busy} onClick={()=>{setEditor({headline:'',body:''});setError('');}}>+ New Update</button><nav aria-label="Update views" className="flex gap-2 rounded-xl bg-white/5 p-1">{[false,true].map(value=><button key={String(value)} aria-pressed={drafts===value} className={button+(drafts===value?' bg-orange-500/15 text-orange-300':' text-slate-400')} disabled={busy||loading} onClick={()=>{setDrafts(value);refresh(true);}}>{value?'Drafts':'Published'}</button>)}</nav></div>}
   {error&&<p role="alert" className="rounded-lg bg-red-950/40 p-3 text-red-200">{error}</p>}
   {unauthorized&&<Link href="/login" className="text-orange-300">Sign in to read Status Updates</Link>}
   {notice&&<p role="status" className="text-orange-200">{notice}</p>}
-  {editor&&data?.admin&&<form className="space-y-5 rounded-2xl border border-orange-300/30 bg-[#161a2b] p-5 sm:p-8" onSubmit={e=>{e.preventDefault();void saveUpdate();}}>
+  {editor&&management&&data?.admin&&<form className="space-y-5 rounded-2xl border border-orange-300/30 bg-[#161a2b] p-5 sm:p-8" onSubmit={e=>{e.preventDefault();void saveUpdate();}}>
    <h2 className="text-xl font-semibold">{editor.id?'Edit Update':'New Update'}</h2>
    <label className="block">Headline<input className={input} required maxLength={160} disabled={busy} value={editor.headline} onChange={e=>setEditor({...editor,headline:e.target.value})}/></label>
    <label className="block">Body<textarea className={input+' min-h-64'} required maxLength={20000} disabled={busy} value={editor.body} onChange={e=>setEditor({...editor,body:e.target.value})}/></label>
@@ -91,17 +92,17 @@ export default function StatusUpdates({id}:{id?:string}) {
   </form>}
   {loading?<p role="status">Loading updates…</p>:!id&&data&&<>
    <h2 className="text-lg font-semibold">{drafts?'Draft updates':'Latest updates'}</h2>
-   {!rows.length?<p className="text-slate-400">No updates yet.</p>:<table className="w-full table-fixed rounded-2xl bg-[#161a2b] text-left"><thead><tr className="text-sm text-slate-400"><th className="w-28 px-4 py-4 sm:w-44">Date</th><th>Update</th></tr></thead><tbody>{data.rows?.map(row=><tr key={row.id} className="border-t border-white/10"><td className="px-4 py-5 text-sm text-slate-400">{statusDate(row.published_at)}</td><td className="break-words py-4"><Link className="font-semibold text-orange-200 hover:underline" href={'/status-updates/'+row.id}>{row.headline}</Link></td></tr>)}</tbody></table>}
+   {!rows.length?<p className="text-slate-400">No updates yet.</p>:<table className="w-full table-fixed rounded-2xl bg-[#161a2b] text-left"><thead><tr className="text-sm text-slate-400"><th className="w-28 px-4 py-4 sm:w-44">Date</th><th>Update</th></tr></thead><tbody>{data.rows?.map(row=><tr key={row.id} className="border-t border-white/10"><td className="px-4 py-5 text-sm text-slate-400">{statusDate(row.published_at)}</td><td className="break-words py-4"><Link className="font-semibold text-orange-200 hover:underline" href={management?'/admin/suggestions?view=updates&id='+row.id:'/status-updates/'+row.id}>{row.headline}</Link></td></tr>)}</tbody></table>}
   </>}
   {!loading&&data?.update&&<>
    <article className="space-y-4 rounded-2xl border border-white/10 bg-[#161a2b] p-5 sm:p-8"><h2 className="break-words text-2xl font-bold">{data.update.headline}</h2><p className="text-sm text-slate-400">{statusDate(data.update.published_at)}</p><p className="whitespace-pre-wrap break-words leading-relaxed">{data.update.body}</p></article>
-   {data.admin&&<div className="flex gap-2"><button className={button} disabled={busy} onClick={()=>setEditor({...data.update!})}>Edit update</button><button className={button} disabled={busy} onClick={()=>{if(window.confirm('Delete this update and remove it from the published list?'))void run(async()=>{await mutation({kind:'update',action:'delete',id,revision:data.update!.revision});router.push('/status-updates');});}}>Delete update</button></div>}
+   {management&&data.admin&&<div className="flex gap-2"><button className={button} disabled={busy} onClick={()=>setEditor({...data.update!})}>Edit update</button><button className={button} disabled={busy} onClick={()=>{if(window.confirm('Delete this update and remove it from the published list?'))void run(async()=>{await mutation({kind:'update',action:'delete',id,revision:data.update!.revision});router.push(listHref);});}}>Delete update</button></div>}
    {data.update.publication_status==='published'&&<section className="space-y-4 border-t border-white/10 pt-5"><h2 className="text-xl font-semibold">Comments</h2>
-    {data.admin&&<button className={button} disabled={busy} onClick={()=>{setHidden(!hidden);refresh(true);}}>{hidden?'Visible comments':'Hidden comments'}</button>}
+    {management&&data.admin&&<button className={button} disabled={busy} onClick={()=>{setHidden(!hidden);refresh(true);}}>{hidden?'Visible comments':'Hidden comments'}</button>}
     {!data.comments?.length&&<p className="text-slate-400">{hidden?'No hidden comments.':'No comments yet.'}</p>}
     {data.comments?.map(row=><article key={row.id} className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-4"><div className="flex flex-wrap justify-between gap-2"><strong>{row.author_name}</strong><time dateTime={row.created_at} className="text-sm text-slate-400">{statusDate(row.created_at)}</time></div><p className="whitespace-pre-wrap break-words">{row.body}</p><div className="flex flex-wrap gap-2">
      {row.author_id===data.user_id&&<><button className={button} disabled={busy} onClick={()=>{setEditing(row);setComment(row.body);}}>Edit</button><button className={button} disabled={busy} onClick={()=>void actComment(row,'delete')}>Delete</button></>}
-     {data.admin&&<button className={button} disabled={busy} onClick={()=>void actComment(row,row.moderation_status==='hidden'?'show':'hide')}>{row.moderation_status==='hidden'?'Show comment':'Hide comment'}</button>}
+     {management&&data.admin&&<button className={button} disabled={busy} onClick={()=>void actComment(row,row.moderation_status==='hidden'?'show':'hide')}>{row.moderation_status==='hidden'?'Show comment':'Hide comment'}</button>}
     </div></article>)}
     {confirmed&&<div role="status" className="rounded-lg border border-orange-300/30 p-3"><p className="text-orange-200">Your comment was saved.</p><p className="whitespace-pre-wrap break-words">{confirmed}</p></div>}
     <form className="space-y-3" onSubmit={e=>{e.preventDefault();if(!validText(comment,2000))return;const captured=generation.current;void run(async()=>{const row=await mutation({kind:'comment',action:editing?'edit':'create',id:editing?.id,revision:editing?.revision,update_id:id,body:comment});if(captured!==generation.current)return;setComment('');setEditing(null);refresh();setConfirmed(row.body);});}}>
@@ -112,6 +113,6 @@ export default function StatusUpdates({id}:{id?:string}) {
    </section>}
   </>}
   {data&&!editor&&<div className="flex gap-2"><button className={button} disabled={loading||busy||cursors.length===1} onClick={()=>{setCursors(v=>v.slice(0,-1));setLoading(true);setError('');}}>Previous</button><button className={button} disabled={loading||busy||rows.length<pageSize} onClick={()=>{const last=rows[rows.length-1];if(!last)return;const stamp=id||drafts?last.created_at:(last as Update).published_at;if(stamp){setCursors(v=>[...v,{cursor:stamp,cursor_id:last.id}]);setLoading(true);setError('');}}}>Next</button></div>}
-  {data&&<SuggestImprovement key={data.user_id} userId={data.user_id}/>}
+  {!management&&data&&<SuggestImprovement key={data.user_id} userId={data.user_id}/>}
  </main>;
 }
