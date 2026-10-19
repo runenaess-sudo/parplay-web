@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { statusDate, validText, type Update, type Comment } from '@/lib/status-updates';
 const button='rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10 disabled:opacity-40';
-const primary=button+' bg-lime-300 text-slate-950 hover:bg-lime-200 font-semibold';
+const primary=button+' bg-orange-500 text-slate-950 hover:bg-orange-400 font-semibold';
 const input='w-full rounded-lg border border-white/20 bg-slate-950 p-3 text-white';
 type Cursor={cursor:string;cursor_id:string};
 type Data={rows?:Update[];update?:Update;comments?:Comment[];admin:boolean;user_id:string};
@@ -52,7 +52,7 @@ export default function StatusUpdates({id}:{id?:string}) {
   try{await work();}catch(e){setError((e instanceof Error?e.message:'Request failed.')+' If the response was interrupted, refresh and check before submitting again.');}
   finally{lock.current=false;setBusy(false);}
  }
- async function saveUpdate(){
+ async function saveUpdate(publish=true){
   if(!editor||!validText(editor.headline,160)||!validText(editor.body,20000))return;
   const captured=generation.current;
   await run(async()=>{
@@ -61,11 +61,11 @@ export default function StatusUpdates({id}:{id?:string}) {
    else saved=await mutation({kind:'update',action:'create',headline:editor.headline,body:editor.body});
    if(captured!==generation.current)return;
    setEditor({id:saved.id,revision:saved.revision,headline:saved.headline,body:saved.body});
-   if(saved.publication_status==='draft') saved=await mutation({kind:'update',action:'publish',id:saved.id,revision:saved.revision});
+   if(publish&&saved.publication_status==='draft') saved=await mutation({kind:'update',action:'publish',id:saved.id,revision:saved.revision});
    if(captured!==generation.current)return;
    setEditor(null);
    if(id) {refresh();setNotice('Update saved.');}
-   else {setDrafts(false);refresh(true);setNotice('Update published.');}
+   else {setDrafts(saved.publication_status==='draft');refresh(true);setNotice(saved.publication_status==='draft'?'Draft saved.':'Update published.');}
   });
  }
  async function actComment(row:Comment,action:'delete'|'hide'|'show'){
@@ -75,26 +75,26 @@ export default function StatusUpdates({id}:{id?:string}) {
  }
  const rows=id?data?.comments??[]:data?.rows??[];
  const pageSize=id?50:25;
- return <main className="mx-auto my-6 max-w-4xl space-y-5 rounded-2xl border border-white/10 bg-[#161a2b] p-4 text-white shadow-lg sm:p-7">
-  <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-bold">Status Updates</h1><button className={button} disabled={busy||loading} onClick={()=>refresh()}>Refresh</button></div>
-  {id&&<Link className="text-lime-300" href="/status-updates">Back to updates</Link>}
-  {data&&<SuggestImprovement key={data.user_id} userId={data.user_id}/>}
-  {data?.admin&&!id&&<div className="flex flex-wrap gap-2"><button className={primary} disabled={busy} onClick={()=>{setEditor({headline:'',body:''});setError('');}}>+ New Update</button><button className={button} disabled={busy||loading} onClick={()=>{setDrafts(!drafts);refresh(true);}}>{drafts?'Published updates':'Drafts'}</button></div>}
+ return <main className="mx-auto my-8 w-full max-w-7xl space-y-6 px-4 text-white sm:px-8">
+  <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Status Updates</h1><p className="mt-3 text-slate-400">Manage news and updates for the ParPlay community.</p></div><button className={button} disabled={busy||loading} onClick={()=>refresh()}>Refresh</button></div>
+  {id&&<Link className="text-orange-300" href="/status-updates">Back to updates</Link>}
+
+  {data?.admin&&!id&&<div className="flex flex-wrap gap-2"><button className={primary} disabled={busy} onClick={()=>{setEditor({headline:'',body:''});setError('');}}>+ New Update</button><nav aria-label="Update views" className="flex gap-2 rounded-xl bg-white/5 p-1">{[false,true].map(value=><button key={String(value)} aria-pressed={drafts===value} className={button+(drafts===value?' bg-orange-500/15 text-orange-300':' text-slate-400')} disabled={busy||loading} onClick={()=>{setDrafts(value);refresh(true);}}>{value?'Drafts':'Published'}</button>)}</nav></div>}
   {error&&<p role="alert" className="rounded-lg bg-red-950/40 p-3 text-red-200">{error}</p>}
-  {unauthorized&&<Link href="/login" className="text-lime-300">Sign in to read Status Updates</Link>}
-  {notice&&<p role="status" className="text-lime-200">{notice}</p>}
-  {editor&&data?.admin&&<form className="space-y-3 rounded-xl border border-lime-300/30 p-4" onSubmit={e=>{e.preventDefault();void saveUpdate();}}>
+  {unauthorized&&<Link href="/login" className="text-orange-300">Sign in to read Status Updates</Link>}
+  {notice&&<p role="status" className="text-orange-200">{notice}</p>}
+  {editor&&data?.admin&&<form className="space-y-5 rounded-2xl border border-orange-300/30 bg-[#161a2b] p-5 sm:p-8" onSubmit={e=>{e.preventDefault();void saveUpdate();}}>
    <h2 className="text-xl font-semibold">{editor.id?'Edit Update':'New Update'}</h2>
    <label className="block">Headline<input className={input} required maxLength={160} disabled={busy} value={editor.headline} onChange={e=>setEditor({...editor,headline:e.target.value})}/></label>
    <label className="block">Body<textarea className={input+' min-h-64'} required maxLength={20000} disabled={busy} value={editor.body} onChange={e=>setEditor({...editor,body:e.target.value})}/></label>
-   <div className="flex gap-2"><button className={primary} disabled={busy||!validText(editor.headline,160)||!validText(editor.body,20000)}>{busy?'Saving…':data.update?.publication_status==='published'?'Save changes':'Save and Publish'}</button><button type="button" className={button} disabled={busy} onClick={()=>setEditor(null)}>Cancel</button></div>
+   <div className="flex flex-wrap gap-2">{data.update?.publication_status!=='published'&&<button type="button" className={button} disabled={busy||!validText(editor.headline,160)||!validText(editor.body,20000)} onClick={()=>void saveUpdate(false)}>Save as draft</button>}<button className={primary} disabled={busy||!validText(editor.headline,160)||!validText(editor.body,20000)}>{busy?'Saving…':data.update?.publication_status==='published'?'Save changes':'Save and Publish'}</button><button type="button" className={button} disabled={busy} onClick={()=>setEditor(null)}>Cancel</button></div>
   </form>}
   {loading?<p role="status">Loading updates…</p>:!id&&data&&<>
    <h2 className="text-lg font-semibold">{drafts?'Draft updates':'Latest updates'}</h2>
-   {!rows.length?<p className="text-slate-400">No updates yet.</p>:<table className="w-full table-fixed text-left"><thead><tr className="text-sm text-slate-400"><th className="w-28 py-3 sm:w-36">Date</th><th>Update</th></tr></thead><tbody>{data.rows?.map(row=><tr key={row.id} className="border-t border-white/10"><td className="py-4 pr-2 text-sm text-slate-400">{statusDate(row.published_at)}</td><td className="break-words py-4"><Link className="font-semibold text-lime-200 hover:underline" href={'/status-updates/'+row.id}>{row.headline}</Link></td></tr>)}</tbody></table>}
+   {!rows.length?<p className="text-slate-400">No updates yet.</p>:<table className="w-full table-fixed rounded-2xl bg-[#161a2b] text-left"><thead><tr className="text-sm text-slate-400"><th className="w-28 px-4 py-4 sm:w-44">Date</th><th>Update</th></tr></thead><tbody>{data.rows?.map(row=><tr key={row.id} className="border-t border-white/10"><td className="px-4 py-5 text-sm text-slate-400">{statusDate(row.published_at)}</td><td className="break-words py-4"><Link className="font-semibold text-orange-200 hover:underline" href={'/status-updates/'+row.id}>{row.headline}</Link></td></tr>)}</tbody></table>}
   </>}
   {!loading&&data?.update&&<>
-   <article className="space-y-4"><h2 className="break-words text-2xl font-bold">{data.update.headline}</h2><p className="text-sm text-slate-400">{statusDate(data.update.published_at)}</p><p className="whitespace-pre-wrap break-words leading-relaxed">{data.update.body}</p></article>
+   <article className="space-y-4 rounded-2xl border border-white/10 bg-[#161a2b] p-5 sm:p-8"><h2 className="break-words text-2xl font-bold">{data.update.headline}</h2><p className="text-sm text-slate-400">{statusDate(data.update.published_at)}</p><p className="whitespace-pre-wrap break-words leading-relaxed">{data.update.body}</p></article>
    {data.admin&&<div className="flex gap-2"><button className={button} disabled={busy} onClick={()=>setEditor({...data.update!})}>Edit update</button><button className={button} disabled={busy} onClick={()=>{if(window.confirm('Delete this update and remove it from the published list?'))void run(async()=>{await mutation({kind:'update',action:'delete',id,revision:data.update!.revision});router.push('/status-updates');});}}>Delete update</button></div>}
    {data.update.publication_status==='published'&&<section className="space-y-4 border-t border-white/10 pt-5"><h2 className="text-xl font-semibold">Comments</h2>
     {data.admin&&<button className={button} disabled={busy} onClick={()=>{setHidden(!hidden);refresh(true);}}>{hidden?'Visible comments':'Hidden comments'}</button>}
@@ -103,7 +103,7 @@ export default function StatusUpdates({id}:{id?:string}) {
      {row.author_id===data.user_id&&<><button className={button} disabled={busy} onClick={()=>{setEditing(row);setComment(row.body);}}>Edit</button><button className={button} disabled={busy} onClick={()=>void actComment(row,'delete')}>Delete</button></>}
      {data.admin&&<button className={button} disabled={busy} onClick={()=>void actComment(row,row.moderation_status==='hidden'?'show':'hide')}>{row.moderation_status==='hidden'?'Show comment':'Hide comment'}</button>}
     </div></article>)}
-    {confirmed&&<div role="status" className="rounded-lg border border-lime-300/30 p-3"><p className="text-lime-200">Your comment was saved.</p><p className="whitespace-pre-wrap break-words">{confirmed}</p></div>}
+    {confirmed&&<div role="status" className="rounded-lg border border-orange-300/30 p-3"><p className="text-orange-200">Your comment was saved.</p><p className="whitespace-pre-wrap break-words">{confirmed}</p></div>}
     <form className="space-y-3" onSubmit={e=>{e.preventDefault();if(!validText(comment,2000))return;const captured=generation.current;void run(async()=>{const row=await mutation({kind:'comment',action:editing?'edit':'create',id:editing?.id,revision:editing?.revision,update_id:id,body:comment});if(captured!==generation.current)return;setComment('');setEditing(null);refresh();setConfirmed(row.body);});}}>
      <label className="block">{editing?'Edit your comment':'Add a comment'}<textarea className={input+' min-h-28'} required maxLength={2000} disabled={busy} value={comment} onChange={e=>setComment(e.target.value)}/></label>
      <button className={primary} disabled={busy||!validText(comment,2000)}>{busy?'Saving…':editing?'Save comment':'Post comment'}</button>
@@ -112,5 +112,6 @@ export default function StatusUpdates({id}:{id?:string}) {
    </section>}
   </>}
   {data&&!editor&&<div className="flex gap-2"><button className={button} disabled={loading||busy||cursors.length===1} onClick={()=>{setCursors(v=>v.slice(0,-1));setLoading(true);setError('');}}>Previous</button><button className={button} disabled={loading||busy||rows.length<pageSize} onClick={()=>{const last=rows[rows.length-1];if(!last)return;const stamp=id||drafts?last.created_at:(last as Update).published_at;if(stamp){setCursors(v=>[...v,{cursor:stamp,cursor_id:last.id}]);setLoading(true);setError('');}}}>Next</button></div>}
+  {data&&<SuggestImprovement key={data.user_id} userId={data.user_id}/>}
  </main>;
 }
