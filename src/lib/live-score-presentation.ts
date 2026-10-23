@@ -71,7 +71,7 @@ export function getScoreDisplayStyle(score: number | null, par: number | null) {
     }
 
     return {
-        textColor: "#111111",
+        textColor: "#FFFFFF",
         bubbleStyle: null as React.CSSProperties | null,
     };
 }

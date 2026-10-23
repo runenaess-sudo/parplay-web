@@ -554,10 +554,11 @@ export default function SharedLiveRoundPage() {
     const syncColor = "#e2e8f0";
     const syncBg = syncStatus === "live" ? "#123b2c" : syncStatus === "connecting" ? "#423312" : "#172f50";
     const isPortrait = viewport.height > viewport.width;
+    const isMobileLandscape = !isPortrait && viewport.height <= 600;
     const freezeLeaderCols = isPortrait || viewport.width <= 980;
     const posColWidth = freezeLeaderCols ? 36 : 30;
-    const playerColWidth = freezeLeaderCols ? 184 : 130;
-    const holeColWidth = freezeLeaderCols ? 52 : 30;
+    const playerColWidth = isMobileLandscape ? 156 : freezeLeaderCols ? 184 : 130;
+    const holeColWidth = isMobileLandscape ? 44 : freezeLeaderCols ? 52 : 30;
     const adminColWidth = freezeLeaderCols ? 58 : 40;
     const avatarSize = freezeLeaderCols ? 22 : 18;
     const derivedHoles = useMemo(() => deriveHolesFromScores(round?.scores), [round?.scores]);
@@ -622,6 +623,8 @@ export default function SharedLiveRoundPage() {
         <main
             style={{
                 maxWidth: 1180,
+                width: "100%",
+                minWidth: 0,
                 margin: "0 auto",
                 padding: "24px 16px 40px",
                 background: "radial-gradient(1200px 500px at 10% -15%, #172b46 0%, #0f172a 45%)",
@@ -689,7 +692,7 @@ export default function SharedLiveRoundPage() {
             {!loading && !errorText && round ? (
                 <div
                     style={{
-                        overflowX: freezeLeaderCols ? "auto" : "hidden",
+                        overflowX: "auto",
                         border: "1px solid #334155",
                         borderRadius: 14,
                         background: "#0f172a",
@@ -701,7 +704,7 @@ export default function SharedLiveRoundPage() {
                             Live scores are updating, but hole metadata is unavailable for this public view.
                         </div>
                     ) : null}
-                    <table style={{ borderCollapse: "separate", borderSpacing: 0, width: freezeLeaderCols ? "max-content" : "100%", minWidth: "100%", tableLayout: freezeLeaderCols ? "auto" : "fixed" }}>
+                    <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "max-content", minWidth: "100%", tableLayout: "auto" }}>
                         <thead>
                             <tr>
                                 <th
