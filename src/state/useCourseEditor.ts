@@ -693,6 +693,11 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     createNewHole: async (courseId: string) => {
         const supabase = supabaseBrowser;
         const state = get();
+        const course = state.course;
+        if (course?.id !== courseId || typeof course.name !== "string" || !course.name.trim()) {
+            get().setToast("Reload the course before creating a hole.");
+            return;
+        }
 
         const nextNumber =
             state.course?.holes?.length > 0
@@ -714,6 +719,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             .from("holes")
             .insert({
                 course_id: courseId,
+                course_name: course.name,
                 number: nextNumber,
                 par: 3,
                 tee_latitude: null,

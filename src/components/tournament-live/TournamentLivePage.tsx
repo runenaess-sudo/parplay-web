@@ -142,7 +142,7 @@ export default function TournamentLivePage({ tournamentId, roundId, eventType = 
               <th scope="col" className={styles.position}>#</th><th scope="col" className={styles.player}>Player</th>
               <th scope="col">Rd</th><th scope="col">Thru</th>
               {[...current.holes].sort((a, b) => a.display_order - b.display_order).map(h => <th scope="col" key={h.hole_id}>
-                {h.display_order}<small>Par {h.par}</small>{h.distance !== null && <small>{Math.round(h.distance)} m</small>}
+                {h.display_order}<small style={{ color: "#FFFFFF" }}>Par {h.par}</small>{h.distance !== null && <small>{Math.round(h.distance)} m</small>}
               </th>)}
               <th scope="col">Tot</th><th scope="col">Rating</th>
             </tr></thead>

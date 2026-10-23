@@ -738,7 +738,7 @@ export default function SharedLiveRoundPage() {
                                         <div style={{ fontSize: freezeLeaderCols ? 10 : 9, fontStyle: "italic", color: "#94a3b8", lineHeight: 1.05, marginTop: 2 }}>
                                             {hole.distance ?? "-"}
                                         </div>
-                                        <div style={{ fontSize: freezeLeaderCols ? 11 : 9, fontWeight: 600, lineHeight: 1.05, marginTop: 2 }}>
+                                        <div style={{ fontSize: freezeLeaderCols ? 11 : 9, fontWeight: 600, lineHeight: 1.05, marginTop: 2, color: "#FFFFFF" }}>
                                             {hole.par ?? "-"}
                                         </div>
                                     </th>
