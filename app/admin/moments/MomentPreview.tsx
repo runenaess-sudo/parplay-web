@@ -12,7 +12,11 @@ export const examplePayload: MomentPayload = {
 export default function MomentPreview({ type, negative = false, challenge = false }: {
     type: MomentType; negative?: boolean; challenge?: boolean;
 }) {
-    const payload = negative ? { ...examplePayload, newRating: 908, delta: -8 } : examplePayload;
+    const payload = type === 'putting_streak_almost_there' ? { streakDays: 4 }
+        : type === 'putting_streak_milestone' ? { streakDays: 7 }
+        : type === 'putting_league_day_top_three' ? { eventName: 'Putting League Day', place: 2 }
+        : type === 'putting_league_champion' ? { eventName: 'Putting League' }
+        : negative ? { ...examplePayload, newRating: 908, delta: -8 } : examplePayload;
     return <div className={styles.card}>
         <MomentPresentation moment={{ id: 'preview', recipient_id: 'preview', type, payload, created_at: '', displayed_at: null }}
             primitives={webPrimitives} dismiss={() => {}} minHeight={312}

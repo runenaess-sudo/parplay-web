@@ -1,5 +1,6 @@
 // Generated from parplay/src/features/moments/registry.ts. Do not edit; run scripts/sync-moment-preview.mjs.
-export type MomentPayload = { calculationDate?: string; delta?: number; targetLevel?: number; remainingXp?: number; courseName?: string; eventName?: string; username?: string; place?: number; previousRating?: number; newRating?: number };
+import { formatMomentRating, formatMomentRatingChange } from './ratingFormat';
+export type MomentPayload = { streakDays?: number; calculationDate?: string; delta?: number; targetLevel?: number; remainingXp?: number; courseName?: string; eventName?: string; username?: string; place?: number; previousRating?: number; newRating?: number };
 type Definition = {
   enabled: boolean; automaticTriggerEnabled: boolean; title: string | ((p: MomentPayload) => string);
   message: (p: MomentPayload) => string; icon: 'trophy' | 'trending-up' | 'trending-down' | 'calendar' | 'medal' | 'crown' | 'flag' | 'check-decagram' | 'fire' | 'sword-cross' | 'disc';
@@ -9,8 +10,12 @@ type Definition = {
 const ordinal = (n?: number) => ({ 2: '2nd', 3: '3rd', 4: '4th', 5: '5th' }[n ?? 0] ?? '');
 const define = (d: Omit<Definition, 'enabled' | 'automaticTriggerEnabled'> & { automaticTriggerEnabled?: boolean }): Definition => ({ enabled: true, automaticTriggerEnabled: false, ...d });
 export const momentRegistry = {
+  putting_streak_almost_there: define({ automaticTriggerEnabled: true, title: 'Almost There!', message: () => 'Great work! Just 3 more consecutive putting days to complete your weekly streak and earn 25 XP and 1 Battle Ticket!', icon: 'fire', colors: ['#A63E20', '#62222C'], required: ['streakDays'] }),
+  putting_streak_milestone: define({ automaticTriggerEnabled: true, title: p => `${p.streakDays}-Day Putting Streak!`, message: p => `Wow, you did it! ${p.streakDays === 7 ? 'Seven' : p.streakDays} consecutive days of putting! You've earned 25 XP and 1 Battle Ticket. Keep up the amazing work!`, icon: 'fire', colors: ['#A63E20', '#62222C'], required: ['streakDays'] }),
+  putting_league_day_top_three: define({ automaticTriggerEnabled: true, title: 'Putting League Podium!', message: () => 'Congratulations on your Top 3 finish in Putting League Day! Fantastic putting!', icon: 'medal', colors: ['#553AA0', '#203B73'], required: ['eventName', 'place'] }),
+  putting_league_champion: define({ automaticTriggerEnabled: true, title: 'Putting League Champion!', message: () => "Wow, amazing! You've won the Putting League! ParPlay celebrates your dedication and outstanding performance!", icon: 'crown', colors: ['#80600D', '#463309'], required: ['eventName'] }),
   weekly_rating_update: define({ automaticTriggerEnabled: true, title: 'ParPlay Rating Update',
-    message: p => `${new Date(p.calculationDate + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}\n\n${p.delta! > 0 ? '+' : '\u2212'}${String(Math.abs(p.delta!))} Rating Points${p.delta! > 0 ? '!' : ''}\n\nYour ParPlay+ Rating at this update: ${p.newRating}.\n\n${p.delta! > 0 ? 'Keep up the great work!' : 'Let your next tournament be the way back!'}`,
+    message: p => `${new Date(p.calculationDate + 'T00:00:00Z').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}\n\n${formatMomentRatingChange(p.previousRating, p.newRating)} Rating Points${p.delta! > 0 ? '!' : ''}\n\nYour ParPlay+ Rating at this update: ${formatMomentRating(p.newRating)}.\n\n${p.delta! > 0 ? 'Keep up the great work!' : 'Let your next tournament be the way back!'}`,
     icon: 'trending-up', colors: ['#194FA3', '#122E62'], required: ['calculationDate'] }),
   level_milestone: define({ automaticTriggerEnabled: true, title: p => `SO CLOSE TO LEVEL ${p.targetLevel}! \u{2B50}`, message: p => `Just ${p.remainingXp} XP to go! Keep playing and reach your next ParPlay level!`, icon: 'trending-up', colors: ['#80600D', '#463309'], required: ['targetLevel', 'remainingXp'] }),
   personal_best: define({ automaticTriggerEnabled: true, title: 'NEW PERSONAL BEST! 🏆', message: p => `Congrats! You've set a new personal best at ${p.courseName}! Keep up the great work!`, icon: 'trophy', colors: ['#155E46', '#594509'], required: ['courseName'] }),
@@ -40,7 +45,9 @@ export function renderMoment(type: string, payload: MomentPayload) {
     || !Number.isFinite(Date.parse(payload.calculationDate + 'T00:00:00Z')))) return null;
   const definition = momentRegistry[type as MomentType];
   if (!definition.enabled || definition.required.some(key => key === 'place'
-    ? ![2, 3, 4, 5].includes(payload.place ?? 0)
+    ? !(type === 'putting_league_day_top_three' ? [1, 2, 3] : [2, 3, 4, 5]).includes(payload.place ?? 0)
+    : key === 'streakDays' ? !Number.isInteger(payload.streakDays) || (type === 'putting_streak_almost_there'
+      ? payload.streakDays !== 4 : payload.streakDays! < 7 || payload.streakDays! > 999999 || payload.streakDays! % 7 !== 0)
     : key === 'targetLevel' ? !Number.isInteger(payload.targetLevel) || payload.targetLevel! < 2 || payload.targetLevel! > 100
     : key === 'remainingXp' ? !Number.isInteger(payload.remainingXp) || payload.remainingXp! < 1 || payload.remainingXp! > 50
     : typeof payload[key] !== 'string' || !(payload[key] as string).trim())) return null;
