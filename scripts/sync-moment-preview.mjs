@@ -4,6 +4,7 @@ import path from 'node:path';
 const root=path.resolve(process.argv[2] ?? '../parplay');
 const registry=fs.readFileSync(path.join(root,'src/features/moments/registry.ts'),'utf8');
 fs.mkdirSync('src/lib/moments',{recursive:true});
+fs.copyFileSync(path.join(root,'src/features/moments/ratingFormat.ts'),'src/lib/moments/ratingFormat.ts');
 fs.writeFileSync('src/lib/moments/registry.generated.ts','// Generated from parplay/src/features/moments/registry.ts. Do not edit; run scripts/sync-moment-preview.mjs.\n'+registry);
 const vector=path.join(root,'node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons');
 const glyphs=JSON.parse(fs.readFileSync(path.join(vector,'glyphmaps/MaterialCommunityIcons.json'),'utf8'));
