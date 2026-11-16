@@ -47,9 +47,11 @@ export default function UserMessages({ postsOnly = false }: { postsOnly?: boolea
         return () => controller.abort();
     }, [tab, category, offset, revision]);
 
-    async function moderate(id: string, decision: 'APPROVED' | 'DECLINED') {
+    async function moderate(id: string, decision: 'APPROVED' | 'DECLINED', removeApproved = false) {
         if (locked.current) return;
-        if (decision === 'DECLINED' && !window.confirm('Decline this submission? It will not be public.')) return;
+        if (decision === 'DECLINED' && !window.confirm(removeApproved
+            ? 'Delete this approved post from public Community? It will move to Declined and stop accepting reactions. The original round and moderation history will be preserved.'
+            : 'Decline this submission? It will not be public.')) return;
         locked.current = true; setBusy(true); setError(null); setNotice(null);
         try {
             const response = await fetch('/api/admin/user-messages', {
@@ -57,7 +59,7 @@ export default function UserMessages({ postsOnly = false }: { postsOnly?: boolea
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Moderation failed.');
-            setNotice(decision === 'APPROVED' ? 'Post approved.' : 'Post declined.');
+            setNotice(removeApproved ? 'Post removed from public Community. The record and audit history are retained.' : decision === 'APPROVED' ? 'Post approved.' : 'Post declined.');
             window.dispatchEvent(new Event(communityModeratedEvent));
             setItems(previous => previous.filter(item => item.id !== id));
             setOffset(0); setRevision(value => value + 1);
@@ -108,6 +110,9 @@ export default function UserMessages({ postsOnly = false }: { postsOnly?: boolea
             {(postsOnly ? item.status === 'PENDING' : tab === 'PENDING') && <div className="flex flex-wrap gap-3">
                 <button disabled={busy} onClick={() => void moderate(item.id, 'APPROVED')} className={`${button} bg-emerald-700`}>{busy ? 'Saving...' : postsOnly ? 'ACCEPT' : 'Approve'}</button>
                 <button disabled={busy} onClick={() => void moderate(item.id, 'DECLINED')} className={`${button} border-red-300/30 text-red-200`}>{postsOnly ? 'DECLINE' : 'Decline'}</button>
+            </div>}
+            {item.status === 'APPROVED' && <div className="flex flex-wrap gap-3">
+                <button disabled={busy} aria-label="Delete approved Community post" onClick={() => void moderate(item.id, 'DECLINED', true)} className={`${button} border-red-300/30 text-red-200`}>{busy ? 'Removing...' : 'Delete'}</button>
             </div>}
         </article>)}
         <div className="flex flex-wrap items-center gap-3">
