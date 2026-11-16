@@ -7,9 +7,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import CommunityModal from './CommunityModal';
 import CourseFeed from './CourseFeed';
+import ExperienceCard from './ExperienceCard';
+import type {ExperiencePost} from './experiencePresentation';
 import ShareExperience from './ShareExperience';
 
-type Post = { id: string; title: string; body: string; category: CommunityCategory; author_name: string; author_avatar: string | null; published_at: string; context_type: string | null; context_id: string | null; context_name: string | null; up_count: number; down_count: number; own_reaction: 'UP' | 'DOWN' | null };
+type Post = Omit<ExperiencePost, 'context_id' | 'context_name'> & { id: string; title: string; body: string; category: CommunityCategory; author_name: string; author_avatar: string | null; published_at: string; context_type: string | null; context_id: string | null; context_name: string | null; up_count: number; down_count: number; own_reaction: 'UP' | 'DOWN' | null };
 type Builder = { user_id: string; display_name: string; avatar_url: string | null; rank: number; qualifying_course_count: number };
 type Course = { id: string; name: string; builder_name: string; image_url: string | null; first_published_at: string };
 type Video = { id: string; caption: string | null; thumbnail_url: string | null; video_url: string | null; transcoded_url: string | null; transcoded_filename: string | null; raw_filename: string | null; transcoded_ready: boolean; processing_status: string; duration_seconds?: number; author_name: string; author_avatar: string | null; created_at: string };
@@ -75,9 +77,9 @@ export default function Community({ courseId, initialCategory = '' }: { courseId
     function auth() { if (user) return true; router.push('/login?returnTo=%2Fcommunity'); return false; }
     function reload() { setLoading(true); setError(''); setRefresh(n => n + 1); }
     async function react(post: Post, reaction: 'UP' | 'DOWN') {
-        if (!auth() || lock.current || post.own_reaction === reaction) return;
+        if (!auth() || lock.current) return;
         lock.current = true; setBusy(post.id); setNotice('');
-        try { const { error } = await db.rpc('react_community_post_v1', { p_post_id: post.id, p_reaction: reaction }); if (error) throw error; reload(); }
+        try { const { error } = await db.rpc('react_community_post_v1', { p_post_id: post.id, p_reaction: post.own_reaction === reaction ? null : reaction }); if (error) throw error; reload(); }
         catch { setNotice('Reaction could not be saved. Please try again.'); }
         finally { lock.current = false; setBusy(null); }
     }
@@ -103,7 +105,7 @@ export default function Community({ courseId, initialCategory = '' }: { courseId
                 {notice && !report && <p role="status" className={glass}>{notice}</p>}
                 {loading ? <p role="status" className={glass}>Loading experiences…</p> : error ? <div role="alert" className={glass}>{error} <button className={button} onClick={reload}>Retry</button></div> : <>
                     {!posts.length && <p className={glass}>No experiences here yet. Share yours for review.</p>}
-                    {posts.map(p => <article key={p.id} className={`${glass} wrap-anywhere`}><div className="flex items-center gap-2"><Avatar url={p.author_avatar} name={p.author_name} /><div className="min-w-0 flex-1"><p className="font-semibold">{p.author_name}</p><time className="text-xs text-slate-400" dateTime={p.published_at}>{date(p.published_at)}</time></div><span className="rounded-full border border-emerald-400/20 px-2 py-1 text-xs text-emerald-200">{communityCategories[p.category]}</span></div>
+                    {posts.map(p => p.category==='course' ? <ExperienceCard key={p.id} post={{...p,context_id:p.context_id??undefined,context_name:p.context_name??undefined}} busy={busy!==null} onReact={reaction=>{void react(p,reaction);}}><button className={button} onClick={()=>{if(auth()){setReport(p);setReason('');setNotice('');}}}>Report</button></ExperienceCard> : <article key={p.id} className={`${glass} wrap-anywhere`}><div className="flex items-center gap-2"><Avatar url={p.author_avatar} name={p.author_name} /><div className="min-w-0 flex-1"><p className="font-semibold">{p.author_name}</p><time className="text-xs text-slate-400" dateTime={p.published_at}>{date(p.published_at)}</time></div><span className="rounded-full border border-emerald-400/20 px-2 py-1 text-xs text-emerald-200">{communityCategories[p.category]}</span></div>
                         {p.context_type === 'course' && p.context_id && p.context_name && <Link className="mt-3 block text-sm text-cyan-200 hover:underline" href={`/courses/${p.context_id}`}>{p.context_name} →</Link>}
                         <h3 className="mt-3 font-semibold">{p.title}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{p.body}</p><div className="mt-4 flex flex-wrap items-center gap-6">{(['UP', 'DOWN'] as const).map(r => <button key={r} aria-label={r === 'UP' ? `Thumbs up, ${p.up_count} votes` : `Thumbs down, ${p.down_count} votes`} aria-pressed={p.own_reaction === r} disabled={busy !== null} onClick={() => void react(p, r)} className={`${voteButton} ${p.own_reaction === r ? voteTone[r] : 'border-white/15 text-slate-200 hover:bg-white/10'}`}><span aria-hidden="true">{r === 'UP' ? '👍' : '👎'}</span><span>{r === 'UP' ? p.up_count : p.down_count}</span></button>)}<button className={`${button} ml-auto`} onClick={() => { if (auth()) { setReport(p); setReason(''); setNotice(''); } }}>Report</button></div>
                     </article>)}

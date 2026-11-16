@@ -18,7 +18,7 @@ function load(file) {
         if (name === 'next/navigation') return { useRouter: () => ({ push() {} }) };
         if (name === 'next/link') return { default: ({ children, ...props }) => React.createElement('a', props, children) };
         if (name.startsWith('@/')) return load(`src/${name.slice(2)}.ts`);
-        if (name.startsWith('.')) return load(path.resolve(path.dirname(filename), `${name}.tsx`));
+        if (name.startsWith('.')) { const base = path.resolve(path.dirname(filename), name); return load(fs.existsSync(base + '.ts') ? base + '.ts' : base + '.tsx'); }
         return require(name);
     } }, { filename });
     return loaded.exports;
