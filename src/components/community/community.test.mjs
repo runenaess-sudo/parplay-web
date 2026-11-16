@@ -55,3 +55,24 @@ test('specific Course view suppresses geography and general Courses defaults to 
     assert.ok(general.includes('Country'));
     assert.ok(general.includes('Most helpful'));
 });
+
+test('photo retrieval preserves binary image data with authorization instead of SDK text parsing', async () => {
+ const {loadExperiencePhoto}=load('src/components/community/experiencePhoto.ts');
+ const bytes=new Uint8Array([255,216,255,128,0,255,217]);
+ const blob=await loadExperiencePhoto({baseUrl:'https://example.test',postId:'post',accessToken:'token',apiKey:'key'},async(url,options)=>{
+  assert.ok(url.endsWith('community-experience-photo?post_id=post'));
+  assert.equal(options.headers.Authorization,'Bearer token');assert.equal(options.cache,'no-store');
+  return new Response(bytes,{headers:{'Content-Type':'image/jpeg'}});
+ });
+ assert.ok(blob instanceof Blob);assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),bytes);
+ for(const status of [401,403,404,503]) await assert.rejects(loadExperiencePhoto({baseUrl:'https://example.test',postId:'post',apiKey:'key'},async()=>new Response('',{status})),new RegExp(String(status)));
+});
+test('round details without a top-level source ID still render compact statistics chips', () => {
+ const Card=load('src/components/community/ExperienceCard.tsx').default;
+ const post={id:'post',title:'Round',body:'Comment',round_details:{total_score:61,relative_to_par:3,round_rating:876,xp_earned:15}};
+ const html=renderToStaticMarkup(React.createElement(Card,{post}));
+ for(const value of ['Score','+3 (61)','Rating','876','XP','+15','inline-flex w-fit'])assert.ok(html.includes(value),value);
+ assert.ok(!html.includes('grid-cols-3'));
+ const ordinary=renderToStaticMarkup(React.createElement(Card,{post:{id:'ordinary',title:'Tip',body:'Text'}}));
+ assert.ok(!ordinary.includes('>Score<'));
+});

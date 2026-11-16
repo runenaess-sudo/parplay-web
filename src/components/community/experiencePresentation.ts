@@ -10,6 +10,11 @@ export type ExperiencePost = {
 };
 const emojis = ['😭','😠','😐','😊','🤩'];
 export function feelingEmoji(value?: number | null) { return value && Number.isInteger(value) ? emojis[value-1] ?? null : null; }
+export function hasRoundDetails(post: ExperiencePost) {
+ // Round details are already authorized presentation data. An absent link ID
+ // must not hide supplied statistics; ordinary posts have neither field.
+ return !!post.source_round_id || post.round_details != null;
+}
 export function experienceStats(post: ExperiencePost) {
  const r = post.round_details;
  const number = (value?: number | null) => typeof value === 'number' && Number.isFinite(value);
