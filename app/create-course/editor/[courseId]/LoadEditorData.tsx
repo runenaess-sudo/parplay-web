@@ -44,7 +44,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 return;
             }
             const legacyById = new Map((legacyHoles ?? []).map((hole) => [hole.id, hole]));
-            const holes = resolved.map((hole: any) => ({ ...legacyById.get(hole.id), ...hole }));
+            const holes = resolved.map((hole: any) => ({ ...legacyById.get(hole.id), ...hole, holePar: legacyById.get(hole.id)?.par, defaultPlayConfigId: hole.play_config_id }));
 
             const holeIds = (holes ?? []).map((hole) => hole.id);
             const [featureResult, applicabilityResult] = holeIds.length > 0

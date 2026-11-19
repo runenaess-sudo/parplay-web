@@ -124,6 +124,7 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
 
     const setMode = useCourseEditor((s) => s.setMode);
     const saveHole = useCourseEditor((s) => s.saveHole);
+    const setHolePar = useCourseEditor((s) => s.setHolePar);
     const createNewHole = useCourseEditor((s) => s.createNewHole);
     const startFeatureTool = useCourseEditor((s) => s.startFeatureTool);
     const finishFeatureDrawing = useCourseEditor((s) => s.finishFeatureDrawing);
@@ -204,7 +205,15 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                                 : `Set ${m.charAt(0).toUpperCase() + m.slice(1)}`}
                         </button>
                     ))}
-                    <HoleEditorHelp />
+                    {hole && <label className="flex items-center justify-between gap-3 text-sm">Par
+                        <select aria-label="Hole par" value={hole.holePar ?? hole.par}
+                            onChange={event => setHolePar(hole.id, Number(event.target.value))}
+                            className="min-h-11 rounded bg-slate-800 px-3 py-2">
+                            {![2, 3, 4, 5, 6, 7].includes(hole.holePar ?? hole.par) &&
+                                <option value={hole.holePar ?? hole.par} disabled>{hole.holePar ?? hole.par}</option>}
+                            {[2, 3, 4, 5, 6, 7].map(par => <option key={par} value={par}>{par}</option>)}
+                        </select>
+                    </label>}
                 </div>
 
                 </>}
@@ -304,7 +313,10 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                 {/* Hole info + Save */}
                 {!toolsOnly && hole && (
                     <div className="pt-4 border-t border-white/10 space-y-3">
-                        <h3 className="text-lg font-semibold">Hole Info</h3>
+                        <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-lg font-semibold">Hole Info</h3>
+                            <HoleEditorHelp />
+                        </div>
 
                         <div className="text-sm text-neutral-300 space-y-1">
                             <p>

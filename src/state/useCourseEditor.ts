@@ -60,6 +60,7 @@ type CourseEditorState = {
 
     setTeeAngle: (holeId: string, angle: number) => void;
 
+    setHolePar: (holeId: string, par: number) => void;
     saveHole: (holeId: string) => Promise<boolean>;
 
     // ⭐ NEW
@@ -552,6 +553,13 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     },
 
     // ⭐ SAVE WITH FULL RELOAD
+    setHolePar: (holeId, par) => {
+        if (![2, 3, 4, 5, 6, 7].includes(par)) return;
+        set(state => ({ course: state.course ? { ...state.course, holes: state.course.holes.map((h: any) =>
+            h.id === holeId ? { ...h, holePar: par, holeParDirty: true,
+                ...(!h.play_config_id || h.play_config_id === h.defaultPlayConfigId ? { par } : {}) } : h) } : null }));
+    },
+
     saveHole: async (holeId: string) => {
         console.log("SAVE HOLE TRIGGERED:", holeId);
 
@@ -619,6 +627,15 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
 
         console.log("SUPABASE UPDATE PAYLOAD:", payload);
 
+        // Par belongs to the numbered hole, independently of the previewed variation.
+        if (hole.holeParDirty) {
+            const { data: saved, error: parError } = await supabaseBrowser.from("holes")
+                .update({ par: hole.holePar }).eq("id", holeId).select("id,par").single();
+            if (parError || !saved) { get().setToast("Error saving hole par"); return false; }
+            set(state => ({ course: { ...state.course, holes: state.course.holes.map((h: any) =>
+                h.id === holeId && h.holePar === saved.par ? { ...h, holeParDirty: false } : h) } }));
+        }
+
         if (hole.play_config_id) {
             const { data: editor, error: readError } = await supabaseBrowser.rpc('get_course_variant_editor_v5', { p_course_id: course.id });
             if (readError) { get().setToast('Could not verify variation.'); return false; }
@@ -640,7 +657,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             if (error) { get().setToast(error.message); return false; }
             const { data: resolved, error: resolveError } = await supabaseBrowser.rpc('resolve_hole_play_config_v1', { p_hole_id: holeId, p_preview_config_id: option.id });
             if (!resolveError) set({ course: { ...get().course, holes: get().course.holes.map((h: any) => h.id === holeId
-                ? { ...h, ...resolved, hole_features: resolved.features } : h) } });
+                ? { ...h, ...resolved, ...(option.is_default ? { holePar: resolved.par } : {}), hole_features: resolved.features } : h) } });
             get().setToast('VARIATION SAVED');
             return true;
         }
@@ -676,7 +693,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         console.log("🔥 FRESH HOLE FROM DB:", freshHole);
 
         const updatedHoles = course.holes.map((h: any) =>
-            h.id === holeId ? { ...freshHole, hole_features: h.hole_features ?? [] } : h
+            h.id === holeId ? { ...freshHole, holePar: freshHole.par, hole_features: h.hole_features ?? [] } : h
         );
 
         set({

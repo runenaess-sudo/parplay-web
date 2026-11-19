@@ -21,7 +21,7 @@ export default function HoleEditorHelp() {
     return <div onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()}>
         <button type="button" aria-label="Open Hole Editor Help" title="Hole Editor Help"
             onClick={() => dialog.current?.showModal()}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-cyan-300/40 bg-slate-800 text-lg font-semibold text-cyan-200 hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-cyan-300">?</button>
+            className="flex h-[27px] w-[27px] items-center justify-center rounded-full border border-cyan-300/40 bg-slate-800 text-[13.5px] font-semibold text-cyan-200 hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-cyan-300">?</button>
         <dialog ref={dialog} aria-labelledby="hole-editor-help-title"
             onKeyDown={event => event.stopPropagation()}
             className="m-auto max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-xl overflow-y-auto rounded-2xl border border-slate-600 bg-slate-950 p-0 text-slate-100 shadow-2xl backdrop:bg-black/60">
