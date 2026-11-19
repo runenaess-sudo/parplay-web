@@ -2,6 +2,7 @@ import type { LineString, Point, Polygon } from "geojson";
 
 export const HOLE_FEATURE_TYPES = [
     "OB_AREA",
+    "ISLAND_HOLE",
     "HAZARD_AREA",
     "OB_LINE",
     "MANDO",
@@ -39,7 +40,7 @@ export function isSharedHoleFeatureType(type: HoleFeatureType) {
 }
 
 export function featureTypeLabel(type: HoleFeatureType) {
-    return type.replaceAll("_", " ");
+    return type === "ISLAND_HOLE" ? "Island Hole" : type.replaceAll("_", " ");
 }
 
 export function isMandoPassSide(value: unknown): value is MandoPassSide {
@@ -51,7 +52,7 @@ export function isObLineSide(value: unknown): value is ObLineSide {
 }
 
 export function minimumVertexCount(type: SpatialHoleFeatureType) {
-    if (type === "OB_AREA" || type === "HAZARD_AREA") return 3;
+    if (type === "OB_AREA" || type === "HAZARD_AREA" || type === "ISLAND_HOLE") return 3;
     if (type === "OB_LINE") return 2;
     return 1;
 }

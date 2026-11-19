@@ -309,6 +309,7 @@ export function MapCanvas({
 
             map.addLayer({
                 id: "hole-feature-area-layer",
+                filter: ["!=", ["get", "featureType"], "ISLAND_HOLE"],
                 type: "fill",
                 source: "hole-feature-area-source",
                 paint: {
@@ -361,12 +362,27 @@ export function MapCanvas({
             });
             map.addLayer({
                 id: "hole-feature-area-outline-layer",
+                filter: ["!=", ["get", "featureType"], "ISLAND_HOLE"],
                 type: "line",
                 source: "hole-feature-area-source",
                 paint: {
                     "line-color": ["match", ["get", "featureType"], "OB_AREA", "#ffffff", "#9ca3af"],
                     "line-width": 3,
                 },
+            });
+            map.addLayer({
+                id: "island-hole-hit-layer",
+                type: "fill",
+                source: "hole-feature-area-source",
+                filter: ["==", ["get", "featureType"], "ISLAND_HOLE"],
+                paint: { "fill-color": "#FFB74D", "fill-opacity": 0 },
+            });
+            map.addLayer({
+                id: "island-hole-outline-layer",
+                type: "line",
+                source: "hole-feature-area-source",
+                filter: ["==", ["get", "featureType"], "ISLAND_HOLE"],
+                paint: { "line-color": "#FFB74D", "line-width": 3, "line-dasharray": [2, 1] },
             });
             map.addLayer({
                 id: "hole-feature-line-layer",
@@ -672,7 +688,7 @@ export function MapCanvas({
 
             });
 
-            for (const layer of ["hole-feature-area-layer", "hole-feature-area-outline-layer", "hole-feature-line-layer", "hole-feature-stake-layer", "hole-feature-point-layer", "hole-feature-point-label-layer"]) {
+            for (const layer of ["island-hole-hit-layer", "island-hole-outline-layer", "hole-feature-area-layer", "hole-feature-area-outline-layer", "hole-feature-line-layer", "hole-feature-stake-layer", "hole-feature-point-layer", "hole-feature-point-label-layer"]) {
                 map.on("click", layer, (event) => {
                     const id = event.features?.[0]?.properties?.featureId;
                     if (typeof id === "string") onSelectFeature(id);
@@ -686,7 +702,7 @@ export function MapCanvas({
                         || drawingCoordinatesRef.current.length > 0 || Boolean(selectedFeatureRef.current);
                     if (blocked) return;
                     const strongHit = map.queryRenderedFeatures(event.point, {
-                        layers: ["hole-feature-area-layer", "hole-feature-area-outline-layer", "hole-feature-line-layer"],
+                        layers: ["island-hole-hit-layer", "island-hole-outline-layer", "hole-feature-area-layer", "hole-feature-area-outline-layer", "hole-feature-line-layer"],
                     });
                     if (strongHit.length > 0) return;
                     if (typeof id !== "string") return;
