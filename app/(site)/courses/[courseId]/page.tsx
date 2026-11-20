@@ -1,4 +1,4 @@
-import CourseConfigurationMap from '@/components/CourseConfigurationMap';
+import { PublicLayoutProvider, PublicCourseMap, PublicCourseLayouts, type Layout } from './PublicCourseLayouts';
 import CourseFeed from '@/components/community/CourseFeed';
 import { supabaseServer } from "@/lib/supabase-server";
 import Image from "next/image";
@@ -8,7 +8,6 @@ import { notFound } from "next/navigation";
 import { CourseLeaderboard, type LeaderboardData } from "./CourseLeaderboard";
 import { CourseTrafficPanel, type CourseTrafficData } from "./CourseTrafficPanel";
 
-type Layout = { id: string; name: string | null; description: string | null; hole_count: number | null; par_total: number | null; length_total: number | null; walk_length: number | null; difficulty: number | null; color: string | null; is_default: boolean | null; par_rating: number | null };
 type FacilityValue = string | boolean | number | null;
 type CourseMetrics = {
     completed_rounds: number;
@@ -67,7 +66,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             .eq("course_id", courseId).order("sort_order", { ascending: true }),
         supabase.from("course_layouts")
             .select("id,name,description,hole_count,par_total,length_total,walk_length,difficulty,color,is_default,par_rating")
-            .eq("course_id", courseId).order("created_at", { ascending: true }),
+            .eq("course_id", courseId).eq("published", true).order("created_at", { ascending: true }),
         supabase.from("course_facilities")
             .select("toilets,trashcans,signage,water,parking,benches,kiosk,terrain,surface,opening_hours,tee_type,basket_type,dog_friendly,lighting,wheelchair_friendly,description")
             .eq("course_id", courseId).maybeSingle(),
@@ -126,7 +125,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         difficultyLabel(primaryLayout?.difficulty) ? { label: "Difficulty", value: difficultyLabel(primaryLayout?.difficulty)! } : null,
     ].filter((fact): fact is { label: string; value: string; note?: string } => fact !== null);
 
-    return <main className="mx-auto max-w-[90rem] px-4 pb-20 pt-2 sm:px-6 lg:px-10">
+    return <PublicLayoutProvider key={courseId} layouts={layouts}><main className="mx-auto max-w-[90rem] px-4 pb-20 pt-2 sm:px-6 lg:px-10">
         <Link href="/courses" className="mb-5 inline-flex text-sm font-semibold text-blue-300 transition hover:text-blue-200">← All courses</Link>
 
         <section className="relative min-h-[25rem] overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-800 via-slate-950 to-black shadow-2xl shadow-black/30 sm:min-h-[32rem]">
@@ -164,32 +163,14 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             </DashboardCard>
 
             <DashboardCard eyebrow="Find your way" title="Location" flush>
-                <CourseConfigurationMap preview courseId={course.id} />
+                <PublicCourseMap courseId={course.id} />
                 <div className="p-5">{locationLine && <p className="text-sm text-white/65">{locationLine}</p>}{directionsUrl && <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-bold hover:bg-blue-500">Open in maps ↗</a>}</div>
             </DashboardCard>
         </section>
 
         <div className="mt-14 grid gap-16 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <div className="min-w-0 space-y-16">
-                {layouts.length > 0 && <section>
-                    <SectionHeading eyebrow="Play" title="Course layouts" />
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {layouts.map((layout) => <article key={layout.id} className="group relative overflow-hidden rounded-2xl bg-white/[0.055] p-5 transition hover:bg-white/[0.08]">
-                            <div className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: layout.color ?? "#2D6CDF" }} />
-                            <div className="flex items-start justify-between gap-4"><div>
-                                <h3 className="text-lg font-bold text-white">{layout.name?.trim() || "Course layout"}</h3>
-                                {layout.description && <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-400">{layout.description}</p>}
-                            </div>{layout.is_default && <span className="shrink-0 rounded-full bg-blue-500/15 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-300">Default</span>}</div>
-                            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-300">
-                                {meaningfulNumber(layout.hole_count) && <span>{layout.hole_count} holes</span>}
-                                {meaningfulNumber(layout.par_total) && <span>Par {layout.par_total}</span>}
-                                {meaningfulNumber(layout.length_total) && <span>{layout.length_total} m</span>}
-                                {meaningfulNumber(layout.walk_length) && <span>{layout.walk_length} m walk</span>}
-                                {meaningfulNumber(layout.par_rating) && <span>Rating {layout.par_rating}</span>}
-                            </div>
-                        </article>)}
-                    </div>
-                </section>}
+                <PublicCourseLayouts layouts={layouts} />
 
                 {metrics && <section>
                     <SectionHeading eyebrow="Activity" title="Course stats" />
@@ -254,7 +235,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             </div> : <div className="rounded-2xl bg-white/[0.04] p-6"><p className="font-semibold text-white">No upcoming events yet</p><p className="mt-1 text-sm text-gray-500">Tournaments and events at this course will appear here.</p></div>}
         </section>
         <div className="mt-16"><CourseFeed courseId={courseId} courseName={course.name} preview /></div>
-    </main>;
+    </main></PublicLayoutProvider>;
 }
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
