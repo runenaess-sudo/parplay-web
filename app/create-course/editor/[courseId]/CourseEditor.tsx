@@ -6,7 +6,7 @@ import { physicalMarkers, type MarkerPoint, type MarkerConfig } from '@/lib/phys
 import { useCourseEditor } from "@/state/useCourseEditor";
 import { type HoleFeature } from "@/types/holeFeatures";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import EditorPanel from "./EditorPanel";
 import PlayOptionsPanel from './PlayOptionsPanel';
 import LoadEditorData from "./LoadEditorData";
@@ -57,7 +57,7 @@ function HoleListOverlay({
 /* -------------------------------------------------------
    PAGE COMPONENT
 -------------------------------------------------------- */
-export default function CourseEditor({ courseId, embedded = false }: { courseId: string; embedded?: boolean }) {
+export default function CourseEditor({ courseId, embedded = false, headerActions }: { courseId: string; embedded?: boolean; headerActions?: ReactNode }) {
  const router = useRouter();
 
     const loadedCourse = useCourseEditor((s) => s.course);
@@ -112,7 +112,7 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
       baskets:physicalData.baskets.map(p=>p.id===activeHole?.basket_id?{...p,latitude:activeHole.basket_latitude,longitude:activeHole.basket_longitude}:p)
     },[activeHole?.tee_id,activeHole?.basket_id].filter(Boolean)):undefined;
     return (
-        <div className={`flex ${embedded ? "h-[75vh] min-h-150" : "h-dvh"} flex-col overflow-hidden bg-slate-900`}>
+        <div className="flex h-dvh flex-col overflow-hidden bg-slate-900">
 
             {/* HEADER */}
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-4">
@@ -133,7 +133,7 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
                         Course Editor
                     </span>
                 </div>
-
+                {headerActions}
             </div>
 
             {/* LOADING */}

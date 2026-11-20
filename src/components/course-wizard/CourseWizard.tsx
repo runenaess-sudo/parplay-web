@@ -36,7 +36,7 @@ function Section({ index, active, scope, saves, children }: { index: number; act
       }
     };
   }, [scope, saves, index]);
-  return <WizardStepContext.Provider value={context}><section hidden={index !== active} aria-label={steps[index]}>{children}</section></WizardStepContext.Provider>;
+  return <WizardStepContext.Provider value={context}><section hidden={index !== active} className={index === 1 ? "fixed inset-0 z-[100] bg-slate-900" : undefined} aria-label={steps[index]}>{children}</section></WizardStepContext.Provider>;
 }
 export default function CourseWizard({ userId, initialCourseId }: { userId: string; initialCourseId: string | null }) {
   const router = useRouter();
@@ -54,6 +54,12 @@ export default function CourseWizard({ userId, initialCourseId }: { userId: stri
   const saves = useRef(new Map<number, () => Promise<unknown>>());
   const [scope, setScope] = useState(`parplay:wizard:${userId}:${initialCourseId ?? "new"}`);
   const currentId = useRef(initialCourseId);
+  useEffect(() => {
+    if (active !== 1 || !courseId) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = overflow; };
+  }, [active, courseId]);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -145,7 +151,14 @@ export default function CourseWizard({ userId, initialCourseId }: { userId: stri
       <fieldset disabled={busy} className={busy ? "pointer-events-none" : ""}>
         {visited.map(index => <Section key={index} index={index} active={active} scope={scope} saves={saves}>
           {index === 0 && <BasicStep initial={initial.basic} userId={userId} courseId={courseId} isAdmin={isAdmin} created={created} />}
-          {index === 1 && (courseId ? <CourseEditor courseId={courseId} embedded /> : prerequisite)}
+          {index === 1 && (courseId ? <CourseEditor courseId={courseId} embedded headerActions={
+            <div className="flex items-center gap-2" aria-label="Create Course navigation">
+              <span className="hidden text-xs text-slate-400 sm:inline">Create Course / Holes</span>
+              <button type="button" disabled={busy} onClick={() => void navigate(0)} className="rounded border border-slate-600 px-3 py-2 text-sm disabled:opacity-50">Back</button>
+              <button type="button" disabled={busy} onClick={() => void navigate(2)} className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold disabled:opacity-50">{busy ? "Saving..." : "Next"}</button>
+              {error && <p role="alert" className="absolute inset-x-0 top-14 z-[60] bg-red-950 px-4 py-3 text-sm text-red-200">{error}</p>}
+            </div>
+          } /> : prerequisite)}
           {index === 2 && <><LayoutSetup courseId={courseId ?? ""} holes={holes} layouts={layouts} onSaved={() => { if (courseId) void refresh(courseId).catch(() => setError("Layout saved, but the list could not be refreshed.")); }} />{!courseId && prerequisite}</>}
           {index === 3 && (courseId ? <LayoutPreview layouts={layouts} active={active === 3} /> : prerequisite)}
           {index === 4 && <FacilitiesForm courseId={courseId ?? ""} initialValue={initial.facilities} />}
