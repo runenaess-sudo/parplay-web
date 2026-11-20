@@ -27,7 +27,11 @@ function Section({ index, active, scope, saves, children }: { index: number; act
     return {
       scope, register: (save: () => Promise<unknown>) => {
         callbacks.add(save);
-        saves.current.set(index, async () => { for (const callback of callbacks) await callback(); });
+        saves.current.set(index, async () => {
+          let result: unknown;
+          for (const callback of callbacks) result = await callback();
+          return result;
+        });
         return () => { callbacks.delete(save); if (!callbacks.size) saves.current.delete(index); };
       }
     };
