@@ -1,6 +1,6 @@
 import "server-only";
 
-import { supabaseServer } from "@/lib/supabase-server";
+import { supabaseServer, getVerifiedServerUser } from "@/lib/supabase-server";
 
 export type ManageableCourse = {
     id: string;
@@ -18,10 +18,10 @@ export type CourseBuild = ManageableCourse & {
 
 export async function getServerCourseManager() {
     const supabase = await supabaseServer();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return null;
+    const user = await getVerifiedServerUser(supabase);
+    if (!user) return null;
     const { data: profile, error } = await supabase.from("profiles")
-        .select("id,membership").eq("id", userData.user.id).maybeSingle();
+        .select("id,membership").eq("id", user.id).maybeSingle();
     if (error) throw error;
     if (!profile) return null;
     const { data: assignments, error: assignmentsError } = profile.membership === "admin"
@@ -31,24 +31,25 @@ export async function getServerCourseManager() {
             .eq("status", "active").eq("is_primary", true);
     if (assignmentsError) throw assignmentsError;
     if (profile.membership !== "admin" && (assignments?.length ?? 0) === 0) return null;
-    return { supabase, user: userData.user, profile, assignments: assignments ?? [] };
+    return { supabase, user: user, profile, assignments: assignments ?? [] };
 }
 
 export async function canOpenCourseEditor(courseId: string) {
     const supabase = await supabaseServer();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return false;
+    const user = await getVerifiedServerUser(supabase);
+    if (!user) return false;
     const { data, error } = await supabase.rpc('can_manage_course_private_data_v1', { p_course_id: courseId });
-    return !error && data === true;
+    if (error) throw error;
+    return data === true;
 }
 
 export async function getServerManageableCourses(): Promise<ManageableCourse[] | null> {
     const supabase = await supabaseServer();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return null;
+    const user = await getVerifiedServerUser(supabase);
+    if (!user) return null;
 
     const { data: profile, error: profileError } = await supabase
-        .from("profiles").select("membership").eq("id", userData.user.id).maybeSingle();
+        .from("profiles").select("membership").eq("id", user.id).maybeSingle();
     if (profileError) throw profileError;
     if (!profile) return null;
 
@@ -64,7 +65,7 @@ export async function getServerManageableCourses(): Promise<ManageableCourse[] |
         await Promise.all([
             supabase.from("course_manager_assignments").select("course_id,club_id")
                 .eq("status", "active").eq("is_primary", true),
-            supabase.from("courses").select("id").eq("created_by", userData.user.id),
+            supabase.from("courses").select("id").eq("created_by", user.id),
         ]);
     if (assignmentsError) throw assignmentsError;
     if (creatorError) throw creatorError;
@@ -104,20 +105,20 @@ export async function getServerManageableCourses(): Promise<ManageableCourse[] |
 /** Historical course contributions, with current management authority kept separate. */
 export async function getServerCourseBuilds(): Promise<CourseBuild[] | null> {
     const supabase = await supabaseServer();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return null;
+    const user = await getVerifiedServerUser(supabase);
+    if (!user) return null;
 
     const { data: profile, error: profileError } = await supabase.from('profiles')
-        .select('membership').eq('id', userData.user.id).maybeSingle();
+        .select('membership').eq('id', user.id).maybeSingle();
     if (profileError) throw profileError;
     const courseSelect = 'id,name,location,is_published,status,club_id,created_at,created_by';
     const isAdmin = profile?.membership === 'admin';
     let query = supabase.from('courses').select(courseSelect).order('created_at', { ascending: false });
     if (!isAdmin) {
         const [{ data: created, error: createdError }, { data: assignments, error: assignmentError }] = await Promise.all([
-            supabase.from('courses').select('id').eq('created_by', userData.user.id),
+            supabase.from('courses').select('id').eq('created_by', user.id),
             supabase.from('course_manager_assignments').select('course_id')
-                .eq('manager_user_id', userData.user.id).eq('status', 'active').eq('is_primary', true),
+                .eq('manager_user_id', user.id).eq('status', 'active').eq('is_primary', true),
         ]);
         if (createdError) throw createdError;
         if (assignmentError) throw assignmentError;
@@ -132,5 +133,5 @@ export async function getServerCourseBuilds(): Promise<CourseBuild[] | null> {
         if (permissionError) throw permissionError;
         return { ...course, canManage: allowed === true };
     }));
-    return checked.filter(course => course.canManage || course.created_by === userData.user.id);
+    return checked.filter(course => course.canManage || course.created_by === user.id);
 }

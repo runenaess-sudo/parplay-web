@@ -6,7 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MenuItem } from "../Header/MenuItem"; // juster path hvis MenuItem ligger et annet sted
 
 type AccessInfo = {
@@ -29,61 +29,78 @@ export default function Header() {
     const [invitations, setInvitations] = useState<ActiveCourseInvitation[]>([]);
     const [showInvitations, setShowInvitations] = useState(false);
 
+    const [authStatus, setAuthStatus] = useState<"restoring" | "ready" | "unavailable">("restoring");
+    const sessionRef = useRef<Session | null>(null);
+    const authRevision = useRef(0);
+
     useEffect(() => {
-        async function loadSessionAndAccess() {
-            const { data: { session } } = await supabaseBrowser.auth.getSession();
-            setSession(session);
-
-            if (session?.user) {
-                const nextAccess = await getUserAccess();
-                setAccess(nextAccess);
-                const response = await fetch("/api/course-invitations", { cache: "no-store" });
-                const body = response.ok ? await response.json() as { invitations?: ActiveCourseInvitation[] } : null;
-                setInvitations(body?.invitations ?? []);
-            } else {
-                setAccess(null);
-                setInvitations([]);
+        let active = true, checking = false;
+        const apply = (next: Session | null) => {
+            if (sessionRef.current?.user.id !== next?.user.id) {
+                setAccess(null); setInvitations([]); setShowInvitations(false);
             }
-        }
-
-        loadSessionAndAccess();
-
-        const { data: authSub } = supabaseBrowser.auth.onAuthStateChange(async (_event, nextSession) => {
-            setSession(nextSession);
-
-            if (nextSession?.user) {
-                const nextAccess = await getUserAccess();
-                setAccess(nextAccess);
-                const response = await fetch("/api/course-invitations", { cache: "no-store" });
-                const body = response.ok ? await response.json() as { invitations?: ActiveCourseInvitation[] } : null;
-                setInvitations(body?.invitations ?? []);
-            } else {
-                setAccess(null);
-                setInvitations([]);
-            }
+            sessionRef.current = next;
+            setSession(next);
+            setAuthStatus("ready");
+        };
+        const restore = async () => {
+            if (!active || checking || document.visibilityState === "hidden") return;
+            checking = true;
+            const revision = ++authRevision.current;
+            if (!sessionRef.current) setAuthStatus("restoring");
+            try {
+                const { data, error } = await supabaseBrowser.auth.getSession();
+                if (!active || revision !== authRevision.current) return;
+                if (error) { setAuthStatus("unavailable"); return; }
+                apply(data.session);
+            } catch {
+                if (active && revision === authRevision.current) setAuthStatus("unavailable");
+            } finally { checking = false; }
+        };
+        // Keep this callback synchronous: nested Auth requests can deadlock the SDK.
+        const { data: authSub } = supabaseBrowser.auth.onAuthStateChange((event, nextSession) => {
+            if (!active || (event === "INITIAL_SESSION" && !nextSession)) return;
+            ++authRevision.current;
+            apply(nextSession);
         });
-
+        const resume = () => { void restore(); };
+        void restore();
+        window.addEventListener("online", resume);
+        window.addEventListener("focus", resume);
+        document.addEventListener("visibilitychange", resume);
         return () => {
+            active = false;
             authSub.subscription.unsubscribe();
+            window.removeEventListener("online", resume);
+            window.removeEventListener("focus", resume);
+            document.removeEventListener("visibilitychange", resume);
         };
     }, []);
 
     useEffect(() => {
-        async function refreshInvitations() {
-            const [nextAccess, response] = await Promise.all([
-                getUserAccess(),
-                fetch("/api/course-invitations", { cache: "no-store" }),
-            ]);
-            const body = response.ok
-                ? await response.json() as { invitations?: ActiveCourseInvitation[] }
-                : null;
-            setAccess(nextAccess);
-            setInvitations(body?.invitations ?? []);
-            setShowInvitations(false);
-        }
-        window.addEventListener("course-invitations-changed", refreshInvitations);
-        return () => window.removeEventListener("course-invitations-changed", refreshInvitations);
-    }, []);
+        if (!session?.user) return;
+        let active = true, request = 0;
+        const owner = session.user.id, revision = authRevision.current;
+        const loadAccess = async () => {
+            const attempt = ++request;
+            try {
+                const [nextAccess, response] = await Promise.all([
+                    getUserAccess(), fetch("/api/course-invitations", { cache: "no-store" }),
+                ]);
+                const body = response.ok ? await response.json() as { invitations?: ActiveCourseInvitation[] } : null;
+                if (!active || attempt !== request || revision !== authRevision.current || sessionRef.current?.user.id !== owner) return;
+                setAccess(nextAccess);
+                if (body) setInvitations(body.invitations ?? []);
+            } catch {
+                // A metadata/network failure must not clear an authenticated session.
+            }
+        };
+        // Leave the Auth notification/lock before querying Auth-backed metadata.
+        const timer = window.setTimeout(() => { void loadAccess(); }, 0);
+        const changed = () => { setShowInvitations(false); void loadAccess(); };
+        window.addEventListener("course-invitations-changed", changed);
+        return () => { active = false; window.clearTimeout(timer); window.removeEventListener("course-invitations-changed", changed); };
+    }, [session]);
 
     const isLoggedIn = !!session?.user;
     const canCreateCourse =
@@ -148,7 +165,9 @@ export default function Header() {
             )}
 
             <nav className="header-account" aria-label="Account navigation">
-                {isLoggedIn ? (
+                {!isLoggedIn && authStatus !== "ready" ? (
+                    <span role="status" className="text-sm text-white">{authStatus === "restoring" ? "Restoring session..." : "Session check unavailable. Reconnect to try again."}</span>
+                ) : isLoggedIn ? (
                     <div className="relative group">
                         <Link
                             href="/profile"
