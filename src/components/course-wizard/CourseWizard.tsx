@@ -104,6 +104,7 @@ export default function CourseWizard({ userId, initialCourseId }: { userId: stri
       } catch (error) {
         if (active !== 0) {
           setError("Some changes could not be saved to the server. Your draft is still available in its step.");
+          if (active === 1) return;
         } else {
           if (!saves.current.has(active) || (error instanceof Error && error.message === "Step 1 did not confirm a saved course.")) {
             setError("The course save was not confirmed. Review Step 1 and try again.");

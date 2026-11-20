@@ -43,7 +43,17 @@ type MapCanvasProps = {
 };
 
 // One-shot camera initialization for the embedded Create Course map only.
-export function createCourseViewportInitializer(map: Pick<mapboxgl.Map, "fitBounds" | "jumpTo">) {
+export function embeddedViewportPadding(width: number, height: number, left: number, right: number) {
+    // Keep a usable viewport even if both mobile panels are open.
+    const horizontal = Math.max(0, width - 64);
+    const requestedLeft = Math.max(20, left + 16);
+    const requestedRight = Math.max(20, right + 16);
+    const scale = Math.min(1, horizontal / (requestedLeft + requestedRight));
+    const verticalScale = Math.min(1, Math.max(0, height - 64) / 200);
+    return { left: requestedLeft * scale, right: requestedRight * scale, top: 120 * verticalScale, bottom: 80 * verticalScale };
+}
+
+export function createCourseViewportInitializer(map: Pick<mapboxgl.Map, "fitBounds" | "jumpTo">, getPadding: () => mapboxgl.PaddingOptions | number = () => 80) {
     let settled = false;
     const coordinate = (lng: unknown, lat: unknown): [number, number] | null =>
         typeof lng === "number" && typeof lat === "number"
@@ -61,13 +71,13 @@ export function createCourseViewportInitializer(map: Pick<mapboxgl.Map, "fitBoun
                 const bounds = new mapboxgl.LngLatBounds(points[0], points[0]);
                 points.forEach(point => bounds.extend(point));
                 settled = true;
-                map.fitBounds(bounds, { padding: 80, maxZoom: 18, duration: 0 });
+                map.fitBounds(bounds, { padding: getPadding(), maxZoom: 18, duration: 0, retainPadding: false });
                 return;
             }
             const center = coordinate(data.longitude, data.latitude);
             if (!center) return;
             settled = true;
-            map.jumpTo({ center, zoom: 17 });
+            map.fitBounds(new mapboxgl.LngLatBounds(center, center), { padding: getPadding(), maxZoom: 17, duration: 0, retainPadding: false });
         },
     };
 }
@@ -160,7 +170,20 @@ export function MapCanvas({
         });
 
         mapRef.current = map;
-        const viewport = initializeCourseViewport ? createCourseViewportInitializer(map) : null;
+        const padding = () => {
+            const rect = map.getContainer().getBoundingClientRect();
+            const parent = ref.current?.parentElement;
+            const overlap = (selector: string, side: "left" | "right") => {
+                const panel = parent?.querySelector<HTMLElement>(selector);
+                if (!panel || !panel.getClientRects().length) return 0;
+                const bounds = panel.getBoundingClientRect();
+                if (bounds.bottom <= rect.top || bounds.top >= rect.bottom) return 0;
+                return Math.max(0, Math.min(rect.width, side === "left" ? bounds.right - rect.left : rect.right - bounds.left));
+            };
+            return embeddedViewportPadding(rect.width, rect.height,
+                overlap(':scope > div[class~="w-64"]', "left"), overlap(':scope > aside', "right"));
+        };
+        const viewport = initializeCourseViewport ? createCourseViewportInitializer(map, padding) : null;
         initialViewportRef.current = viewport;
         initialSelectionSkipped.current = false;
         const container = map.getContainer();
