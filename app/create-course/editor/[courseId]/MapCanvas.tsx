@@ -19,6 +19,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 type EditorMode = "none" | "tee" | "basket" | "points";
 
 type MapCanvasProps = {
+    initializeCourseViewport?: boolean;
     physicalMarkers?: PhysicalMarker[];
     readOnly?: boolean;
     toolsOpen?: boolean;
@@ -41,7 +42,38 @@ type MapCanvasProps = {
     onMoveFeatureVertex: (id: string, index: number, lng: number, lat: number, persist?: boolean) => void;
 };
 
+// One-shot camera initialization for the embedded Create Course map only.
+export function createCourseViewportInitializer(map: Pick<mapboxgl.Map, "fitBounds" | "jumpTo">) {
+    let settled = false;
+    const coordinate = (lng: unknown, lat: unknown): [number, number] | null =>
+        typeof lng === "number" && typeof lat === "number"
+        && Number.isFinite(lng) && Number.isFinite(lat)
+        && Math.abs(lng) <= 180 && Math.abs(lat) <= 90 ? [lng, lat] : null;
+    return {
+        interacted() { settled = true; },
+        update(data: { longitude?: unknown; latitude?: unknown; holes?: { tee_longitude?: unknown; tee_latitude?: unknown; basket_longitude?: unknown; basket_latitude?: unknown }[] } | null | undefined) {
+            if (settled || !data) return;
+            const points = (data.holes ?? []).flatMap(hole => [
+                coordinate(hole.tee_longitude, hole.tee_latitude),
+                coordinate(hole.basket_longitude, hole.basket_latitude),
+            ]).filter((point): point is [number, number] => point !== null);
+            if (points.length) {
+                const bounds = new mapboxgl.LngLatBounds(points[0], points[0]);
+                points.forEach(point => bounds.extend(point));
+                settled = true;
+                map.fitBounds(bounds, { padding: 80, maxZoom: 18, duration: 0 });
+                return;
+            }
+            const center = coordinate(data.longitude, data.latitude);
+            if (!center) return;
+            settled = true;
+            map.jumpTo({ center, zoom: 17 });
+        },
+    };
+}
+
 export function MapCanvas({
+    initializeCourseViewport = false,
     physicalMarkers,
     readOnly = false,
     toolsOpen = false,
@@ -65,6 +97,8 @@ export function MapCanvas({
 }: MapCanvasProps) {
     const ref = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
+    const initialViewportRef = useRef<ReturnType<typeof createCourseViewportInitializer> | null>(null);
+    const initialSelectionSkipped = useRef(false);
 
     const courseRef = useRef<any>(course);
     const selectedHoleRef = useRef<string | null>(selectedHoleId);
@@ -126,6 +160,17 @@ export function MapCanvas({
         });
 
         mapRef.current = map;
+        const viewport = initializeCourseViewport ? createCourseViewportInitializer(map) : null;
+        initialViewportRef.current = viewport;
+        initialSelectionSkipped.current = false;
+        const container = map.getContainer();
+        const interacted = () => viewport?.interacted();
+        if (viewport) {
+            container.addEventListener("pointerdown", interacted);
+            container.addEventListener("wheel", interacted, { passive: true });
+            container.addEventListener("keydown", interacted);
+            viewport.update(courseRef.current);
+        }
 
         map.on("styleimagemissing", (e) => {
             const id = e.id as string;
@@ -960,14 +1005,26 @@ export function MapCanvas({
             });
         });
 
-        return () => map.remove();
+        return () => {
+            container.removeEventListener("pointerdown", interacted);
+            container.removeEventListener("wheel", interacted);
+            container.removeEventListener("keydown", interacted);
+            initialViewportRef.current = null;
+            map.remove();
+        };
     }, []);
 
     useEffect(() => {
         updatePointsRef.current();
-    }, [course, drawingCoordinates, selectedFeatureId]);
+        if (initializeCourseViewport) initialViewportRef.current?.update(course);
+    }, [course, drawingCoordinates, selectedFeatureId, initializeCourseViewport]);
 
     useEffect(() => {
+        // Keep the initial whole-course view; later hole/config selection retains its behavior.
+        if (initializeCourseViewport && !initialSelectionSkipped.current) {
+            initialSelectionSkipped.current = true;
+            return;
+        }
         const map = mapRef.current;
         if (!map) return;
         if (!courseRef.current || !courseRef.current.holes) return;

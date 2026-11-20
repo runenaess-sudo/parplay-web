@@ -168,6 +168,7 @@ export default function CourseEditor({ courseId, embedded = false }: { courseId:
 
                     {/* KARTET (FULLSCREEN UNDER ALT) */}
                     <MapCanvas
+                        initializeCourseViewport={embedded}
                         physicalMarkers={mapMarkers}
                         toolsOpen={toolsOpen}
                         course={course}
