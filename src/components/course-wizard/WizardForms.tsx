@@ -25,7 +25,7 @@ const creationMessages: Record<string, string> = {
   COURSE_UNFINISHED_EXISTS: "Finish or continue your existing unpublished course before creating another. Open My Course Builds to continue.",
   COURSE_CREATION_NOT_ALLOWED: "Your account cannot create this course. Existing course management access is unchanged.",
 };
-export function BasicStep({ initial, userId, courseId, isAdmin, created }: { initial: typeof emptyBasic; userId: string; courseId: string | null; isAdmin: boolean; created: (id: string) => void }) {
+export function BasicStep({ initial, userId, courseId, isAdmin, created }: { initial: typeof emptyBasic; userId: string; courseId: string | null; isAdmin: boolean; created: (id: string, location: { latitude: number | null; longitude: number | null }) => void }) {
   const [value, setValue, markSaved] = useWizardDraft("basic", initial);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -69,7 +69,7 @@ export function BasicStep({ initial, userId, courseId, isAdmin, created }: { ini
         return result.data?.id;
       },
     }).then(id => {
-      idRef.current = id; markSaved(); created(id); saved.current = JSON.stringify(value); setMessage("Basic information saved.");
+      idRef.current = id; markSaved(); created(id, { latitude: validation.latitude, longitude: validation.longitude }); saved.current = JSON.stringify(value); setMessage("Basic information saved.");
       return id;
     }).catch(error => {
       if (error instanceof BasicCourseValidationError) setFieldErrors(error.fields);

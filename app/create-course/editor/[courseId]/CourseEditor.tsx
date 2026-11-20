@@ -57,7 +57,7 @@ function HoleListOverlay({
 /* -------------------------------------------------------
    PAGE COMPONENT
 -------------------------------------------------------- */
-export default function CourseEditor({ courseId, embedded = false, headerActions }: { courseId: string; embedded?: boolean; headerActions?: ReactNode }) {
+export default function CourseEditor({ courseId, embedded = false, headerActions, courseLocation }: { courseId: string; embedded?: boolean; headerActions?: ReactNode; courseLocation?: { latitude: unknown; longitude: unknown } }) {
  const router = useRouter();
 
     const loadedCourse = useCourseEditor((s) => s.course);
@@ -171,7 +171,7 @@ export default function CourseEditor({ courseId, embedded = false, headerActions
                         initializeCourseViewport={embedded}
                         physicalMarkers={mapMarkers}
                         toolsOpen={toolsOpen}
-                        course={course}
+                        course={embedded && courseLocation ? { ...course, ...courseLocation } : course}
                         selectedHoleId={selectedHoleId}
                         mode={mode}
                         onSetTee={setTee}

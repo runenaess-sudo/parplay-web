@@ -42,6 +42,7 @@ export default function CourseWizard({ userId, initialCourseId }: { userId: stri
   const router = useRouter();
   const [courseId, setCourseId] = useState(initialCourseId);
   const [active, setActive] = useState(0);
+  const [savedLocation, setSavedLocation] = useState<{ latitude: number | null; longitude: number | null } | null>(null);
   const [visited, setVisited] = useState<number[]>([0]);
   const [initial, setInitial] = useState<Initial | null>(null);
   const [error, setError] = useState("");
@@ -130,7 +131,8 @@ export default function CourseWizard({ userId, initialCourseId }: { userId: stri
       setBusy(false);
     }
   }
-  const created = (id: string) => {
+  const created = (id: string, location: { latitude: number | null; longitude: number | null }) => {
+    setSavedLocation(location);
     currentId.current = id; setCourseId(id); setDrafts([]);
     const nextScope = `parplay:wizard:${userId}:${id}`;
     if (scope !== nextScope) {
@@ -151,7 +153,7 @@ export default function CourseWizard({ userId, initialCourseId }: { userId: stri
       <fieldset disabled={busy} className={busy ? "pointer-events-none" : ""}>
         {visited.map(index => <Section key={index} index={index} active={active} scope={scope} saves={saves}>
           {index === 0 && <BasicStep initial={initial.basic} userId={userId} courseId={courseId} isAdmin={isAdmin} created={created} />}
-          {index === 1 && (courseId ? <CourseEditor courseId={courseId} embedded headerActions={
+          {index === 1 && (courseId ? <CourseEditor courseId={courseId} embedded courseLocation={savedLocation ?? initial.basic} headerActions={
             <div className="flex items-center gap-2" aria-label="Create Course navigation">
               <span className="hidden text-xs text-slate-400 sm:inline">Create Course / Holes</span>
               <button type="button" disabled={busy} onClick={() => void navigate(0)} className="rounded border border-slate-600 px-3 py-2 text-sm disabled:opacity-50">Back</button>

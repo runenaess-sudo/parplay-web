@@ -12,7 +12,7 @@ import { mountPhysicalMarkers } from './PhysicalPointsMap';
 import type { PhysicalMarker } from '@/lib/physicalCourseMarkers';
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
@@ -53,31 +53,41 @@ export function embeddedViewportPadding(width: number, height: number, left: num
     return { left: requestedLeft * scale, right: requestedRight * scale, top: 120 * verticalScale, bottom: 80 * verticalScale };
 }
 
-export function createCourseViewportInitializer(map: Pick<mapboxgl.Map, "fitBounds" | "jumpTo">, getPadding: () => mapboxgl.PaddingOptions | number = () => 80) {
+export function courseMapCoordinate(lng: unknown, lat: unknown): [number, number] | null {
+    const numeric = (value: unknown) => typeof value === "number" ? value
+        : typeof value === "string" && value.trim() ? Number(value) : NaN;
+    const longitude = numeric(lng), latitude = numeric(lat);
+    return Number.isFinite(longitude) && Number.isFinite(latitude)
+        && Math.abs(longitude) <= 180 && Math.abs(latitude) <= 90 ? [longitude, latitude] : null;
+}
+
+export function createCourseViewportInitializer(
+    map: Pick<mapboxgl.Map, "cameraForBounds" | "jumpTo">,
+    getPadding: () => mapboxgl.PaddingOptions | number = () => 80,
+    ready: () => boolean = () => true,
+) {
     let settled = false;
-    const coordinate = (lng: unknown, lat: unknown): [number, number] | null =>
-        typeof lng === "number" && typeof lat === "number"
-        && Number.isFinite(lng) && Number.isFinite(lat)
-        && Math.abs(lng) <= 180 && Math.abs(lat) <= 90 ? [lng, lat] : null;
     return {
         interacted() { settled = true; },
         update(data: { longitude?: unknown; latitude?: unknown; holes?: { tee_longitude?: unknown; tee_latitude?: unknown; basket_longitude?: unknown; basket_latitude?: unknown }[] } | null | undefined) {
-            if (settled || !data) return;
+            if (settled || !data || !ready()) return;
             const points = (data.holes ?? []).flatMap(hole => [
-                coordinate(hole.tee_longitude, hole.tee_latitude),
-                coordinate(hole.basket_longitude, hole.basket_latitude),
+                courseMapCoordinate(hole.tee_longitude, hole.tee_latitude),
+                courseMapCoordinate(hole.basket_longitude, hole.basket_latitude),
             ]).filter((point): point is [number, number] => point !== null);
-            if (points.length) {
+            const padding = getPadding();
+            if (points.length > 1 && points.some(point => point[0] !== points[0][0] || point[1] !== points[0][1])) {
                 const bounds = new mapboxgl.LngLatBounds(points[0], points[0]);
                 points.forEach(point => bounds.extend(point));
-                settled = true;
-                map.fitBounds(bounds, { padding: getPadding(), maxZoom: 18, duration: 0, retainPadding: false });
-                return;
+                const camera = map.cameraForBounds(bounds, { padding, maxZoom: 18 });
+                if (!camera?.center || !Number.isFinite(camera.zoom)) return;
+                map.jumpTo({ ...camera, padding, retainPadding: false });
+            } else {
+                const center = points[0] ?? courseMapCoordinate(data.longitude, data.latitude);
+                if (!center) return;
+                map.jumpTo({ center, zoom: 17, padding, retainPadding: false });
             }
-            const center = coordinate(data.longitude, data.latitude);
-            if (!center) return;
             settled = true;
-            map.fitBounds(new mapboxgl.LngLatBounds(center, center), { padding: getPadding(), maxZoom: 17, duration: 0, retainPadding: false });
         },
     };
 }
@@ -109,6 +119,11 @@ export function MapCanvas({
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const initialViewportRef = useRef<ReturnType<typeof createCourseViewportInitializer> | null>(null);
     const initialSelectionSkipped = useRef(false);
+    const styleRevisionRef = useRef(0);
+    const paddingRef = useRef<() => mapboxgl.PaddingOptions | number>(() => 80);
+    const [mapType, setMapType] = useState("satellite");
+    const [mapLoading, setMapLoading] = useState(initializeCourseViewport);
+    const [mapError, setMapError] = useState("");
 
     const courseRef = useRef<any>(course);
     const selectedHoleRef = useRef<string | null>(selectedHoleId);
@@ -164,9 +179,9 @@ export function MapCanvas({
 
         const map = new mapboxgl.Map({
             container: ref.current,
-            style: "mapbox://styles/mapbox/satellite-v9",
-            center: [10.5, 60.0],
-            zoom: 14,
+            style: initializeCourseViewport ? "mapbox://styles/mapbox/satellite-streets-v12" : "mapbox://styles/mapbox/satellite-v9",
+            center: initializeCourseViewport ? courseMapCoordinate(courseRef.current?.longitude, courseRef.current?.latitude) ?? [10.5, 60.0] : [10.5, 60.0],
+            zoom: initializeCourseViewport && courseMapCoordinate(courseRef.current?.longitude, courseRef.current?.latitude) ? 17 : 14,
         });
 
         mapRef.current = map;
@@ -183,7 +198,9 @@ export function MapCanvas({
             return embeddedViewportPadding(rect.width, rect.height,
                 overlap(':scope > div[class~="w-64"]', "left"), overlap(':scope > aside', "right"));
         };
-        const viewport = initializeCourseViewport ? createCourseViewportInitializer(map, padding) : null;
+        paddingRef.current = padding;
+        const ready = () => map.isStyleLoaded() && container.clientWidth > 0 && container.clientHeight > 0;
+        const viewport = initializeCourseViewport ? createCourseViewportInitializer(map, padding, ready) : null;
         initialViewportRef.current = viewport;
         initialSelectionSkipped.current = false;
         const container = map.getContainer();
@@ -214,7 +231,22 @@ export function MapCanvas({
             });
         });
 
-        map.on("load", async () => {
+        let disposed = false;
+        let editingHandlersInstalled = false;
+        const refreshInitialViewport = () => {
+            if (viewport && ready()) { map.resize(); viewport.update(courseRef.current); }
+        };
+        const observer = viewport ? new ResizeObserver(refreshInitialViewport) : null;
+        observer?.observe(container);
+        map.on("idle", refreshInitialViewport);
+        map.on("error", () => {
+            if (!disposed && initializeCourseViewport) {
+                setMapError("Map tiles could not be loaded. Check your connection or try another map type.");
+                setMapLoading(false);
+            }
+        });
+        map.on(initializeCourseViewport ? "style.load" : "load", async () => {
+            const revision = ++styleRevisionRef.current;
             const preload: [string, string][] = [
                 ["teepad-icon", "/icons/teepad.png"],
                 ["basket-icon", "/icons/basket_hvit.png"],
@@ -225,7 +257,7 @@ export function MapCanvas({
                 new Promise<void>((resolve) => {
                     if (map.hasImage(id)) return resolve();
                     map.loadImage(src, (err, img) => {
-                        if (!err && img && !map.hasImage(id)) {
+                        if (!disposed && revision === styleRevisionRef.current && !err && img && !map.hasImage(id)) {
                             map.addImage(id, img);
                         }
                         resolve();
@@ -233,6 +265,7 @@ export function MapCanvas({
                 });
 
             await Promise.all(preload.map(([id, src]) => loadIcon(id, src)));
+            if (disposed || revision !== styleRevisionRef.current) return;
 
             const addStripePattern = (id: string, color: [number, number, number, number]) => {
                 if (map.hasImage(id)) return;
@@ -506,6 +539,7 @@ export function MapCanvas({
             });
 
             const updatePoints = () => {
+                if (disposed || !map.getSource("tee-source")) return;
                 const teeFeatures: Feature<Point>[] = [];
                 const basketFeatures: Feature<Point>[] = [];
                 const fairwayFeatures: Feature<Point>[] = [];
@@ -718,6 +752,8 @@ export function MapCanvas({
 
             updatePointsRef.current = updatePoints;
             updatePoints();
+            refreshInitialViewport();
+            if (initializeCourseViewport) { setMapLoading(false); setMapError(""); }
             if (readOnly) {
                 const coords: [number, number][] = (courseRef.current?.holes ?? []).flatMap((h: any) => [[h.tee_longitude,h.tee_latitude], ...(h.fairway ?? []).map((p: any) => [p.lng,p.lat]), [h.basket_longitude,h.basket_latitude]]).filter((p: any) => p.every((v: unknown) => typeof v === "number" && Number.isFinite(v)));
                 if (coords.length) {
@@ -728,6 +764,9 @@ export function MapCanvas({
                 return;
             }
 
+            // Rebuild layers on style changes, but never duplicate editing handlers.
+            if (editingHandlersInstalled) return;
+            editingHandlersInstalled = true;
             map.on("click", (e) => {
                 if (Date.now() < suppressClickUntil.current) return;
                 const holeId = selectedHoleRef.current;
@@ -1029,6 +1068,9 @@ export function MapCanvas({
         });
 
         return () => {
+            disposed = true;
+            styleRevisionRef.current++;
+            observer?.disconnect();
             container.removeEventListener("pointerdown", interacted);
             container.removeEventListener("wheel", interacted);
             container.removeEventListener("keydown", interacted);
@@ -1103,7 +1145,23 @@ export function MapCanvas({
         return()=>{markers.forEach(m=>m.remove());map.off('load',hide);if(readOnly&&map.isStyleLoaded())for(const id of ['tee-layer','basket-layer'])if(map.getLayer(id))map.setLayoutProperty(id,'visibility','visible');};
     },[physicalMarkers,readOnly]);
 
-    return (
+    function goToCourse() {
+        const map = mapRef.current;
+        const center = courseMapCoordinate(courseRef.current?.longitude, courseRef.current?.latitude);
+        if (!map || !center) return;
+        initialViewportRef.current?.interacted();
+        map.jumpTo({ center, zoom: 17, padding: paddingRef.current(), retainPadding: false });
+    }
+    function changeMapType(value: string) {
+        const map = mapRef.current;
+        if (!map) return;
+        initialViewportRef.current?.interacted();
+        updatePointsRef.current = () => {};
+        styleRevisionRef.current++;
+        setMapType(value); setMapLoading(true); setMapError("");
+        map.setStyle(value === "satellite" ? "mapbox://styles/mapbox/satellite-streets-v12" : "mapbox://styles/mapbox/streets-v12", { diff: false, localFontFamily: undefined, localIdeographFontFamily: undefined });
+    }
+    return <>
         <div
             ref={ref}
             style={{
@@ -1114,5 +1172,15 @@ export function MapCanvas({
                 bottom: 0,
             }}
         />
-    );
+        {initializeCourseViewport && <>
+            {mapLoading && <div role="status" className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/30 text-sm text-white">Loading map...</div>}
+            <div className="absolute bottom-4 left-1/2 z-50 flex -translate-x-1/2 flex-wrap justify-center gap-2 rounded-lg bg-slate-950/90 p-2 text-sm text-white">
+                <button type="button" onClick={goToCourse} disabled={!courseMapCoordinate(course.longitude, course.latitude)} className="whitespace-nowrap rounded bg-blue-600 px-3 py-2 disabled:opacity-40">Go to Course</button>
+                <select aria-label="Map type" value={mapType} onChange={event => changeMapType(event.target.value)} className="rounded bg-slate-800 px-2 py-2">
+                    <option value="satellite">Satellite + labels</option><option value="streets">Street map</option>
+                </select>
+                {mapError && <p role="alert" className="w-full max-w-sm text-amber-200">{mapError}</p>}
+            </div>
+        </>}
+    </>;
 }
