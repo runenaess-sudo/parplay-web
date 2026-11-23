@@ -13,7 +13,7 @@ import {
     type HoleFeature,
     type ObLineSide,
 } from "@/types/holeFeatures";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import HoleEditorHelp from "./HoleEditorHelp";
 
 function FeatureDetails({ feature, mandoPartners, originHoleNumber, currentHoleNumber,
@@ -140,6 +140,9 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
 
     const toast = useCourseEditor((s) => s.toast);
     const clearToast = useCourseEditor((s) => s.clearToast);
+    const setToast = useCourseEditor((s) => s.setToast);
+    const creationPending = useRef(false);
+    const [creating, setCreating] = useState(false);
     const [toolsOpen, setToolsOpen] = useState(true);
 
     const hole = course?.holes.find((h: any) => h.id === selectedHoleId);
@@ -174,6 +177,13 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
         };
     })();
 
+    async function addHole() {
+        if (!course || creationPending.current) return;
+        creationPending.current = true; setCreating(true);
+        try { await createNewHole(course.id); }
+        catch { setToast("Could not create a hole. Check your connection and reload before trying again."); }
+        finally { creationPending.current = false; setCreating(false); }
+    }
     if (!course) return null;
 
     return (
@@ -194,6 +204,7 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                     {["tee", "basket", "points", "none"].map((m) => (
                         <button
                             key={m}
+                            disabled={!hole || creating}
                             onClick={() => setMode(m as any)}
                             className={`w-full px-3 py-2 rounded ${mode === m
                                 ? "bg-blue-600"
@@ -310,6 +321,14 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                 </div>
 
                 }
+                {!toolsOnly && <div className="space-y-3 border-t border-white/10 pt-4">
+                    {!hole && <p className="text-sm text-slate-300">{course.holes.length === 0 ? "Create Hole 1 to place its tee, basket, points and features." : "Select a hole to edit it."}</p>}
+                    <button type="button" disabled={creating} onClick={() => void addHole()}
+                        className="w-full rounded bg-green-700 px-3 py-2 font-semibold hover:bg-green-600 disabled:opacity-50">
+                        {creating ? "Creating hole..." : course.holes.length === 0 ? "Create Hole 1" : "Add New Hole"}
+                    </button>
+                </div>}
+                {toolsOnly && !hole && <p className="p-3 text-sm text-slate-300">Create or select a hole to use Features.</p>}
                 {/* Hole info + Save */}
                 {!toolsOnly && hole && (
                     <div className="pt-4 border-t border-white/10 space-y-3">
@@ -345,13 +364,6 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                                     : "–"}
                             </p>
                         </div>
-
-                        <button
-                            onClick={() => createNewHole(course.id)}
-                            className="w-full px-3 py-2 rounded bg-green-700 hover:bg-green-600 font-semibold"
-                        >
-                            Add New Hole
-                        </button>
 
                         <button
                             onClick={() => saveHole(hole.id)}

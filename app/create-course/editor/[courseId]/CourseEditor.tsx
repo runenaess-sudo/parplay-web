@@ -84,6 +84,8 @@ export default function CourseEditor({ courseId, embedded = false, headerActions
     const [weakSelection, setWeakSelection] = useState<{ featureId: string; holeId: string } | null>(null);
     const [toolsOpen, setToolsOpen] = useState(true);
     const [builderOpen, setBuilderOpen] = useState(false);
+    const [loadError, setLoadError] = useState("");
+    const [loadAttempt, setLoadAttempt] = useState(0);
 
     const selectWeakFeature = (featureId: string) => {
         if (selectedHoleId) setWeakSelection({ featureId, holeId: selectedHoleId });
@@ -136,6 +138,9 @@ export default function CourseEditor({ courseId, embedded = false, headerActions
                 {headerActions}
             </div>
 
+            {loadError && <div role="alert" className="shrink-0 bg-red-950 p-3 text-sm text-red-200">
+                {loadError} <button type="button" onClick={() => setLoadAttempt(attempt => attempt + 1)} className="ml-3 underline">Retry loading</button>
+            </div>}
             {/* LOADING */}
             {!course && (
                 <div className="flex flex-1 items-center justify-center text-slate-300">
@@ -217,7 +222,7 @@ export default function CourseEditor({ courseId, embedded = false, headerActions
                 </div>
             )}
 
-            <LoadEditorData courseId={courseId} />
+            <LoadEditorData key={courseId + ":" + loadAttempt} courseId={courseId} onError={setLoadError} />
         </div>
     );
 }

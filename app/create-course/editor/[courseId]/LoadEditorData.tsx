@@ -5,12 +5,15 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { useCourseEditor } from "@/state/useCourseEditor";
 import { useEffect } from "react";
 
-export default function LoadEditorData({ courseId }: { courseId: string }) {
+export default function LoadEditorData({ courseId, onError }: { courseId: string; onError?: (message: string) => void }) {
     const loadAll = useCourseEditor((s) => s.loadAll);
 
     useEffect(() => {
         if (!courseId) return;
 
+        let active = true;
+        onError?.("");
+        const failed = (message: string) => { if (active) onError?.(message); };
         async function load() {
             const { data: course, error: courseError } = await supabaseBrowser
                 .from("courses")
@@ -20,6 +23,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
 
             if (courseError || !course) {
                 console.error("Could not load course", courseError);
+                failed("Course could not be loaded. Check your access or connection, then retry.");
                 return;
             }
 
@@ -31,16 +35,18 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
 
             if (holesError) {
                 console.error("Could not load holes", holesError);
+                failed("Holes could not be loaded. Your saved course has not been changed.");
                 return;
             }
 
             // Keep editor-only metadata, but obtain all playable data from the
             // same default resolver used by runtime. Writes still target holes.
-            const { data: resolved, error: resolvedError } = await supabaseBrowser.rpc(
-                "get_resolved_course_holes_v1", { p_course_id: courseId },
-            );
+            const { data: resolved, error: resolvedError } = (legacyHoles ?? []).length
+                ? await supabaseBrowser.rpc("get_resolved_course_holes_v1", { p_course_id: courseId })
+                : { data: [], error: null };
             if (resolvedError || !Array.isArray(resolved)) {
                 console.error("Could not resolve course holes", resolvedError);
+                failed("Hole configurations could not be loaded. Check your access or connection, then retry.");
                 return;
             }
             const legacyById = new Map((legacyHoles ?? []).map((hole) => [hole.id, hole]));
@@ -63,10 +69,12 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
 
             if (featureResult.error) {
                 console.error("Could not load hole features", featureResult.error);
+                failed("Hole features could not be loaded. Retry before editing.");
                 return;
             }
             if (applicabilityResult.error) {
                 console.error("Could not load effective hole features", applicabilityResult.error);
+                failed("Linked hole features could not be loaded. Retry before editing.");
                 return;
             }
 
@@ -89,6 +97,7 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
                 hole_features: h.features ?? [],
             }));
 
+            if (!active) return;
             loadAll({
                 ...course,
                 canonical_hole_features: canonicalFeatures,
@@ -96,8 +105,9 @@ export default function LoadEditorData({ courseId }: { courseId: string }) {
             });
         }
 
-        load();
-    }, [courseId, loadAll]);
+        void load().catch(() => failed("Course editor could not be loaded. Check your connection, then retry."));
+        return () => { active = false; };
+    }, [courseId, loadAll, onError]);
 
     return null;
 }
