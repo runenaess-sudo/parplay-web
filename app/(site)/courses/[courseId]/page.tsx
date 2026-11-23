@@ -78,7 +78,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             .order("start_date", { ascending: true }).limit(3),
         supabase.rpc("get_public_course_profile_metrics_v1", { p_course_id: courseId }),
         supabase.rpc("get_course_activity_v1", { p_course_id: courseId }),
-        supabase.rpc("get_course_traffic_v2", { p_course_id: courseId, p_day_of_week: null }),
+        supabase.rpc("get_course_traffic_v3", { p_course_id: courseId, p_day_of_week: null }),
         supabase.rpc("get_public_course_leaderboard_v1", {
             p_course_id: courseId, p_period: "total", p_timezone: "UTC", p_offset: 0, p_limit: 20,
         }),
