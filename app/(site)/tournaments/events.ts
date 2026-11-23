@@ -81,7 +81,7 @@ export async function loadEvents(userId: string) {
   if (putting.status === 'fulfilled' && !putting.value.error && Array.isArray(putting.value.data)) {
     for (const day of putting.value.data) {
       try {
-        events.push({key: 'putting:' + day.id, id: day.id, name: day.league_name + ' ? Day ' + day.day_number,
+        events.push({key: 'putting:' + day.id, id: day.id, name: day.league_name + ' - Day ' + day.day_number,
           type: 'putting', status: day.status === 'FINISHED' ? 'finished' : ['IN_PROGRESS', 'READY_TO_FINISH'].includes(day.status) ? 'ongoing' : 'upcoming',
           date: localDate(day.starts_at, day.timezone), location: day.location ?? '', courseName: '',
           country: countryCode(day.country, day.address), latitude: day.latitude, longitude: day.longitude, href: '/tournaments/putting/' + day.id});

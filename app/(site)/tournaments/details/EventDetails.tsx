@@ -15,7 +15,7 @@ export default function EventDetails({id,putting=false,roundId,userId}:{id:strin
   const [c,setC]=useState<Context|null>(null),[error,setError]=useState(''),[revision,setRevision]=useState(0),[tab,setTab]=useState<Tab>('Info');
   useEffect(()=>{let active=true;setC(null);setError('');void context(id,putting,roundId,userId).then(v=>{if(active)setC(v);}).catch(e=>{if(active)setError(fail(e));});return()=>{active=false;};},[id,putting,roundId,userId,revision]);
   const e=c?.event,r=c?.round;
-  const title=c?.kind==='putting'?e?.league_name+' ? Day '+e?.day_number:c?.kind==='league'?e?.name+' ? Round '+r?.round_number:e?.name;
+  const title=c?.kind==='putting'?e?.league_name+' - Day '+e?.day_number:c?.kind==='league'?e?.name+' - Round '+r?.round_number:e?.name;
   const date=c?.kind==='putting'?e?.starts_at:c?.kind==='league'?r?.start_time:e?.start_date;
   return <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
     <Link href="/tournaments" className="text-sm font-semibold text-blue-300 hover:underline">? Back to Events</Link>
