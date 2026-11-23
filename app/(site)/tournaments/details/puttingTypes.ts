@@ -1,0 +1,2 @@
+export type Duel = { walkover?:boolean; duel_status?:'NOT_STARTED'|'IN_PROGRESS'|'FINISHED'|'BYE'|'UNPAIRED'; result?:{player_id:string;hit_points:number|null;match_points:number}[]|null; id: string; class_id: string; kind: 'DUEL' | 'BYE' | 'UNPAIRED'; position: number; players: {player_id: string; slot: number}[] };
+export type Matches = {day_id: string; status: string; max_rounds: number; manager: boolean; revision: number | null; rounds: {id: string; round_number: number; complete?:boolean; status: 'DRAFT'|'PUBLISHED'; duels: Duel[]}[]};

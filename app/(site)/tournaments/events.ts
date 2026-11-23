@@ -46,7 +46,7 @@ export async function loadEvents(userId: string) {
     for (const row of rows.filter(row => row.type !== 'league')) {
       const event: Event = {key: 'tournament:' + row.id, id: row.id, name: row.name, type: 'tournament', status: row.status,
         date: row.start_date, location: row.location ?? '', courseName: '', country: countryCode(row.country),
-        latitude: null, longitude: null, href: '/future/tournaments/' + row.id};
+        latitude: null, longitude: null, href: '/tournaments/' + row.id};
       events.push(event); places.push({courseId: row.course_id, event});
     }
     await Promise.all(rows.filter(row => row.type === 'league').map(async league => {
@@ -59,7 +59,7 @@ export async function loadEvents(userId: string) {
             name: league.name + ' - Round ' + round.round_number, type: 'league', status: round.status,
             date: round.start_time ? localDate(round.start_time, league.timezone || 'UTC') : null,
             location: league.location ?? '', courseName: '', country: countryCode(league.country), latitude: null, longitude: null,
-            href: '/future/tournaments/' + league.id + '?leagueRoundId=' + encodeURIComponent(round.tournament_round_id)};
+            href: '/tournaments/' + league.id + '?leagueRoundId=' + encodeURIComponent(round.tournament_round_id)};
           events.push(event); places.push({courseId: round.course_id, event});
         }
       } catch { errors.push('Rounds for ' + league.name + ' could not be loaded.'); }
@@ -84,7 +84,7 @@ export async function loadEvents(userId: string) {
         events.push({key: 'putting:' + day.id, id: day.id, name: day.league_name + ' ? Day ' + day.day_number,
           type: 'putting', status: day.status === 'FINISHED' ? 'finished' : ['IN_PROGRESS', 'READY_TO_FINISH'].includes(day.status) ? 'ongoing' : 'upcoming',
           date: localDate(day.starts_at, day.timezone), location: day.location ?? '', courseName: '',
-          country: countryCode(day.country, day.address), latitude: day.latitude, longitude: day.longitude, href: null});
+          country: countryCode(day.country, day.address), latitude: day.latitude, longitude: day.longitude, href: '/tournaments/putting/' + day.id});
       } catch { errors.push('A Putting event could not be displayed.'); }
     }
   } else errors.push('Putting events could not be loaded.');
