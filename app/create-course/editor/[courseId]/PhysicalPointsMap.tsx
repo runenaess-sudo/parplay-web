@@ -53,6 +53,10 @@ export function mountPhysicalMarkers(instance: mapboxgl.Map, markers: PhysicalMa
    } else {
      element.append(document.createTextNode(p.kind==='tee'?'TEE':'BASKET'));
    }
+   if(p.kind==='tee' && (publicView || hideBasketLabels)) {
+     Object.assign(element.style,{border:'none',background:'transparent',boxShadow:'none',padding:'0'});
+     element.childNodes.forEach(node=>{if(node.nodeType===3)node.remove();});
+   }
    element.addEventListener('mousedown',e=>e.stopPropagation());
    const marker=new mapboxgl.Marker({element}).setLngLat([p.longitude,p.latitude]).setPopup(new mapboxgl.Popup().setText(p.title)).addTo(instance);
    element.addEventListener('click',e=>{e.stopPropagation();marker.togglePopup();});

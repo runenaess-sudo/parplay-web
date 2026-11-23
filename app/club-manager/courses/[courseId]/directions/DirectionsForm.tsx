@@ -26,7 +26,7 @@ export default function DirectionsForm({ courseId, initialValue }: { courseId: s
         if (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) return setError("Parking longitude must be between -180 and 180.");
         setSaving(true);
         const { error: saveError } = await supabaseBrowser.rpc("upsert_course_directions_v1", { p_course_id: courseId, p_parking_latitude: latitude, p_parking_longitude: longitude, p_parking_description: value.parking_description, p_general_directions: value.general_directions, p_public_transport: value.public_transport, p_walking_path: value.walking_path, p_entrance_description: value.entrance_description });
-        if (saveError) setError("Directions could not be saved. Your changes are still here."); else { setSaved(true); markSaved(); }
+        if (saveError) setError(`Directions could not be saved. Your changes are still here. [${saveError.code || "UNKNOWN"}] ${saveError.message}`); else { setSaved(true); markSaved(); }
         setSaving(false);
     }
     const areaClass = "mt-2 w-full resize-y rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/15";
