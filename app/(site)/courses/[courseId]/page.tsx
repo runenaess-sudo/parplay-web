@@ -1,4 +1,4 @@
-import { PublicLayoutProvider, PublicCourseMap, PublicCourseLayouts, type Layout } from './PublicCourseLayouts';
+import { PublicLayoutProvider, PublicCourseLayouts, type Layout } from './PublicCourseLayouts';
 import CourseFeed from '@/components/community/CourseFeed';
 import { supabaseServer } from "@/lib/supabase-server";
 import Image from "next/image";
@@ -163,14 +163,13 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             </DashboardCard>
 
             <DashboardCard eyebrow="Find your way" title="Location" flush>
-                <PublicCourseMap courseId={course.id} />
                 <div className="p-5">{locationLine && <p className="text-sm text-white/65">{locationLine}</p>}{directionsUrl && <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-bold hover:bg-blue-500">Open in maps ↗</a>}</div>
             </DashboardCard>
         </section>
 
         <div className="mt-14 grid gap-16 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <div className="min-w-0 space-y-16">
-                <PublicCourseLayouts layouts={layouts} />
+                <PublicCourseLayouts layouts={layouts} courseId={course.id} />
 
                 {metrics && <section>
                     <SectionHeading eyebrow="Activity" title="Course stats" />

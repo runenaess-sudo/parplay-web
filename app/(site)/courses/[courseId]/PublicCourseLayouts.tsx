@@ -15,7 +15,7 @@ export function PublicCourseMap({courseId}:{courseId:string}){
  return selected?<CourseConfigurationMap courseId={courseId} layoutId={selected} preview/>:<p className="p-4 text-sm text-gray-400">No public layout available.</p>;
 }
 function meaningfulNumber(value:number|null|undefined){return value!=null&&Number.isFinite(value)&&value>0;}
-export function PublicCourseLayouts({layouts}:{layouts:Layout[]}){
+export function PublicCourseLayouts({layouts,courseId}:{layouts:Layout[];courseId:string}){
  const {selected,setSelected}=useContext(LayoutContext)!;
  return <>                {layouts.length > 0 && <section>
                     <div className="mb-6"><p className="text-xs font-bold uppercase tracking-widest text-blue-300">Play</p><h2 className="mt-2 text-2xl font-bold text-white">Course layouts</h2></div>
@@ -36,6 +36,7 @@ export function PublicCourseLayouts({layouts}:{layouts:Layout[]}){
                         </button>)}
                     </div>
                     <HoleOverview layoutId={selected} />
+                    <div className="mt-6 overflow-hidden rounded-2xl border border-white/10"><PublicCourseMap courseId={courseId} /></div>
                 </section>}</>;
 }
 type Hole={hole_id:string;number:number;order_index:number;par:number|null;distance:number|null};
@@ -52,6 +53,19 @@ function HoleOverview({layoutId}:{layoutId:string}){
   return()=>{active=false;};
  },[layoutId]);
  return <div className="mt-6"><h3 className="mb-3 text-lg font-bold text-white">Hole overview</h3>
- {result?.id!==layoutId?<p className="text-sm text-gray-400">Loading holes...</p>:result.error?<p role="alert" className="text-sm text-amber-200">Hole overview is currently unavailable.</p>:!result.holes.length?<p className="text-sm text-gray-400">No holes in this layout.</p>:<div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{result.holes.map(h=><div key={h.hole_id} className="rounded-xl border border-white/10 bg-white/[0.04] p-4"><p className="font-bold text-white">Hole {h.number}</p><p className="mt-2 text-sm text-gray-300">Par {h.par??'N/A'} <span className="mx-1 text-gray-600">/</span> {h.distance==null?'N/A':h.distance+' m'}</p><p className="mt-1 text-xs text-gray-500">Position {h.order_index}</p></div>)}</div>}
+ {result?.id!==layoutId?<p className="text-sm text-gray-400">Loading holes...</p>:result.error?<p role="alert" className="text-sm text-amber-200">Hole overview is currently unavailable.</p>:!result.holes.length?<p className="text-sm text-gray-400">No holes in this layout.</p>:<div className="space-y-3">{Array.from({length:Math.ceil(result.holes.length/9)},(_,section)=>{
+ const holes=[...result.holes].sort((a,b)=>a.order_index-b.order_index).slice(section*9,section*9+9);
+ return <div key={section} className="overflow-x-auto rounded-xl border border-white/10">
+  <table className="w-full border-collapse text-center text-sm tabular-nums" style={{minWidth:64+holes.length*44}}>
+   <caption className="bg-white/[0.04] px-3 py-2 text-left text-xs font-semibold text-gray-400">Holes {holes[0].number}{holes.length>1 ? ' - '+holes[holes.length-1].number : ''}</caption>
+   <thead className="bg-blue-500/10 text-white"><tr><th scope="col" className="sticky left-0 bg-[#182436] px-3 py-2 text-left text-xs font-medium text-gray-300">Hole</th>{holes.map(h=><th key={h.order_index} scope="col" className="px-2 py-2 font-bold">{h.number}</th>)}</tr></thead>
+   <tbody className="divide-y divide-white/5 bg-white/[0.025] text-gray-200">
+    <tr><th scope="row" className="sticky left-0 bg-[#171e2a] px-3 py-2 text-left text-xs font-medium text-gray-400">Par</th>{holes.map(h=><td key={h.order_index} className="px-2 py-2">{h.par??'N/A'}</td>)}</tr>
+    <tr><th scope="row" className="sticky left-0 bg-[#171e2a] px-3 py-2 text-left text-xs font-medium text-gray-400">Meters</th>{holes.map(h=><td key={h.order_index} className="px-2 py-2">{h.distance??'N/A'}</td>)}</tr>
+   </tbody>
+  </table>
+ </div>;
+})}</div>}
+
  </div>;
 }
