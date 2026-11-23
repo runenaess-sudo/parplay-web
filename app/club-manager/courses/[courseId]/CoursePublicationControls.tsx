@@ -4,8 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-export default function CoursePublicationControls({ courseId, published, ready }: {
-    courseId: string; published: boolean; ready: boolean;
+export default function CoursePublicationControls({ courseId, published, ready, missing }: {
+    courseId: string; published: boolean; ready: boolean; missing: string[];
 }) {
     const router = useRouter();
     const busy = useRef(false);
@@ -29,6 +29,7 @@ export default function CoursePublicationControls({ courseId, published, ready }
             className="rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50">
             {saving ? "Saving..." : published ? "Unpublish Course" : "Publish Course"}
         </button>
+        {!published && missing.length > 0 && <ul className="max-w-lg space-y-1 text-sm text-amber-200">{missing.map(item => <li key={item}>{item}</li>)}</ul>}
         {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
     </div>;
 }

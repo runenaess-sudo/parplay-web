@@ -26,7 +26,7 @@ export default function PhysicalPointsMap({markers,onPlace,hideBasketLabels=fals
   const draw=()=>{
    if(instance.getSource('public-corridors'))return;
    instance.addSource('public-corridors',{type:'geojson',data:corridors});
-   instance.addLayer({id:'public-corridors-fill',type:'fill',source:'public-corridors',paint:{'fill-color':'#fbbf24','fill-opacity':0.12}});
+   instance.addLayer({id:'public-corridors-fill',type:'fill',source:'public-corridors',paint:{'fill-color':'#22c55e','fill-opacity':0.12}});
   };
   if(instance.isStyleLoaded())draw();else instance.on('load',draw);
   return()=>{instance.off('load',draw);if(map.current!==instance)return;if(instance.getLayer('public-corridors-fill'))instance.removeLayer('public-corridors-fill');if(instance.getSource('public-corridors'))instance.removeSource('public-corridors');};
@@ -58,7 +58,7 @@ export function mountPhysicalMarkers(instance: mapboxgl.Map, markers: PhysicalMa
      element.childNodes.forEach(node=>{if(node.nodeType===3)node.remove();});
    }
    element.addEventListener('mousedown',e=>e.stopPropagation());
-   const marker=new mapboxgl.Marker({element}).setLngLat([p.longitude,p.latitude]).setPopup(new mapboxgl.Popup().setText(p.title)).addTo(instance);
+   const marker=new mapboxgl.Marker({element,...(p.kind==='tee' && typeof p.heading==='number' ? {rotation:p.heading,rotationAlignment:'map' as const} : {})}).setLngLat([p.longitude,p.latitude]).setPopup(new mapboxgl.Popup().setText(p.title)).addTo(instance);
    element.addEventListener('click',e=>{e.stopPropagation();marker.togglePopup();});
    return marker;
   });

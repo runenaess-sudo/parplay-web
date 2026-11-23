@@ -80,7 +80,16 @@ export default async function ManageCourseOverview({ params, searchParams }: {
     const layoutDifficulties = layouts.map((layout) => layout.difficulty).filter((value): value is number => value != null);
     const difficultyStatus = layoutDifficulties.length
         ? `${layoutDifficulties.length}/${layouts.length} layouts rated` : "No layout difficulty";
+    const publicationIssues = [
+        !course.name?.trim() ? "Add the course name in Course Details." : null,
+        holeCount === 0 ? "Add and save at least one hole in Holes & Map." : null,
+        layouts.length === 0 ? "Create at least one layout." : null,
+        !course.has_facilities ? "Save Facilities: the required has_facilities flag is not confirmed." : null,
+        !course.has_images ? "Save a course image: the required has_images flag is not confirmed." : null,
+        !course.has_directions ? "Save Directions: the required has_directions flag is not confirmed." : null,
+    ].filter((item): item is string => Boolean(item));
     const attentionItems = [
+        ...publicationIssues,
         holeCount === 0 ? "Add course holes and map positions." : null,
         layouts.length === 0 ? "Create at least one playable layout." : null,
         imageCount === 0 ? "Add a course cover image." : null,
@@ -96,7 +105,7 @@ export default async function ManageCourseOverview({ params, searchParams }: {
             {coverUrl && <div className="absolute inset-y-0 right-0 hidden w-2/5 sm:block"><Image src={coverUrl} alt="" fill sizes="40vw" className="object-cover opacity-45" /><div className="absolute inset-0 bg-gradient-to-r from-[#101725] via-[#101725]/70 to-transparent" /></div>}
             <div className="relative max-w-3xl p-6 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">Course Overview</p><div className="mt-3 flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{course.name}</h1>{course.location && <p className="mt-2 text-gray-300">{course.location}</p>}{clubResult.data?.name && <p className="mt-1 text-sm text-gray-400">{clubResult.data.name}</p>}</div><StatusPill positive={course.is_published}>{course.is_published ? "Published" : "Draft"}</StatusPill></div>
                 <div className="mt-6 flex flex-wrap gap-3"><CoursePublicationControls courseId={course.id} published={course.is_published === true}
-                    ready={Boolean(course.name?.trim() && holeCount > 0 && layouts.length > 0 && course.has_facilities && course.has_images && course.has_directions)} />{course.is_published && <Link href={`/courses/${course.id}`} className="rounded-xl border border-white/15 bg-white/[0.07] px-4 py-2.5 text-sm font-semibold transition hover:bg-white/[0.12]">View public course ↗</Link>}</div>
+                    ready={publicationIssues.length === 0} missing={publicationIssues} />{course.is_published && <Link href={`/courses/${course.id}`} className="rounded-xl border border-white/15 bg-white/[0.07] px-4 py-2.5 text-sm font-semibold transition hover:bg-white/[0.12]">View public course ↗</Link>}</div>
             </div>
         </section>
 
