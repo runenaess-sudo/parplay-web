@@ -10,10 +10,6 @@ export function PublicLayoutProvider({layouts,children}:{layouts:Layout[];childr
  const [selected,setSelected]=useState(()=>layouts.find(l=>l.is_default)?.id??layouts[0]?.id??'');
  return <LayoutContext.Provider value={{selected,setSelected}}>{children}</LayoutContext.Provider>;
 }
-export function PublicCourseMap({courseId}:{courseId:string}){
- const {selected}=useContext(LayoutContext)!;
- return selected?<CourseConfigurationMap courseId={courseId} layoutId={selected} preview/>:<p className="p-4 text-sm text-gray-400">No public layout available.</p>;
-}
 function meaningfulNumber(value:number|null|undefined){return value!=null&&Number.isFinite(value)&&value>0;}
 export function PublicCourseLayouts({layouts,courseId}:{layouts:Layout[];courseId:string}){
  const {selected,setSelected}=useContext(LayoutContext)!;
@@ -35,35 +31,35 @@ export function PublicCourseLayouts({layouts,courseId}:{layouts:Layout[];courseI
                             </div>
                         </button>)}
                     </div>
-                    <HoleOverview layoutId={selected} />
-                    <div className="mt-6 overflow-hidden rounded-2xl border border-white/10"><PublicCourseMap courseId={courseId} /></div>
+                    <HoleOverview layoutId={selected} courseId={courseId} />
                 </section>}</>;
 }
 type Hole={hole_id:string;number:number;order_index:number;par:number|null;distance:number|null};
-function HoleOverview({layoutId}:{layoutId:string}){
+function HoleOverview({layoutId,courseId}:{layoutId:string;courseId:string}){
  const [result,setResult]=useState<{id:string;holes:Hole[];error:boolean}|null>(null);
  useEffect(()=>{
   let active=true;
   void (async()=>{
    try{
     const {data,error}=await supabaseBrowser.rpc('get_public_layout_holes_v1',{p_layout_id:layoutId});
-    if(active)setResult({id:layoutId,holes:!error&&Array.isArray(data)?data:[],error:!!error||!Array.isArray(data)});
+    if(active)setResult({id:layoutId,holes:!error&&Array.isArray(data)?[...data].sort((a,b)=>a.order_index-b.order_index):[],error:!!error||!Array.isArray(data)});
    }catch{if(active)setResult({id:layoutId,holes:[],error:true});}
   })();
   return()=>{active=false;};
  },[layoutId]);
  return <div className="mt-6"><h3 className="mb-3 text-lg font-bold text-white">Hole overview</h3>
  {result?.id!==layoutId?<p className="text-sm text-gray-400">Loading holes...</p>:result.error?<p role="alert" className="text-sm text-amber-200">Hole overview is currently unavailable.</p>:!result.holes.length?<p className="text-sm text-gray-400">No holes in this layout.</p>:<div className="space-y-3">{Array.from({length:Math.ceil(result.holes.length/9)},(_,section)=>{
- const holes=[...result.holes].sort((a,b)=>a.order_index-b.order_index).slice(section*9,section*9+9);
+ const holes=result.holes.slice(section*9,section*9+9);
  return <div key={section} className="overflow-x-auto rounded-xl border border-white/10">
   <table className="w-full border-collapse text-center text-sm tabular-nums" style={{minWidth:64+holes.length*44}}>
-   <caption className="bg-white/[0.04] px-3 py-2 text-left text-xs font-semibold text-gray-400">Holes {holes[0].number}{holes.length>1 ? ' - '+holes[holes.length-1].number : ''}</caption>
-   <thead className="bg-blue-500/10 text-white"><tr><th scope="col" className="sticky left-0 bg-[#182436] px-3 py-2 text-left text-xs font-medium text-gray-300">Hole</th>{holes.map(h=><th key={h.order_index} scope="col" className="px-2 py-2 font-bold">{h.number}</th>)}</tr></thead>
+   <caption className="bg-white/[0.04] px-3 py-2 text-left text-xs font-semibold text-gray-400">Holes {holes[0].order_index}{holes.length>1 ? ' - '+holes[holes.length-1].order_index : ''}</caption>
+   <thead className="bg-blue-500/10 text-white"><tr><th scope="col" className="sticky left-0 bg-[#182436] px-3 py-2 text-left text-xs font-medium text-gray-300">Hole</th>{holes.map(h=><th key={h.order_index} scope="col" className="px-2 py-2 font-bold">{h.order_index}</th>)}</tr></thead>
    <tbody className="divide-y divide-white/5 bg-white/[0.025] text-gray-200">
     <tr><th scope="row" className="sticky left-0 bg-[#171e2a] px-3 py-2 text-left text-xs font-medium text-gray-400">Par</th>{holes.map(h=><td key={h.order_index} className="px-2 py-2">{h.par??'N/A'}</td>)}</tr>
     <tr><th scope="row" className="sticky left-0 bg-[#171e2a] px-3 py-2 text-left text-xs font-medium text-gray-400">Meters</th>{holes.map(h=><td key={h.order_index} className="px-2 py-2">{h.distance??'N/A'}</td>)}</tr>
    </tbody>
   </table>
+ {result?.id===layoutId && !result.error && result.holes.length>0 && <div className="mt-6 overflow-hidden rounded-2xl border border-white/10"><CourseConfigurationMap key={layoutId} courseId={courseId} layoutId={layoutId} layoutHoles={result.holes} preview/></div>}
  </div>;
 })}</div>}
 

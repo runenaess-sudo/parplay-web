@@ -19,11 +19,8 @@ type CourseSummary = {
 
 type CourseCardData = CourseSummary & {
     image: string | null;
-    layoutName: string | null;
+    layouts: number;
     holes: number | null;
-    par: number | null;
-    color: string;
-    rating: number | null;
 };
 
 type UserPosition = { lat: number; lon: number } | null;
@@ -35,7 +32,13 @@ function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
     const a = Math.sin(dLat / 2) ** 2
         + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
         * Math.sin(dLon / 2) ** 2;
-    return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const clamped = Math.min(1, Math.max(0, a));
+    return radius * 2 * Math.atan2(Math.sqrt(clamped), Math.sqrt(1 - clamped));
+}
+
+function validLocation(latitude: number | null, longitude: number | null) {
+    return latitude != null && longitude != null && Number.isFinite(latitude) && Number.isFinite(longitude)
+        && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
 }
 
 export default function CoursesPage() {
@@ -69,12 +72,14 @@ export default function CoursesPage() {
     }, []);
 
     useEffect(() => {
+        if (!navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(
             (position) => setUserPosition({
                 lat: position.coords.latitude,
                 lon: position.coords.longitude,
             }),
-            () => setUserPosition(null)
+            () => setUserPosition(null),
+            { timeout: 10000, maximumAge: 60000 }
         );
     }, []);
 
@@ -86,12 +91,12 @@ export default function CoursesPage() {
                 || course.location?.toLocaleLowerCase().includes(query)
             );
         }
-        if (!userPosition) return [];
+        if (!userPosition) return courses;
         return courses.map((course) => ({
             ...course,
-            distance: course.latitude == null || course.longitude == null
+            distance: !validLocation(course.latitude, course.longitude)
                 ? Number.POSITIVE_INFINITY
-                : distanceKm(userPosition.lat, userPosition.lon, course.latitude, course.longitude),
+                : distanceKm(userPosition.lat, userPosition.lon, course.latitude!, course.longitude!),
         })).sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }, [courses, search, userPosition]);
 
@@ -115,8 +120,8 @@ export default function CoursesPage() {
                     .in("course_id", missingIds)
                     .order("sort_order", { ascending: true }),
                 supabaseBrowser.from("course_layouts")
-                    .select("course_id,name,hole_count,par_total,color,is_default,par_rating")
-                    .in("course_id", missingIds),
+                    .select("id,course_id,hole_count,is_default")
+                    .in("course_id", missingIds).eq("published", true).order("id"),
             ]);
             if (!active) return;
             if (imagesResult.error || layoutsResult.error) {
@@ -128,15 +133,13 @@ export default function CoursesPage() {
             for (const summary of visibleSummaries.filter((course) => missingIds.includes(course.id))) {
                 const image = imagesResult.data?.find((row) => row.course_id === summary.id);
                 const courseLayouts = layoutsResult.data?.filter((row) => row.course_id === summary.id) ?? [];
-                const layout = courseLayouts.find((row) => row.is_default) ?? courseLayouts[0];
+                const layout = courseLayouts.find((row) => row.is_default && row.hole_count != null)
+                    ?? [...courseLayouts].filter(row => row.hole_count != null).sort((a,b) => (b.hole_count ?? 0)-(a.hole_count ?? 0))[0];
                 next[summary.id] = {
                     ...summary,
                     image: image?.image_url ?? null,
-                    layoutName: layout?.name ?? null,
+                    layouts: courseLayouts.length,
                     holes: layout?.hole_count ?? null,
-                    par: layout?.par_total ?? null,
-                    color: layout?.color ?? "#333",
-                    rating: layout?.par_rating ?? null,
                 };
             }
             setDetails((current) => ({ ...current, ...next }));
@@ -147,7 +150,8 @@ export default function CoursesPage() {
     }, [details, visibleSummaries]);
 
     const visibleCourses = visibleSummaries
-        .map((summary) => details[summary.id])
+        .map((summary): CourseCardData | undefined => details[summary.id] ? { ...details[summary.id], distance: userPosition && validLocation(summary.latitude, summary.longitude)
+            ? distanceKm(userPosition.lat, userPosition.lon, summary.latitude!, summary.longitude!) : undefined } : undefined)
         .filter((course): course is CourseCardData => Boolean(course));
     const hasMore = visibleCount < orderedCourses.length;
     const isSearching = search.trim().length > 0;
@@ -162,14 +166,11 @@ export default function CoursesPage() {
 
         <section>
             <h2 className="mb-4 text-2xl font-semibold">
-                {isSearching ? "Search Results" : "Nearby Courses"}
+                {isSearching ? "Search Results" : userPosition ? "Nearby Courses" : "Courses"}
             </h2>
             {loading && <div className="text-gray-400">Loading courses...</div>}
-            {!loading && !isSearching && !userPosition && (
-                <div className="text-gray-400">Allow location access to see nearby courses.</div>
-            )}
             {error && <div className="text-red-300">{error}</div>}
-            {!loading && orderedCourses.length === 0 && (isSearching || userPosition) && (
+            {!loading && orderedCourses.length === 0 && (
                 <div className="text-gray-400">No courses found</div>
             )}
 
@@ -194,20 +195,19 @@ function CourseCard({ course }: { course: CourseCardData }) {
             {course.image && <Image src={course.image} alt={course.name} fill sizes="(max-width: 640px) 100vw, 33vw"
                 className="object-cover transition duration-500 group-hover:scale-105" />}
             <div className="absolute inset-0 bg-black/40 transition group-hover:bg-black/50" />
-            {course.layoutName && <div className="absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold text-white shadow"
-                style={{ backgroundColor: course.color }}>{course.layoutName}</div>}
-            {course.rating != null && <div className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-black shadow">
-                ★ {course.rating}
-            </div>}
             <div className="absolute bottom-3 left-3 text-white drop-shadow">
                 <div className="text-lg font-bold">{course.name}</div>
                 <div className="text-sm opacity-80">{course.location}</div>
             </div>
         </div>
         <div className="bg-neutral-900/70 p-4 text-white backdrop-blur-sm">
-            <div className="flex gap-6 text-sm">
-                {course.holes != null && <span>{course.holes} holes</span>}
-                {course.par != null && <span>Par {course.par}</span>}
+            <div className="flex items-center gap-x-3 whitespace-nowrap text-xs text-gray-300 sm:text-sm">
+                <span>{course.layouts} {course.layouts === 1 ? 'layout' : 'layouts'}</span>
+                <span>{course.holes ?? 'N/A'} holes</span>
+                {course.distance != null && Number.isFinite(course.distance) && <span className="inline-flex items-center gap-1" title="Straight-line distance from your location">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5 shrink-0"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                    {course.distance.toFixed(1)} km
+                </span>}
             </div>
             <div className="mt-4 font-semibold text-blue-300 group-hover:underline">View course →</div>
         </div>
