@@ -70,7 +70,7 @@ export default function Registration({c}:{c:Context}){
   }
   async function changeOptions(){if(locked.current)return;locked.current=true;setBusy(true);setError('');try{await verifyOwner(c);const r=await rpc('get_tournament_class_change_options_v1',{p_event_id:c.id});if(r?.event_id!==c.id||!Array.isArray(r.classes))throw Error('Invalid class options.');setOptions(r);}catch(e){setError(fail(e));}finally{locked.current=false;setBusy(false);}}
   async function changeClass(option:Row){if(locked.current||!options)return;
-    const warning=option.allowed_outcome==='waitlisted'?'This will release your existing place or waitlist position and put you at the back of the selected class waitlist. Continue?':'Change your registered class to '+option.class_code+'?';
+    const warning=option.allowed_outcome==='waitlisted'?'This will release your existing place or waitlist position and put you at the back of the selected class waitlist. Continue?':'Change your registered class to '+option.class_code+"-";
     if(!window.confirm(warning))return;locked.current=true;setBusy(true);setError('');
     try{await verifyOwner(c);await rpc('change_tournament_player_class_v1',{p_event_id:c.id,p_expected_class_code:options.class_code,p_expected_status:options.status,p_new_class_code:option.class_code,p_desired_outcome:option.allowed_outcome});setReload(v=>v+1);}catch(e){setOptions(null);setError(fail(e));}finally{locked.current=false;setBusy(false);}
   }
@@ -87,7 +87,7 @@ export default function Registration({c}:{c:Context}){
       {data.roster?.deadline&&<p className="text-sm text-slate-400">Closes: {new Date(data.roster.deadline).toLocaleString()}</p>}
       {c.kind==='tournament'&&!registered&&data.pass?.active!==true&&<p className="text-amber-200">An active Tournament Pass is required. Manage your pass in ParPlay.</p>}
       {(!registered||c.kind!=='tournament')&&<label className="block max-w-md space-y-2">Class<select className={input} value={selected} disabled={busy||pending} onChange={e=>setSelected(e.target.value)}><option value="">Choose class</option>
-        {data.classes?.filter((v:Row)=>v.active!==false).map((v:Row)=><option key={v.id??v.code} value={c.kind==='tournament'?v.code:v.id} disabled={!eligible(c,data,v)}>{v.code??v.name}{!eligible(c,data,v)?' ? not eligible':''}</option>)}</select></label>}
+        {data.classes?.filter((v:Row)=>v.active!==false).map((v:Row)=><option key={v.id??v.code} value={c.kind==='tournament'?v.code:v.id} disabled={!eligible(c,data,v)}>{v.code??v.name}{!eligible(c,data,v)?" - not eligible":''}</option>)}</select></label>}
       {data.flex&&<label className="block max-w-md space-y-2">Start time<select className={input} value={group} disabled={busy} onChange={e=>setGroup(e.target.value)}><option value="">Choose start time</option>{data.flex.groups.map((g:Row)=><option key={g.id} value={g.id} disabled={!g.selectable||g.members.filter((p:Row)=>p.profile_id!==c.userId).length>=g.capacity}>{g.date_label} {g.time_label} ({g.members.length}/{g.capacity})</option>)}</select></label>}
       <div className="flex flex-wrap gap-3">
         {pending?<button className={button} disabled={busy} onClick={()=>void action('RETRY')}>Retry saved registration action</button>:<>
@@ -98,8 +98,8 @@ export default function Registration({c}:{c:Context}){
         </>}
         <button className={button} disabled={busy} onClick={()=>setReload(v=>v+1)}>Refresh</button>
       </div>
-      {options&&<div className="space-y-3 rounded-xl border border-slate-700 p-4"><p>Select a class. Availability and eligibility are confirmed by the server.</p>{options.classes.map((v:Row)=><button key={v.class_code} className={button+' mr-2 mb-2'} disabled={busy||v.current||!v.eligible||!['registered','waitlisted'].includes(v.allowed_outcome)} onClick={()=>void changeClass(v)}>{v.class_code} ? {v.allowed_outcome??v.reason??'Unavailable'}</button>)}</div>}
+      {options&&<div className="space-y-3 rounded-xl border border-slate-700 p-4"><p>Select a class. Availability and eligibility are confirmed by the server.</p>{options.classes.map((v:Row)=><button key={v.class_code} className={button+' mr-2 mb-2'} disabled={busy||v.current||!v.eligible||!['registered','waitlisted'].includes(v.allowed_outcome)} onClick={()=>void changeClass(v)}>{v.class_code}  - {v.allowed_outcome??v.reason??'Unavailable'}</button>)}</div>}
     </>}
-    {busy&&<p role="status" className="text-blue-200">Confirming with server?</p>}
+    {busy&&<p role="status" className="text-blue-200">Confirming with server...</p>}
   </div>;
 }

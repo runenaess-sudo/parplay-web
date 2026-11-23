@@ -30,7 +30,7 @@ export default function EventsOverview({userId, profileCountry}: {userId: string
   }, [userId, retry]);
   function locate() {
     if (!navigator.geolocation) { setLocationMessage('Location is unavailable. You can still browse all events.'); return; }
-    setLocationMessage('Finding your location?');
+    setLocationMessage("Finding your location...");
     navigator.geolocation.getCurrentPosition(p => {
       setPosition({lat: p.coords.latitude, lng: p.coords.longitude}); setLocationMessage('');
     }, () => { setLocationMessage('Location is unavailable. Distance filtering is disabled.'); }, {timeout: 10000, maximumAge: 300000});
@@ -75,7 +75,7 @@ export default function EventsOverview({userId, profileCountry}: {userId: string
     {(error || data?.errors.length || status === 'finished' && scope === 'my' && data?.membershipError) ? <div role="alert" className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200">
       {error && <p>{error}</p>}{data?.errors.map((message,i) => <p key={i}>{message}</p>)}
       {status === 'finished' && scope === 'my' && data?.membershipError && <p>Your tournament registrations could not be loaded.</p>}{retryButton}</div> : null}
-    {loading ? <p role="status" className="py-12 text-center text-slate-400">Loading events?</p> : <>
+    {loading ? <p role="status" className="py-12 text-center text-slate-400">Loading events...</p> : <>
       <p aria-live="polite" className="text-sm text-slate-400">{events.length} {events.length === 1 ? 'event' : 'events'}</p>
       {!events.length ? <p className="rounded-2xl border border-slate-800 p-10 text-center text-slate-400">No matching events.</p> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {events.map(event => {
@@ -84,8 +84,8 @@ export default function EventsOverview({userId, profileCountry}: {userId: string
             <h2 className="mt-4 text-lg font-bold text-white">{event.name}</h2>
             <p className="mt-2 text-sm text-slate-300">{event.date ? new Intl.DateTimeFormat('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(event.date.slice(0,10) + 'T12:00:00Z')) : 'Date to be announced'}</p>
             {event.courseName && <p className="mt-2 font-medium text-slate-200">{event.courseName}</p>}
-            <p className="mt-1 text-sm text-slate-400">{[event.location, event.country].filter(Boolean).join(' ? ') || 'Location unavailable'}{event.distance !== null ? ' ? ' + Math.round(event.distance) + ' km' : ''}</p>
-            <p className="mt-5 text-sm font-semibold text-blue-300">{event.href ? 'View event ?' : 'Open this event in the ParPlay app'}</p></>;
+            <p className="mt-1 text-sm text-slate-400">{[event.location, event.country].filter(Boolean).join(" - ") || 'Location unavailable'}{event.distance !== null ? " - " + Math.round(event.distance) + ' km' : ''}</p>
+            <p className="mt-5 text-sm font-semibold text-blue-300">{event.href ? "View event ->" : 'Open this event in the ParPlay app'}</p></>;
           const card = 'block h-full rounded-2xl border border-slate-700 bg-slate-900/60 p-5';
           return event.href ? <Link key={event.key} href={event.href} className={card + ' transition hover:border-blue-400/60 hover:bg-slate-800/70'}>{content}</Link> : <article key={event.key} className={card}>{content}</article>;
         })}
