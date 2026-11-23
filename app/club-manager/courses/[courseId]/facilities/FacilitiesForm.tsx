@@ -36,7 +36,8 @@ export default function FacilitiesForm({ courseId, initialValue }: { courseId: s
         if (!courseId) return;
         if (saving) return;
         setSaving(true); setError(null); setSaved(false);
-        const { error: saveError } = await supabaseBrowser.rpc("upsert_course_facilities_v1", {
+        try {
+        const { data: confirmation, error: saveError } = await supabaseBrowser.rpc("upsert_course_facilities_v1", {
             p_course_id: courseId,
             p_toilets: value.toilets, p_water: value.water, p_parking: value.parking, p_kiosk: value.kiosk,
             p_benches: value.benches, p_trashcans: value.trashcans, p_signage: value.signage,
@@ -44,9 +45,15 @@ export default function FacilitiesForm({ courseId, initialValue }: { courseId: s
             p_terrain: value.terrain, p_surface: value.surface, p_opening_hours: value.opening_hours,
             p_description: value.description, p_tee_type: value.tee_type, p_basket_type: value.basket_type,
         });
-        if (saveError) setError("Facilities could not be saved. Your changes are still here.");
-        else { setSaved(true); markSaved(); }
-        setSaving(false);
+        if (saveError) {
+            setError(`Facilities could not be saved. Your changes are still here. [${saveError.code || "UNKNOWN"}] ${saveError.message}`);
+        } else if (!Array.isArray(confirmation) || !confirmation.some(row => row.course_id === courseId)) {
+            setError("Facilities save was not confirmed. Your changes are still here.");
+        } else { setSaved(true); markSaved(); }
+        } catch (cause) {
+            const message = cause instanceof Error ? cause.message : "Unexpected request failure";
+            setError(`Facilities could not be saved. Your changes are still here. ${message}`);
+        } finally { setSaving(false); }
     }
 
     return <div className="mt-6 space-y-6">

@@ -55,12 +55,13 @@ function FeatureDetails({ feature, mandoPartners, originHoleNumber, currentHoleN
             )}
             {feature.feature_type === "MANDO" && (
                 <div className="space-y-2 rounded bg-slate-900/70 p-2">
+                    {mandoSide === "BETWEEN" ? <p className="text-xs text-amber-200">Double Mando - pass between the two markers.</p> : <>
                     <p className="text-xs font-semibold">Required passing side</p>
                     <div className="flex gap-2">
                         <button onClick={() => onMandoSide("LEFT")} className={choiceClass(mandoSide === "LEFT")}>Left</button>
                         <button onClick={() => onMandoSide("RIGHT")} className={choiceClass(mandoSide === "RIGHT")}>Right</button>
                     </div>
-                    <p className="text-[10px] text-neutral-400">For a double mando, select the other mando point. Both points will require passage between them.</p>
+                    <details><summary className="cursor-pointer text-xs text-neutral-400">Pair existing single mandos</summary>
                     <div className="flex gap-2">
                         <select
                             value={mandoPartnerId}
@@ -82,9 +83,7 @@ function FeatureDetails({ feature, mandoPartners, originHoleNumber, currentHoleN
                             Pair
                         </button>
                     </div>
-                    {mandoSide === "BETWEEN" && typeof feature.properties?.group_id === "string" && (
-                        <p className="break-all text-[10px] text-emerald-300">Double mando group: {feature.properties.group_id}</p>
-                    )}
+                    </details></>}
                 </div>
             )}
             {feature.feature_type === "OB_LINE" && (
@@ -119,6 +118,9 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
     const selectedHoleId = useCourseEditor((s) => s.selectedHoleId);
     const mode = useCourseEditor((s) => s.mode);
     const featureTool = useCourseEditor((s) => s.featureTool);
+    const doubleMando = useCourseEditor((s) => s.doubleMando);
+    const mandoSaving = useCourseEditor((s) => s.mandoSaving);
+    const startDoubleMando = useCourseEditor((s) => s.startDoubleMando);
     const drawingCoordinates = useCourseEditor((s) => s.drawingCoordinates);
     const selectedFeatureId = useCourseEditor((s) => s.selectedFeatureId);
 
@@ -243,30 +245,34 @@ export default function EditorPanel({ toolsOnly = false }: { toolsOnly?: boolean
                                 {HOLE_FEATURE_TYPES.map((type) => (
                                     <button
                                         key={type}
+                                        disabled={mandoSaving}
                                         onClick={async () => {
                                             startFeatureTool(type);
                                             if (type === "INFO") await finishFeatureDrawing();
                                         }}
-                                        className={`px-2 py-2 rounded text-xs font-semibold ${featureTool === type
+                                        className={`px-2 py-2 rounded text-xs font-semibold ${featureTool === type && !doubleMando
                                             ? "bg-amber-500 text-black"
                                             : "bg-neutral-800/70 hover:bg-neutral-700/70"}`}
                                     >
-                                        {featureTypeLabel(type)}
+                                        {type === "MANDO" ? "Single Mando" : featureTypeLabel(type)}
                                     </button>
                                 ))}
+                                <button disabled={mandoSaving} onClick={startDoubleMando}
+                                    className={`rounded px-2 py-2 text-xs font-semibold ${doubleMando ? "bg-amber-500 text-black" : "bg-neutral-800/70 hover:bg-neutral-700/70"}`}>Double Mando</button>
                             </div>
 
                             {featureTool && featureTool !== "INFO" && (
                                 <div className="rounded border border-amber-400/40 bg-amber-950/30 p-2 text-xs">
-                                    <p>Click map points for {featureTypeLabel(featureTool)}.</p>
+                                    <p>{doubleMando ? (mandoSaving ? "Saving Double Mando..." : drawingCoordinates.length === 0 ? "Click map to place first mando" : drawingCoordinates.length === 1 ? "Click map to place second mando" : "Save was not confirmed. Retry to finish the pair.") : `Click map points for ${featureTypeLabel(featureTool)}.`}</p>
                                     <p className="mt-1 text-neutral-300">Points: {drawingCoordinates.length}</p>
                                     <div className="mt-2 flex gap-2">
+                                        {doubleMando && drawingCoordinates.length === 2 && !mandoSaving && <button onClick={() => finishFeatureDrawing()} className="flex-1 rounded bg-green-700 px-2 py-1.5">Retry save</button>}
                                         {featureTool !== "MANDO" && featureTool !== "DROPZONE" && (
                                             <button onClick={() => finishFeatureDrawing()} className="flex-1 rounded bg-green-700 px-2 py-1.5">
                                                 Finish
                                             </button>
                                         )}
-                                        <button onClick={cancelFeatureDrawing} className="flex-1 rounded bg-neutral-700 px-2 py-1.5">
+                                        <button disabled={mandoSaving} onClick={cancelFeatureDrawing} className="flex-1 rounded bg-neutral-700 px-2 py-1.5">
                                             Cancel
                                         </button>
                                     </div>

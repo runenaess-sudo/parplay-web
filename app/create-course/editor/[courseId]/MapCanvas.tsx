@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 
+import { mandoPairLines } from "@/lib/mandoPairs";
 import { editableCoordinates, isSharedHoleFeatureType, type HoleFeature, type HoleFeatureType } from "@/types/holeFeatures";
 import {
     buildFairwayCorridor,
@@ -318,7 +319,7 @@ export function MapCanvas({
                 data: { type: "FeatureCollection", features: [] },
             });
 
-            for (const id of ["weak-hole-feature-area-source", "weak-hole-feature-line-source", "hole-feature-area-source", "hole-feature-line-source", "hole-feature-stake-source", "hole-feature-point-source", "hole-feature-vertex-source", "hole-feature-draft-source"]) {
+            for (const id of ["weak-hole-feature-area-source", "weak-hole-feature-line-source", "hole-feature-area-source", "hole-feature-line-source", "hole-feature-stake-source", "hole-feature-point-source", "mando-pair-source", "hole-feature-vertex-source", "hole-feature-draft-source"]) {
                 map.addSource(id, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
             }
 
@@ -496,6 +497,10 @@ export function MapCanvas({
                 type: "circle",
                 source: "hole-feature-stake-source",
                 paint: { "circle-radius": 5, "circle-color": "#ffffff", "circle-stroke-color": "#111827", "circle-stroke-width": 2 },
+            });
+            map.addLayer({
+                id: "mando-pair-layer", type: "line", source: "mando-pair-source",
+                paint: { "line-color": "#fbbf24", "line-width": 2, "line-opacity": 0.8, "line-dasharray": [3, 2] },
             });
             map.addLayer({
                 id: "hole-feature-point-layer",
@@ -740,6 +745,7 @@ export function MapCanvas({
                 (map.getSource("hole-feature-stake-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: stakeFeatures });
                 (map.getSource("hole-feature-point-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: pointFeatures });
                 (map.getSource("hole-feature-vertex-source") as mapboxgl.GeoJSONSource).setData({ type: "FeatureCollection", features: vertexFeatures });
+                (map.getSource("mando-pair-source") as mapboxgl.GeoJSONSource).setData(mandoPairLines(selectedHole ? [selectedHole] : []));
                 const draft = drawingCoordinatesRef.current;
                 const draftFeatures: Feature<Point | LineString>[] = draft.map((coordinate, index) => ({
                     type: "Feature", properties: { index }, geometry: { type: "Point", coordinates: coordinate },

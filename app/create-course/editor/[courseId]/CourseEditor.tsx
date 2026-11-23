@@ -121,10 +121,15 @@ export default function CourseEditor({ courseId, embedded = false, headerActions
                 <div className="flex items-center gap-3">
                     <button
                         hidden={embedded}
-                        onClick={() => router.push("/create-course/edit")}
+                        onClick={async () => {
+                            try {
+                                if (selectedHoleId && !await useCourseEditor.getState().saveHole(selectedHoleId)) return;
+                                router.push(`/club-manager/courses/${courseId}`);
+                            } catch { useCourseEditor.getState().setToast("Could not save hole. Stay here and try again."); }
+                        }}
                         className="text-slate-300 hover:text-white transition text-sm"
                     >
-                        ← Back
+                        ← Back to Main Course Page
                     </button>
 
                     <span className="rounded bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-200">

@@ -17,7 +17,7 @@ export default async function CourseLayoutsPage({ params, searchParams }: {
             <section className="rounded-2xl border border-red-400/20 bg-red-500/10 p-6">
                 <h1 className="text-2xl font-semibold">Layouts</h1>
                 <p className="mt-3 text-gray-300">You do not have access to manage this course.</p>
-                <Link href="/club-manager" className="mt-5 inline-block text-sm font-semibold text-blue-300 transition hover:text-blue-200">Back to Club Manager</Link>
+                <Link href={`/club-manager/courses/${courseId}`} className="mt-5 inline-block text-sm font-semibold text-blue-300 transition hover:text-blue-200">← Back to Main Course Page</Link>
             </section>
         </main>;
     }
@@ -49,7 +49,7 @@ export default async function CourseLayoutsPage({ params, searchParams }: {
     }
 
     return <main className="mx-auto min-h-[70vh] w-full max-w-4xl px-5 py-10 text-white">
-        <Link href={`/club-manager?${managerParams.toString()}`} className="text-sm font-semibold text-blue-300 transition hover:text-blue-200">← Back to Club Manager</Link>
+        <Link href={`/club-manager/courses/${courseId}`} className="text-sm font-semibold text-blue-300 transition hover:text-blue-200">← Back to Main Course Page</Link>
 
         <section className="mt-5 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.03] p-6 shadow-2xl shadow-black/20">
             <div className="flex flex-wrap items-start justify-between gap-4">

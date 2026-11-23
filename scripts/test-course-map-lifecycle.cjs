@@ -17,7 +17,7 @@ function harness({initialize=true,mode="none",featureTool=null,course={id:'cours
  setStyle(style){styles.push(style);this.ready=false;sources.clear();layers.clear();this.images.clear();}
  }
  let refIndex=0;const react={useRef:value=>({current:refIndex++===0?container:value}),useEffect:f=>effects.push(f),useState:init=>[init,value=>updates.push(value)]};
- const m={exports:{}};new Function('require','module','exports',ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText)(n=>n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='mapbox-gl'?{default:{Map:MapMock,LngLatBounds:Bounds}}:{},m,m.exports);
+ const m={exports:{}};new Function('require','module','exports',ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText)(n=>n==='react'?react:n==='react/jsx-runtime'?{jsx,jsxs:jsx}:n==='@/lib/mandoPairs'?{mandoPairLines:()=>({type:'FeatureCollection',features:[]})}:n==='mapbox-gl'?{default:{Map:MapMock,LngLatBounds:Bounds}}:{},m,m.exports);
  const oldWindow=global.window,oldObserver=global.ResizeObserver;global.window={addEventListener(){},removeEventListener(){},innerWidth:1200};global.ResizeObserver=class{observe(){}disconnect(){}};
  const tree=m.exports.MapCanvas({initializeCourseViewport:initialize,readOnly:false,course,selectedHoleId:'hole',mode,featureTool,drawingCoordinates:[],onSetTee:(...args)=>edits.push(['tee',...args]),onSetBasket:(...args)=>edits.push(['basket',...args]),onAddFairwayPoint:(...args)=>edits.push(['points',...args]),onAddFeatureCoordinate:(...args)=>edits.push(['feature',...args])});const cleanup=effects.map(f=>f());
  const emit=async(name)=>{for(const fn of instance.listeners[name]??[])await fn({});};
@@ -43,3 +43,5 @@ test('Tee, Basket, Points and Features retain the same click behavior after map 
   }finally{h.close();}
  }
 });
+
+test('Mando tool forwards both map clicks without installing another click handler',async()=>{const h=harness({mode:'none',featureTool:'MANDO'});try{h.instance.ready=true;await h.emit('style.load');for(const lng of [11.34,11.35])h.instance.listeners.click[0]({lngLat:{lng,lat:59.13},point:{x:10,y:10}});assert.deepEqual(h.edits,[['feature',11.34,59.13],['feature',11.35,59.13]]);}finally{h.close();}});

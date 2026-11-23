@@ -19,7 +19,13 @@ import { create } from "zustand";
 
 type EditorMode = "none" | "tee" | "basket" | "points";
 
+type MandoDraft = { courseId: string; holeId: string; configId: string; groupId: string; features: HoleFeature[]; created: number };
 type CourseEditorState = {
+    doubleMando: boolean;
+    mandoSaving: boolean;
+    mandoDraft: MandoDraft | null;
+    startDoubleMando: () => void;
+    finishDoubleMando: () => Promise<void>;
     course: any | null;
     selectedHoleId: string | null;
     mode: EditorMode;
@@ -42,7 +48,7 @@ type CourseEditorState = {
     selectFeature: (id: string | null) => void;
     updateFeatureComment: (id: string, description: string) => Promise<void>;
     setMandoPassSide: (id: string, passSide: MandoPassSide) => Promise<void>;
-    pairMandos: (id: string, partnerId: string) => Promise<void>;
+    pairMandos: (id: string, partnerId: string, groupId?: string) => Promise<boolean>;
     setObLineSide: (id: string, obSide: ObLineSide) => Promise<void>;
     updateFeatureGeometry: (id: string, geometry: HoleFeatureGeometry, persist?: boolean) => Promise<void>;
     moveFeatureVertex: (id: string, index: number, lng: number, lat: number, persist?: boolean) => Promise<void>;
@@ -75,6 +81,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     drawingCoordinates: [],
     selectedFeatureId: null,
     featureLinkPending: false,
+    doubleMando: false, mandoSaving: false, mandoDraft: null,
 
     toast: null,
     setToast: (msg) => set({ toast: msg }),
@@ -84,11 +91,14 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         console.log("LOAD ALL COURSE DATA:", courseData);
         set({
             course: courseData,
+            ...(get().doubleMando ? { featureTool: null, drawingCoordinates: [] } : {}),
+            doubleMando: false, mandoDraft: null,
             selectedHoleId: courseData.holes[0]?.id ?? null,
         });
     },
 
     setSelectedHole: async (holeId) => {
+        if (get().mandoSaving) return;
         const prevHoleId = get().selectedHoleId;
 
         console.log("SET SELECTED HOLE:", { prevHoleId, newHoleId: holeId });
@@ -98,10 +108,11 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             await get().saveHole(prevHoleId);
         }
 
-        set({ selectedHoleId: holeId, selectedFeatureId: null, featureTool: null, drawingCoordinates: [] });
+        set({ doubleMando: false, mandoDraft: null, selectedHoleId: holeId, selectedFeatureId: null, featureTool: null, drawingCoordinates: [] });
     },
 
     setMode: async (mode) => {
+        if (get().mandoSaving) return;
         const prevMode = get().mode;
         const holeId = get().selectedHoleId;
 
@@ -112,36 +123,85 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             await get().saveHole(holeId);
         }
 
-        set({ mode, featureTool: null, drawingCoordinates: [], selectedFeatureId: null });
+        set({ doubleMando: false, mandoDraft: null, mode, featureTool: null, drawingCoordinates: [], selectedFeatureId: null });
     },
 
-    startFeatureTool: (type) => set({
+    startFeatureTool: (type) => { if (get().mandoSaving) return; set({
+        doubleMando: false, mandoDraft: null,
         featureTool: type,
         drawingCoordinates: [],
         selectedFeatureId: null,
         mode: "none",
-    }),
+    }); },
 
-    cancelFeatureDrawing: () => set({ featureTool: null, drawingCoordinates: [] }),
+    cancelFeatureDrawing: () => { if (!get().mandoSaving) set({ featureTool: null, drawingCoordinates: [], doubleMando: false, mandoDraft: null }); },
 
-    selectFeature: (id) => set({
+    selectFeature: (id) => { if (get().mandoSaving) return; set({
+        doubleMando: false, mandoDraft: null,
         selectedFeatureId: id,
         featureTool: null,
         drawingCoordinates: [],
         mode: "none",
-    }),
+    }); },
 
+    startDoubleMando: () => {
+        if (get().mandoSaving) return;
+        set({ featureTool: "MANDO", doubleMando: true, mandoDraft: null, drawingCoordinates: [], selectedFeatureId: null, mode: "none" });
+    },
+    finishDoubleMando: async () => {
+        const state = get();
+        if (state.mandoSaving || !state.doubleMando || state.drawingCoordinates.length !== 2) return;
+        const hole = state.course?.holes.find((h: any) => h.id === state.selectedHoleId);
+        if (!hole?.play_config_id) { state.setToast("Save Main before adding features."); return; }
+        const request: MandoDraft = state.mandoDraft ?? {
+            courseId: state.course.id, holeId: hole.id, configId: hole.play_config_id,
+            groupId: crypto.randomUUID(), created: 0,
+            features: state.drawingCoordinates.map((coordinates, index) => ({
+                id: crypto.randomUUID(), hole_id: hole.id, origin_hole_id: hole.id, applicable_hole_ids: [hole.id],
+                feature_type: "MANDO", geometry: { type: "Point", coordinates },
+                properties: {}, description: null, sort_order: (hole.hole_features ?? []).length + index,
+            })),
+        };
+        set({ mandoSaving: true, mandoDraft: request });
+        try {
+            for (; request.created < 2; request.created++) {
+                if (get().course?.id !== request.courseId) throw new Error("Course changed");
+                const feature = request.features[request.created];
+                const { error } = await supabaseBrowser.rpc('create_play_config_feature_v5', {
+                    p_feature_id: feature.id, p_hole_id: request.holeId, p_config_ids: [request.configId],
+                    p_feature: { feature_type: "MANDO", geometry: feature.geometry, properties: {}, description: null, sort_order: feature.sort_order },
+                });
+                if (error) throw error;
+                if (get().course?.id !== request.courseId) throw new Error("Course changed");
+                set(current => ({ course: { ...current.course,
+                    holes: current.course.holes.map((h: any) => h.id === request.holeId ? { ...h,
+                        hole_features: [...(h.hole_features ?? []).filter((f: HoleFeature) => f.id !== feature.id), feature] } : h),
+                    canonical_hole_features: [...(current.course.canonical_hole_features ?? []).filter((f: HoleFeature) => f.id !== feature.id), feature],
+                } }));
+            }
+            if (get().course?.id !== request.courseId || !await get().pairMandos(request.features[0].id, request.features[1].id, request.groupId)) throw new Error("Pair not confirmed");
+            if (get().mandoDraft === request) set({ doubleMando: false, mandoDraft: null, drawingCoordinates: [], featureTool: null, selectedFeatureId: request.features[0].id });
+        } catch {
+            get().setToast("Double mando was not confirmed. Retry to finish the pair. Unpaired saved points remain single mandos.");
+        } finally { set({ mandoSaving: false }); }
+    },
     addFeatureCoordinate: async (lng, lat) => {
         const { featureTool, selectedHoleId, drawingCoordinates } = get();
         if (!featureTool || !selectedHoleId || featureTool === "INFO") return;
+        if (get().mandoSaving || (get().doubleMando && drawingCoordinates.length >= 2)) return;
         const next = [...drawingCoordinates, [lng, lat] as [number, number]];
         set({ drawingCoordinates: next });
+        if (featureTool === "MANDO" && get().doubleMando) {
+            if (next.length === 2) await get().finishDoubleMando();
+            return;
+        }
         if (featureTool === "MANDO" || featureTool === "DROPZONE") {
             await get().finishFeatureDrawing();
         }
     },
 
     finishFeatureDrawing: async () => {
+        if (get().doubleMando) { await get().finishDoubleMando(); return; }
         const { featureTool, selectedHoleId, drawingCoordinates, course } = get();
         if (!featureTool || !selectedHoleId || !course) return;
 
@@ -254,10 +314,10 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         get().setToast("Mando side saved");
     },
 
-    pairMandos: async (id, partnerId) => {
-        if (!id || !partnerId || id === partnerId) return;
+    pairMandos: async (id, partnerId, existingGroupId) => {
+        if (!id || !partnerId || id === partnerId) return false;
         const { course } = get();
-        if (!course) return;
+        if (!course) return false;
         const features = course.holes.flatMap((hole: any) => hole.hole_features ?? []) as HoleFeature[];
         const first = features.find((item) => item.id === id);
         const second = features.find((item) => item.id === partnerId);
@@ -265,9 +325,9 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             !first || !second ||
             first.feature_type !== "MANDO" || second.feature_type !== "MANDO" ||
             first.hole_id !== second.hole_id
-        ) return;
+        ) return false;
 
-        const groupId = crypto.randomUUID();
+        const groupId = existingGroupId ?? crypto.randomUUID();
         const firstProperties = { ...(first.properties ?? {}), pass_side: "BETWEEN", group_id: groupId };
         const secondProperties = { ...(second.properties ?? {}), pass_side: "BETWEEN", group_id: groupId };
         const { error } = await supabaseBrowser.from("hole_features").upsert([
@@ -285,9 +345,11 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
         if (error) {
             console.error("Failed to pair mando points", error);
             get().setToast("Error saving double mando");
-            return;
+            return false;
         }
-        const holes = course.holes.map((hole: any) => ({
+        const latest = get().course;
+        if (latest?.id !== course.id) return false;
+        const holes = latest.holes.map((hole: any) => ({
             ...hole,
             hole_features: (hole.hole_features ?? []).map((item: HoleFeature) => {
                 if (item.id === id) return { ...item, properties: firstProperties };
@@ -296,8 +358,8 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             }),
         }));
         set({ course: {
-            ...course,
-            canonical_hole_features: (course.canonical_hole_features ?? []).map((feature: HoleFeature) => {
+            ...latest,
+            canonical_hole_features: (latest.canonical_hole_features ?? []).map((feature: HoleFeature) => {
                 if (feature.id === id) return { ...feature, properties: firstProperties };
                 if (feature.id === partnerId) return { ...feature, properties: secondProperties };
                 return feature;
@@ -305,6 +367,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             holes,
         } });
         get().setToast("Double mando saved");
+        return true;
     },
 
     setObLineSide: async (id, obSide) => {
@@ -561,6 +624,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
     },
 
     saveHole: async (holeId: string) => {
+        if (get().mandoSaving) { get().setToast("Wait for Double Mando saving to finish."); return false; }
         console.log("SAVE HOLE TRIGGERED:", holeId);
 
         const { course } = get();
@@ -632,8 +696,7 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
             const { data: saved, error: parError } = await supabaseBrowser.from("holes")
                 .update({ par: hole.holePar }).eq("id", holeId).select("id,par").single();
             if (parError || !saved) { get().setToast("Error saving hole par"); return false; }
-            set(state => ({ course: { ...state.course, holes: state.course.holes.map((h: any) =>
-                h.id === holeId && h.holePar === saved.par ? { ...h, holeParDirty: false } : h) } }));
+            // Keep the draft dirty until the configuration write also succeeds.
         }
 
         if (hole.play_config_id) {
@@ -648,13 +711,15 @@ export const useCourseEditor = create<CourseEditorState>((set, get) => ({
                 || sharedMove(basket, payload.basket_latitude, payload.basket_longitude, basketElevation);
             if (confirmation && !window.confirm('Move shared physical object? This changes every current variation using it. Played rounds retain their original geometry.')) return false;
             const { error } = await supabaseBrowser.rpc('save_hole_variant_draft_v5', {
-                p_hole_id: holeId, p_config: { ...option, label: option.label || 'Main', par: hole.par,
+                p_hole_id: holeId, p_config: { ...option, label: option.label || 'Main', par: option.is_default && hole.holeParDirty ? hole.holePar : hole.par,
                     distance: payload.distance, fairway: payload.fairway, tee_angle: payload.tee_angle, elevation_diff: payload.elevation_diff },
                 p_tee: { label: tee.label || 'Main', latitude: payload.tee_latitude, longitude: payload.tee_longitude, elevation: teeElevation },
                 p_basket: { label: basket.label || 'Main', latitude: payload.basket_latitude, longitude: payload.basket_longitude, elevation: basketElevation },
                 p_confirm_shared: confirmation,
             });
             if (error) { get().setToast(error.message); return false; }
+            if (hole.holeParDirty) set(state => ({ course: { ...state.course, holes: state.course.holes.map((h: any) =>
+                h.id === holeId && h.holePar === hole.holePar ? { ...h, holeParDirty: false } : h) } }));
             const { data: resolved, error: resolveError } = await supabaseBrowser.rpc('resolve_hole_play_config_v1', { p_hole_id: holeId, p_preview_config_id: option.id });
             if (!resolveError) set({ course: { ...get().course, holes: get().course.holes.map((h: any) => h.id === holeId
                 ? { ...h, ...resolved, ...(option.is_default ? { holePar: resolved.par } : {}), hole_features: resolved.features } : h) } });
